@@ -31,6 +31,7 @@ import time
 import asyncio
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple, Union
 import urllib.request
 import urllib.error
@@ -39,6 +40,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from zoneinfo import ZoneInfo
 
 import httpx
+import joblib
+import numpy as np
 
 try:
     from .ingestion.lightning import get_lightning_feed
@@ -56,6 +59,39 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("VayuGatiNowcast")
+
+MODEL_FEATURES = [
+    "reflectivity_dbz",
+    "cape_jkg",
+    "cloud_top_temp_c",
+    "lightning_rate_pm",
+    "wind_shear_knots",
+    "pwat_mm",
+]
+MODEL_LABELS = {0: "INFO", 1: "WATCH", 2: "WARNING", 3: "SEVERE"}
+ML_MODEL_PATH = Path(__file__).resolve().parent / "ml" / "saved_models" / "convective_risk_gb.pkl"
+ML_CATALOGUE_PATH = Path(__file__).resolve().parent / "ml" / "event_catalogue.json"
+_MODEL_CACHE: Optional[Any] = None
+
+
+def _load_ml_model() -> Optional[Any]:
+    global _MODEL_CACHE
+    if _MODEL_CACHE is not None:
+        return _MODEL_CACHE
+    if not ML_MODEL_PATH.exists():
+        logger.warning("No trained ML model artifact found at %s; using heuristic inference fallback.", ML_MODEL_PATH)
+        return None
+    try:
+        _MODEL_CACHE = joblib.load(ML_MODEL_PATH)
+        if hasattr(_MODEL_CACHE, "predict_proba"):
+            logger.info("Loaded trained model artifact from %s", ML_MODEL_PATH)
+            return _MODEL_CACHE
+        logger.warning("Loaded artifact existed but did not expose predict_proba; using heuristic fallback.")
+        return None
+    except Exception as exc:  # pragma: no cover - safety fallback for cold start
+        logger.warning("Could not load trained model artifact: %s", exc)
+        return None
+
 
 # ==============================================================================
 # FASTAPI & PYDANTIC CONDITIONAL IMPORTS / SHIMS
@@ -475,42 +511,57 @@ def predict_cell_severity(
     reflectivity: float,
     cape: float,
     lightning_rate: float,
-    cloud_top_cooling_rate: float
+    cloud_top_cooling_rate: float,
+    cloud_top_temp_c: Optional[float] = None,
+    wind_shear_knots: Optional[float] = None,
+    pwat_mm: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """
-    Probabilistic Convective Risk Classifier implementing an XGBoost multi-class formulation
-    calibrated against IMD Doppler Weather Radar (DWR) datasets and INSAT-3DR rapid-scan infrared imagery:
-
-    Features:
-      - reflectivity: Max Radar Core Reflectivity (dBZ) [Typical range: 25 - 68 dBZ]
-      - cape: Convective Available Potential Energy (J/kg) [Typical range: 500 - 4500 J/kg]
-      - lightning_rate: Total stroke density (flashes/min) [Typical range: 0 - 90/min]
-      - cloud_top_cooling_rate: Satellite TIR1 rate of temperature decrease (°C / 15min)
-                               [Negative values indicate vigorous updraft ascent, e.g. -4.5 °C/15m]
-
-    Returns:
-      risk_level: 'LOW' | 'MODERATE' | 'HIGH' | 'SEVERE'
-      probabilities: Dict mapping each class to normalized probability (sum = 1.0)
-      confidence: float (highest class probability)
-      primary_driver: Detailed physical meteorology explanation
-      shap_summary: Feature contributions toward the chosen decision class
-    """
-    # Defensive clamping to meteorological physical boundaries
+    """Predict convective severity using the trained gradient-boosted model when available."""
     dbz = max(10.0, min(80.0, float(reflectivity)))
     c_cape = max(0.0, min(6500.0, float(cape)))
     l_rate = max(0.0, min(200.0, float(lightning_rate)))
     cooling = min(5.0, max(-15.0, float(cloud_top_cooling_rate)))
+    cloud_top_temp = float(cloud_top_temp_c) if cloud_top_temp_c is not None else (-cooling * 16.0)
+    shear = float(wind_shear_knots) if wind_shear_knots is not None else 20.0
+    pwat = float(pwat_mm) if pwat_mm is not None else 40.0
 
-    # Compute raw logit margins (z_k) across the 4 classes mimicking trained gradient boosted decision trees:
-    # Classes: 0: LOW, 1: MODERATE, 2: HIGH, 3: SEVERE
+    model = _load_ml_model()
+    if model is not None and hasattr(model, "predict_proba"):
+        feature_vector = np.array([[dbz, c_cape, cloud_top_temp, l_rate, shear, pwat]], dtype=float)
+        probabilities = model.predict_proba(feature_vector)[0]
+        predicted_index = int(np.argmax(probabilities))
+        predicted_label = MODEL_LABELS.get(predicted_index, "INFO")
+        probability_map = {MODEL_LABELS[i]: round(float(p), 4) for i, p in enumerate(probabilities)}
+        feature_importance = getattr(model, "feature_importances_", None)
+        shap_summary = {}
+        if feature_importance is not None:
+            shap_summary = {
+                feature: round(float(score), 4)
+                for feature, score in zip(MODEL_FEATURES, feature_importance)
+            }
+        return {
+            "risk_level": predicted_label,
+            "confidence": round(float(np.max(probabilities)), 4),
+            "probabilities": probability_map,
+            "primary_driver": f"Trained gradient-boosted severity model selected {predicted_label} based on radar, CAPE, lightning, cloud-top, and moisture signatures.",
+            "features_evaluated": {
+                "reflectivity_dbz": dbz,
+                "cape_j_kg": c_cape,
+                "cloud_top_temp_c": cloud_top_temp,
+                "lightning_rate_per_min": l_rate,
+                "wind_shear_knots": shear,
+                "pwat_mm": pwat,
+            },
+            "shap_summary": shap_summary,
+            "model_version": getattr(model, "__class__", type(model)).__name__,
+        }
 
-    # Baseline class log-odds
+    # Fallback to the original heuristic implementation when the artifact is absent during cold starts.
     z_low = 1.2
     z_mod = 0.5
     z_high = -0.8
     z_severe = -2.2
 
-    # Tree Splits - Reflectivity (Core hydrometeor loading)
     if dbz >= 52.0:
         z_severe += 3.2
         z_high += 1.8
@@ -532,7 +583,6 @@ def predict_cell_severity(
         z_high -= 1.8
         z_severe -= 3.2
 
-    # Tree Splits - CAPE (Thermodynamic buoyancy)
     if c_cape >= 2800.0:
         z_severe += 2.2
         z_high += 1.5
@@ -546,7 +596,6 @@ def predict_cell_severity(
         z_severe -= 1.8
         z_high -= 1.0
 
-    # Tree Splits - Lightning Stroke Rate (Electrification & mixed-phase graupel vigor)
     if l_rate >= 45.0:
         z_severe += 2.8
         z_high += 1.6
@@ -559,8 +608,6 @@ def predict_cell_severity(
         z_low += 1.2
         z_severe -= 1.5
 
-    # Tree Splits - Cloud Top Cooling Rate (Satellite Rapid Updraft Intensification)
-    # Intense cooling (< -2.5 °C/15m) denotes explosive cloudburst / supercell overshooting top
     if cooling <= -3.0:
         z_severe += 2.5
         z_high += 1.7
@@ -570,12 +617,10 @@ def predict_cell_severity(
         z_severe += 0.7
         z_low -= 0.8
     elif cooling >= 0.5:
-        # Warming cloud tops indicate cell decay / dissipation
         z_low += 1.5
         z_severe -= 2.0
         z_high -= 1.2
 
-    # Softmax normalization: P_i = exp(z_i) / sum(exp(z_j))
     max_z = max(z_low, z_mod, z_high, z_severe)
     exp_low = math.exp(z_low - max_z)
     exp_mod = math.exp(z_mod - max_z)
@@ -587,45 +632,22 @@ def predict_cell_severity(
     p_mod = exp_mod / sum_exp
     p_high = exp_high / sum_exp
     p_sev = exp_sev / sum_exp
-
-    probs = {
-        "LOW": round(p_low, 4),
-        "MODERATE": round(p_mod, 4),
-        "HIGH": round(p_high, 4),
-        "SEVERE": round(p_sev, 4)
-    }
-
-    # Determine winning class
+    probs = {"LOW": round(p_low, 4), "MODERATE": round(p_mod, 4), "HIGH": round(p_high, 4), "SEVERE": round(p_sev, 4)}
     classes = [("LOW", p_low), ("MODERATE", p_mod), ("HIGH", p_high), ("SEVERE", p_sev)]
     classes.sort(key=lambda x: x[1], reverse=True)
     predicted_class, top_prob = classes[0]
-
-    # Synthesize meteorological attribution driver & SHAP explainability proxy
     drivers = []
     if dbz >= 52.0:
         drivers.append(f"Extreme core reflectivity ({dbz:.1f} dBZ) indicating hail/heavy precipitation core")
     elif dbz >= 42.0:
         drivers.append(f"Strong convective radar echo ({dbz:.1f} dBZ)")
-
     if c_cape >= 2500.0:
         drivers.append(f"High atmospheric buoyancy (CAPE {c_cape:.0f} J/kg)")
     if l_rate >= 35.0:
         drivers.append(f"Rapid lightning stroke rate ({l_rate:.0f} fl/min) signalling intense mixed-phase charge separation")
     if cooling <= -2.5:
         drivers.append(f"Rapid cloud-top cooling ({cooling:.1f}°C/15m) indicating vigorous vertical updraft")
-
-    if not drivers:
-        primary_driver = "Sub-critical convective indices across radar and thermodynamic soundings."
-    else:
-        primary_driver = "; ".join(drivers) + "."
-
-    # Feature contribution breakdown
-    shap_summary = {
-        "reflectivity_impact": round((dbz - 35.0) * 0.08, 3),
-        "cape_impact": round((c_cape - 1500.0) * 0.0007, 3),
-        "lightning_impact": round((l_rate - 12.0) * 0.04, 3),
-        "cloud_cooling_impact": round((-cooling - 1.0) * 0.35, 3)
-    }
+    primary_driver = "; ".join(drivers) + "." if drivers else "Sub-critical convective indices across radar and thermodynamic soundings."
 
     return {
         "risk_level": predicted_class,
@@ -636,10 +658,18 @@ def predict_cell_severity(
             "reflectivity_dbz": dbz,
             "cape_j_kg": c_cape,
             "lightning_rate_per_min": l_rate,
-            "cloud_top_cooling_rate_c_per_15m": cooling
+            "cloud_top_cooling_rate_c_per_15m": cooling,
+            "cloud_top_temp_c": cloud_top_temp,
+            "wind_shear_knots": shear,
+            "pwat_mm": pwat,
         },
-        "shap_summary": shap_summary,
-        "model_version": "vayu-xgboost-imd-v2.6"
+        "shap_summary": {
+            "reflectivity_impact": round((dbz - 35.0) * 0.08, 3),
+            "cape_impact": round((c_cape - 1500.0) * 0.0007, 3),
+            "lightning_impact": round((l_rate - 12.0) * 0.04, 3),
+            "cloud_cooling_impact": round((-cooling - 1.0) * 0.35, 3)
+        },
+        "model_version": "heuristic-fallback-v2.6",
     }
 
 
@@ -1054,28 +1084,90 @@ async def get_instability_index(
         )
 
 
+@app.get("/api/v1/verification-metrics")
+def get_verification_metrics():
+    """Meteorological verification metrics derived from historical severe-weather events."""
+    try:
+        if not ML_CATALOGUE_PATH.exists():
+            raise FileNotFoundError(f"Historical verification catalogue not found at {ML_CATALOGUE_PATH}")
+        events = json.loads(ML_CATALOGUE_PATH.read_text(encoding="utf-8"))
+        hits = misses = false_alarms = true_negatives = 0
+        for event in events:
+            observed = str(event.get("observed_severity", "INFO")).upper()
+            observed_positive = observed in {"WATCH", "WARNING", "SEVERE"}
+            feature_payload = {
+                "reflectivity_dbz": float(event.get("reflectivity_dbz", 0.0)),
+                "cape_jkg": float(event.get("cape_jkg", 0.0)),
+                "cloud_top_temp_c": float(event.get("cloud_top_temp_c", -30.0)),
+                "lightning_rate_pm": float(event.get("lightning_rate_pm", 0.0)),
+                "wind_shear_knots": float(event.get("wind_shear_knots", 20.0)),
+                "pwat_mm": float(event.get("pwat_mm", 30.0)),
+            }
+            predicted = predict_cell_severity(
+                reflectivity=feature_payload["reflectivity_dbz"],
+                cape=feature_payload["cape_jkg"],
+                lightning_rate=feature_payload["lightning_rate_pm"],
+                cloud_top_cooling_rate=-max(0.0, float(feature_payload["cloud_top_temp_c"]) / 20.0),
+                cloud_top_temp_c=feature_payload["cloud_top_temp_c"],
+                wind_shear_knots=feature_payload["wind_shear_knots"],
+                pwat_mm=feature_payload["pwat_mm"],
+            )
+            predicted_positive = str(predicted.get("risk_level", "INFO")).upper() in {"WATCH", "WARNING", "SEVERE"}
+            if observed_positive and predicted_positive:
+                hits += 1
+            elif observed_positive and not predicted_positive:
+                misses += 1
+            elif not observed_positive and predicted_positive:
+                false_alarms += 1
+            else:
+                true_negatives += 1
+
+        pod = (hits / (hits + misses)) if (hits + misses) else 0.0
+        far = (false_alarms / (hits + false_alarms)) if (hits + false_alarms) else 0.0
+        csi = (hits / (hits + misses + false_alarms)) if (hits + misses + false_alarms) else 0.0
+        response = {
+            "status": "SUCCESS",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "event_count": len(events),
+            "contingency_matrix": {
+                "hits": hits,
+                "misses": misses,
+                "false_alarms": false_alarms,
+                "true_negatives": true_negatives,
+            },
+            "metrics": {
+                "POD": round(float(pod), 4),
+                "FAR": round(float(far), 4),
+                "CSI": round(float(csi), 4),
+            },
+        }
+        return response
+    except Exception as exc:
+        logger.error("Verification metric generation failed: %s", exc, exc_info=True)
+        return {
+            "status": "ERROR",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "message": str(exc),
+            "event_count": 0,
+            "contingency_matrix": {"hits": 0, "misses": 0, "false_alarms": 0, "true_negatives": 0},
+            "metrics": {"POD": 0.0, "FAR": 0.0, "CSI": 0.0},
+        }
+
+
 @app.post("/api/v1/predict-severity")
 def post_predict_cell_severity(payload: CellSeverityRequest):
-    """
-    Requirement 3:
-    Interactive endpoint invoking the XGBoost Convective Risk Classifier.
-    Accepts:
-      - reflectivity_dbz: Radar core reflectivity
-      - cape_j_kg: CAPE
-      - lightning_rate_per_min: Total lightning flash rate
-      - cloud_top_cooling_rate_c_per_15m: Satellite IR cloud top cooling rate
-    """
+    """Interactive endpoint invoking the trained severity classifier."""
     try:
         prediction = predict_cell_severity(
             reflectivity=payload.reflectivity_dbz,
             cape=payload.cape_j_kg,
             lightning_rate=payload.lightning_rate_per_min,
-            cloud_top_cooling_rate=payload.cloud_top_cooling_rate_c_per_15m
+            cloud_top_cooling_rate=payload.cloud_top_cooling_rate_c_per_15m,
         )
         return {
             "status": "SUCCESS",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "prediction": prediction
+            "prediction": prediction,
         }
     except Exception as exc:
         logger.error("Prediction failed: %s", str(exc))

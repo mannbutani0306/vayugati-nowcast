@@ -8,7 +8,7 @@
  * - Historical Convective Validation Study table.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   TrendingUp,
   BarChart2,
@@ -29,71 +29,81 @@ import {
 export default function VerificationDashboard() {
   const [selectedHorizon, setSelectedHorizon] = useState('1h');
   const [activeShapFeature, setActiveShapFeature] = useState(null);
+  const [verificationData, setVerificationData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Key Skill Scores: VayuGati AI Fusion vs Persistence & WRF Baselines
-  const SKILL_METRICS = [
-    {
-      code: 'POD',
-      name: 'Probability of Detection',
-      value: 0.88,
-      percent: 88,
-      baselinePersistence: 0.54,
-      baselineWRF: 0.62,
-      formula: 'Hits / (Hits + Misses)',
-      interpretation: 'Measures fraction of severe convective cells correctly predicted in advance.',
-      statusColor: 'text-[#2E7D32]',
-      bgColor: 'bg-emerald-50 border-emerald-200',
-    },
-    {
-      code: 'FAR',
-      name: 'False Alarm Ratio',
-      value: 0.14,
-      percent: 14,
-      baselinePersistence: 0.38,
-      baselineWRF: 0.31,
-      formula: 'False Alarms / (Hits + False Alarms)',
-      interpretation: 'Lower is better. Reflects dramatic reduction in unnecessary public panics.',
-      statusColor: 'text-[#2E7D32]',
-      bgColor: 'bg-emerald-50 border-emerald-200',
-      inverted: true,
-    },
-    {
-      code: 'CSI',
-      name: 'Critical Success Index (Threat Score)',
-      value: 0.78,
-      percent: 78,
-      baselinePersistence: 0.42,
-      baselineWRF: 0.49,
-      formula: 'Hits / (Hits + Misses + False Alarms)',
-      interpretation: 'Gold standard meteorological metric. 85% improvement over persistence.',
-      statusColor: 'text-[#D9532F]',
-      bgColor: 'bg-amber-50 border-amber-200',
-    },
-    {
-      code: 'HSS',
-      name: 'Heidke Skill Score',
-      value: 0.74,
-      percent: 74,
-      baselinePersistence: 0.36,
-      baselineWRF: 0.44,
-      formula: 'Relative skill over random chance forecast',
-      interpretation: 'Superior accuracy in predicting localized foothill cloudburst triggers.',
-      statusColor: 'text-[#2E7D32]',
-      bgColor: 'bg-emerald-50 border-emerald-200',
-    },
-    {
-      code: 'ETS',
-      name: 'Equitable Threat Score',
-      value: 0.65,
-      percent: 65,
-      baselinePersistence: 0.28,
-      baselineWRF: 0.35,
-      formula: 'Gilbert Skill Score penalized for random hits',
-      interpretation: 'Demonstrates robust convective cell advection and splitting handling.',
-      statusColor: 'text-[#2E7D32]',
-      bgColor: 'bg-emerald-50 border-emerald-200',
-    },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const loadMetrics = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/v1/verification-metrics');
+        if (!response.ok) {
+          throw new Error('Verification metrics endpoint did not return a valid response.');
+        }
+        const payload = await response.json();
+        if (!cancelled) {
+          setVerificationData(payload);
+          setError('');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || 'Unable to load verification metrics.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadMetrics();
+    return () => { cancelled = true; };
+  }, []);
+
+  const SKILL_METRICS = useMemo(() => {
+    const metrics = verificationData?.metrics ?? { POD: 0, FAR: 0, CSI: 0 };
+    return [
+      {
+        code: 'POD',
+        name: 'Probability of Detection',
+        value: Number(metrics.POD ?? 0),
+        percent: Math.round((Number(metrics.POD ?? 0)) * 100),
+        baselinePersistence: 0.54,
+        baselineWRF: 0.62,
+        formula: 'Hits / (Hits + Misses)',
+        interpretation: 'Measures fraction of severe convective cells correctly predicted in advance.',
+        statusColor: 'text-[#2E7D32]',
+        bgColor: 'bg-emerald-50 border-emerald-200',
+      },
+      {
+        code: 'FAR',
+        name: 'False Alarm Ratio',
+        value: Number(metrics.FAR ?? 0),
+        percent: Math.round((Number(metrics.FAR ?? 0)) * 100),
+        baselinePersistence: 0.38,
+        baselineWRF: 0.31,
+        formula: 'False Alarms / (Hits + False Alarms)',
+        interpretation: 'Lower is better. Reflects reduction in unnecessary public panics.',
+        statusColor: 'text-[#2E7D32]',
+        bgColor: 'bg-emerald-50 border-emerald-200',
+        inverted: true,
+      },
+      {
+        code: 'CSI',
+        name: 'Critical Success Index (Threat Score)',
+        value: Number(metrics.CSI ?? 0),
+        percent: Math.round((Number(metrics.CSI ?? 0)) * 100),
+        baselinePersistence: 0.42,
+        baselineWRF: 0.49,
+        formula: 'Hits / (Hits + Misses + False Alarms)',
+        interpretation: 'Standard meteorological threat score for severe event detection.',
+        statusColor: 'text-[#D9532F]',
+        bgColor: 'bg-amber-50 border-amber-200',
+      },
+    ];
+  }, [verificationData]);
 
   // Lead-time skill decay data points across 0-6 hours
   const LEAD_TIME_DECAY = [
