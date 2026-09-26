@@ -139,7 +139,7 @@ export async function fetchNearbyAlerts(latitude, longitude, radiusKm = 25) {
       radius_km: radiusKm,
     });
     if (error) return { data: [], error, isOffline: true };
-    const severityTier = { Extreme: 'SEVERE', Severe: 'SEVERE', Moderate: 'WARNING', Minor: 'WATCH', Unknown: 'INFO' };
+    const severityTier = { Extreme: 'SEVERE', Severe: 'WARNING', Moderate: 'WATCH', Minor: 'INFO', Unknown: 'INFO' };
     return {
       data: (data || []).map((row) => ({
         ...row,
@@ -150,6 +150,9 @@ export async function fetchNearbyAlerts(latitude, longitude, radiusKm = 25) {
         distanceKm: row.distance_km,
         etaMinutes: row.eta_minutes,
         isDirectHit: row.is_direct_intersection,
+        speedKmh: row.cell_speed_kmh == null ? null : Number(row.cell_speed_kmh),
+        bearingDeg: row.cell_bearing_deg == null ? null : Number(row.cell_bearing_deg),
+        cellCentroid: row.cell_centroid_geojson || null,
         affectedGrid: row.identifier,
       })),
       error: null,
@@ -177,9 +180,10 @@ function ringToCapString(geometry) {
 }
 
 function severityToTier(severity) {
-  if (severity === 'Extreme' || severity === 'Severe') return 'SEVERE';
-  if (severity === 'Moderate') return 'WARNING';
-  if (severity === 'Minor') return 'WATCH';
+  if (severity === 'Extreme') return 'SEVERE';
+  if (severity === 'Severe') return 'WARNING';
+  if (severity === 'Moderate') return 'WATCH';
+  if (severity === 'Minor') return 'INFO';
   return 'INFO';
 }
 
@@ -189,25 +193,35 @@ export async function fetchOfficerAlerts() {
   if (error) throw error;
   return (data || []).map((row) => ({
     ...row,
-    cellId: row.cell_uid,
+    cellId: row.cell_uid || row.id,
     cellName: row.location_label || row.cell_uid || row.event_type,
     hazardType: row.event_type,
     tier: severityToTier(row.severity),
     location: row.location_label || 'Area described by alert polygon',
-    targetGrid: 'PostGIS alert geometry',
+    targetGrid: row.location_label || 'PostGIS alert geometry',
     affectedDistricts: [],
-    riskScore: row.risk_score,
+    riskScore: row.risk_score == null ? null : Number(row.risk_score),
     etaMinutes: row.eta_minutes,
     etaClock: row.eta_minutes == null ? 'Not provided' : `${row.eta_minutes} min`,
+    leadTimeMinutes: row.eta_minutes,
+    leadTimeHours: row.eta_minutes == null ? 'Not provided' : `${(row.eta_minutes / 60).toFixed(1)} h`,
     maxDbz: row.max_dbz,
+    maxReflectivityDbz: row.max_dbz,
     rainRateMmHr: row.rain_rate_mm_hr,
+    expectedRainfallRateMmHr: row.rain_rate_mm_hr,
     windGustKmh: row.wind_gust_kmh,
     createdTimestamp: row.created_at,
     polygon: ringToCapString(row.affected_zone_geojson),
+    geometry: row.affected_zone_geojson,
     reviewedBy: row.approved_by,
-    reviewedAt: row.approved_at,
+    reviewedAt: row.approved_at || row.updated_at,
     headline_en: row.headline_en,
+    headline: row.headline_en,
     description: row.description_en,
+    aiDraftedText: row.description_en || row.headline_en,
+    aiRationale: 'Review the source observations and warning geometry before broadcast.',
+    rejectionReason: row.rejection_reason,
+    status: row.status,
   }));
 }
 
@@ -267,6 +281,13 @@ export async function recordForecasterAction({ actorId, action, entityType, enti
   return { recorded: true };
 }
 
+export async function fetchCapAlertAuditLogs(limit = 100) {
+  const client = requireDatabase();
+  const { data, error } = await client.rpc('get_cap_alert_audit_logs', { p_limit: limit });
+  if (error) throw error;
+  return data || [];
+}
+
 export function subscribeToLiveCells(onCellUpdateCallback, onStatus) {
   if (typeof onCellUpdateCallback !== 'function') throw new Error('A cell update callback is required.');
   const client = requireDatabase();
@@ -276,7 +297,19 @@ export function subscribeToLiveCells(onCellUpdateCallback, onStatus) {
       onCellUpdateCallback({ eventType: payload.eventType, cell: payload.new, oldCell: payload.old, timestamp: new Date().toISOString() });
     })
     .subscribe((status) => onStatus?.(status));
-  return { unsubscribe: () => client.removeChannel(channel) };
+  return { unsubscribe: () => channel.unsubscribe() };
+}
+
+export function subscribeToCapAlerts(onAlert, onStatus) {
+  if (typeof onAlert !== 'function') throw new Error('A CAP alert callback is required.');
+  const client = requireDatabase();
+  const channel = client
+    .channel('public:cap_alerts:officer')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cap_alerts' }, (payload) => {
+      onAlert({ eventType: payload.eventType, alert: payload.new, oldAlert: payload.old });
+    })
+    .subscribe((status) => onStatus?.(status));
+  return { unsubscribe: () => channel.unsubscribe() };
 }
 
 export function subscribeToApprovedAlerts(onAlert, onStatus) {
@@ -291,7 +324,7 @@ export function subscribeToApprovedAlerts(onAlert, onStatus) {
       if (row?.status === 'APPROVED') onAlert(row);
     })
     .subscribe((status) => onStatus?.(status));
-  return { unsubscribe: () => client.removeChannel(channel) };
+  return { unsubscribe: () => channel.unsubscribe() };
 }
 
 function polygonToEwkt(value) {
@@ -359,6 +392,24 @@ export async function approveAlert(alertId) {
   }
 }
 
+export async function beginAlertReview(alertId, editedText = {}) {
+  if (!alertId) return { data: null, error: new Error('A CAP alert id is required.') };
+  try {
+    const client = requireDatabase();
+    return await client.rpc('begin_cap_alert_review', {
+      p_alert_id: alertId,
+      p_headline_en: editedText.headline_en || null,
+      p_description_en: editedText.description_en || null,
+      p_severity: editedText.severity || null,
+      p_location_label: editedText.location_label || null,
+      p_eta_minutes: Number.isInteger(editedText.eta_minutes) ? editedText.eta_minutes : null,
+    });
+  } catch (error) {
+    console.error('Failed to transition CAP alert into review:', error);
+    return { data: null, error };
+  }
+}
+
 export async function rejectAlert(alertId, rationale) {
   if (!alertId) return { data: null, error: new Error('A CAP alert id is required.') };
   try {
@@ -366,6 +417,17 @@ export async function rejectAlert(alertId, rationale) {
     return await client.rpc('reject_cap_alert', { p_alert_id: alertId, p_rationale: rationale });
   } catch (error) {
     console.error('Failed to reject CAP alert in Supabase:', error);
+    return { data: null, error };
+  }
+}
+
+export async function cancelAlert(alertId, rationale) {
+  if (!alertId) return { data: null, error: new Error('A CAP alert id is required.') };
+  try {
+    const client = requireDatabase();
+    return await client.rpc('cancel_cap_alert', { p_alert_id: alertId, p_rationale: rationale });
+  } catch (error) {
+    console.error('Failed to cancel CAP alert in Supabase:', error);
     return { data: null, error };
   }
 }

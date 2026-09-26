@@ -368,6 +368,8 @@ export default function CitizenPortal() {
   const [databaseStatus, setDatabaseStatus] = useState(isSupabaseConfigured ? 'CONNECTING' : 'OFFLINE');
   const [isCachedDataDisplayed, setIsCachedDataDisplayed] = useState(false);
   const directAlert = useMemo(() => nearbyAlerts.find((alert) => alert.is_direct_intersection), [nearbyAlerts]);
+  const activeAlert = useMemo(() => directAlert || nearbyAlerts[0] || null, [directAlert, nearbyAlerts]);
+  const spatialAssessmentSequenceRef = useRef(0);
 
   // 5. Persona Guidance Tab
   const [activePersona, setActivePersona] = useState('general');
@@ -400,8 +402,23 @@ export default function CitizenPortal() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed.alerts && Array.isArray(parsed.alerts)) {
-          setNearbyAlerts(parsed.alerts);
+          const cachedAt = parsed.timestamp ? new Date(parsed.timestamp).getTime() : Date.now();
+          const elapsedSeconds = Math.max(0, Math.floor((Date.now() - cachedAt) / 1000));
+          const remainingEtaSeconds = parsed.alerts.map((alert) => {
+            if (alert.eta_minutes == null || !Number.isFinite(Number(alert.eta_minutes))) return null;
+            return Math.max(0, Number(alert.eta_minutes) * 60 - elapsedSeconds);
+          });
+          const cachedAlerts = parsed.alerts.map((alert, index) => Number.isFinite(remainingEtaSeconds[index])
+            ? { ...alert, eta_minutes: Math.ceil(remainingEtaSeconds[index] / 60) }
+            : alert);
+          setNearbyAlerts(cachedAlerts);
           setIsInsideStormCone(Boolean(parsed.isInsideCone));
+          const availableEtas = remainingEtaSeconds.filter((eta) => Number.isFinite(eta) && eta >= 0);
+          if (availableEtas.length) {
+            const remainingSeconds = Math.min(...availableEtas);
+            setCountdownMinutes(Math.floor(remainingSeconds / 60));
+            setCountdownSeconds(remainingSeconds % 60);
+          }
           setIsCachedDataDisplayed(true);
           if (parsed.timestamp) {
             setLastSyncTime(new Date(parsed.timestamp));
@@ -418,17 +435,20 @@ export default function CitizenPortal() {
   // Query nearby alerts and evaluate storm cone containment
   const executeSpatialAssessment = useCallback(
     async (lat, lon) => {
+      const requestId = ++spatialAssessmentSequenceRef.current;
       setIsSyncing(true);
       setDatabaseError('');
       try {
         if (!isSupabaseConfigured) throw new Error(supabaseConfigurationError || 'Supabase is not configured.');
         // Query fetchNearbyAlerts from spatialQueries
         const result = await fetchNearbyAlerts(lat, lon, 35);
+        if (requestId !== spatialAssessmentSequenceRef.current) return;
         if (result.error) throw result.error;
         const alertsList = result.data || [];
         setNearbyAlerts(alertsList);
         const insideAnyCone = alertsList.some((alert) => alert.is_direct_intersection);
-        const etaValues = alertsList.map((alert) => Number(alert.eta_minutes)).filter((eta) => Number.isFinite(eta) && eta >= 0);
+        const etaValues = alertsList.map((alert) => alert.eta_minutes == null ? NaN : Number(alert.eta_minutes))
+          .filter((eta) => Number.isFinite(eta) && eta >= 0);
         const minEta = etaValues.length ? Math.min(...etaValues) : 0;
         setIsInsideStormCone(insideAnyCone);
         setCountdownMinutes(minEta);
@@ -436,12 +456,13 @@ export default function CitizenPortal() {
         setIsCachedDataDisplayed(false);
         updateAlertsCache(alertsList, insideAnyCone);
       } catch (err) {
+        if (requestId !== spatialAssessmentSequenceRef.current) return;
         console.error('PostGIS spatial assessment failed:', err);
         setDatabaseStatus('OFFLINE');
         setDatabaseError(err.message || 'Unable to read active alerts from Supabase.');
         loadAlertsFromCache();
       } finally {
-        setIsSyncing(false);
+        if (requestId === spatialAssessmentSequenceRef.current) setIsSyncing(false);
       }
     },
     [updateAlertsCache, loadAlertsFromCache]
@@ -498,20 +519,22 @@ export default function CitizenPortal() {
 
   // Countdown timer effect (ticking down)
   useEffect(() => {
-    if (!isInsideStormCone || countdownMinutes <= 0) return;
+    if (countdownMinutes <= 0 && countdownSeconds <= 0) return;
 
     const interval = setInterval(() => {
       setCountdownSeconds((sec) => {
         if (sec > 0) return sec - 1;
-        setCountdownMinutes((min) => {
-          return Math.max(0, min - 1);
-        });
+        if (countdownMinutes <= 1) {
+          setCountdownMinutes(0);
+          return 0;
+        }
+        setCountdownMinutes(countdownMinutes - 1);
         return 59;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isInsideStormCone, countdownMinutes]);
+  }, [countdownMinutes, countdownSeconds > 0]);
 
   // Auto-GPS request function
   const handleRequestGps = () => {
@@ -797,7 +820,7 @@ export default function CitizenPortal() {
       {/* 3. MAIN ACCESSIBLE CONTENT CONTAINER */}
       <main className="max-w-4xl mx-auto px-4 pt-4 space-y-4">
         {/* REQUIREMENT 1: AUTO-GPS HYPER-LOCAL RISK BANNER */}
-        {isInsideStormCone ? (
+        {nearbyAlerts.length > 0 ? (
           <section
             aria-live="assertive"
             className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-red-800 text-white p-5 sm:p-6 shadow-xl border-2 border-red-500 animate-pulse"
@@ -807,7 +830,7 @@ export default function CitizenPortal() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-400/40 pb-3">
               <div className="flex items-center space-x-2">
                 <span className="px-2.5 py-1 rounded-md bg-white text-red-700 text-xs font-black uppercase tracking-wider shadow-xs">
-                  {directAlert?.severity || 'APPROVED ALERT'}
+                  {activeAlert?.severity || 'APPROVED ALERT'}
                 </span>
               </div>
               <span className="text-xs font-bold text-red-100 flex items-center gap-1 font-mono">
@@ -826,10 +849,10 @@ export default function CitizenPortal() {
                   {t.activeConeWarningHeadline}
                 </h2>
                 <p className="text-xs sm:text-sm text-red-100 font-medium leading-relaxed max-w-2xl">
-                  {directAlert?.headline_en || t.activeConeWarningSub}
+                  {activeAlert?.headline_en || t.activeConeWarningSub}
                 </p>
                 <div className="text-[11px] text-red-200 font-mono pt-1">
-                  {directAlert?.identifier || directAlert?.event_type || 'Approved alert'}
+                  {activeAlert?.identifier || activeAlert?.event_type || 'Approved alert'}
                 </div>
               </div>
             </div>
@@ -843,9 +866,9 @@ export default function CitizenPortal() {
                 <div className="text-2xl sm:text-3xl font-mono font-black text-amber-300 tracking-tight flex items-center justify-center sm:justify-start gap-2">
                   <Clock className="w-6 h-6 text-amber-300 animate-spin" style={{ animationDuration: '6s' }} />
                   <span>
-                    {countdownMinutes > 0 ? `${countdownMinutes} ${t.minutesUnit}` : 'Impact timing unavailable'}{' '}
+                    {countdownMinutes > 0 ? `${countdownMinutes} ${t.minutesUnit}` : activeAlert?.is_direct_intersection ? 'Now' : 'Impact timing unavailable'}{' '}
                     <span className="text-lg text-white/70 font-mono">
-                      {countdownMinutes > 0 ? `(${String(countdownMinutes).padStart(2, '0')}:${String(countdownSeconds).padStart(2, '0')})` : ''}
+                      {countdownMinutes > 0 || countdownSeconds > 0 ? `(${String(countdownMinutes).padStart(2, '0')}:${String(countdownSeconds).padStart(2, '0')})` : ''}
                     </span>
                   </span>
                 </div>

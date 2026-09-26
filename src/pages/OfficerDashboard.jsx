@@ -43,6 +43,8 @@ import {
   subscribeToLiveCells,
   fetchActiveConvectiveCells,
   fetchOfficerAlerts,
+  subscribeToCapAlerts,
+  beginAlertReview,
   approveAlert,
   rejectAlert,
   recordForecasterAction,
@@ -433,6 +435,7 @@ export default function OfficerDashboard() {
   // Storm Cells & Queue State
   const [cells, setCells] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const alertLoadSequenceRef = useRef(0);
   const [selectedCellId, setSelectedCellId] = useState(null);
   const [queueFilter, setQueueFilter] = useState('ALL'); // 'ALL' | 'DRAFT' | 'SEVERE' | 'WARNING' | 'APPROVED'
   const [liveCellsLoading, setLiveCellsLoading] = useState(true);
@@ -474,6 +477,7 @@ export default function OfficerDashboard() {
   const [rejectingAlert, setRejectingAlert] = useState(null);
   const [rejectionRationale, setRejectionRationale] = useState('');
   const [rejectionError, setRejectionError] = useState('');
+  const [pendingAlertActionId, setPendingAlertActionId] = useState(null);
 
   // Emergency Siren Broadcast Banner
   const [broadcastBanner, setBroadcastBanner] = useState(null);
@@ -529,6 +533,7 @@ export default function OfficerDashboard() {
     let isMounted = true;
 
     const loadOperationalData = async () => {
+      const alertRequest = ++alertLoadSequenceRef.current;
       setLiveCellsLoading(true);
       setLiveCellsError('');
       const [cellResult, alertResult] = await Promise.allSettled([fetchActiveConvectiveCells(), fetchOfficerAlerts()]);
@@ -543,10 +548,10 @@ export default function OfficerDashboard() {
         setLiveCellsError(cellResult.reason?.message || 'Unable to load convective cells from Supabase.');
       }
 
-      if (alertResult.status === 'fulfilled') {
+      if (alertResult.status === 'fulfilled' && alertRequest === alertLoadSequenceRef.current) {
         setAlerts(alertResult.value);
         setDatabaseError('');
-      } else {
+      } else if (alertResult.status === 'rejected' && alertRequest === alertLoadSequenceRef.current) {
         setAlerts([]);
         setDatabaseError(alertResult.reason?.message || 'Unable to load alerts from Supabase.');
       }
@@ -559,6 +564,28 @@ export default function OfficerDashboard() {
       isMounted = false;
     };
   }, [mapLiveCellToDashboard]);
+
+  useEffect(() => {
+    let mounted = true;
+    let subscription;
+    try {
+      subscription = subscribeToCapAlerts(({ alert }) => {
+        if (!alert?.id) return;
+        const alertRequest = ++alertLoadSequenceRef.current;
+        fetchOfficerAlerts()
+          .then((rows) => { if (mounted && alertRequest === alertLoadSequenceRef.current) setAlerts(rows); })
+          .catch((error) => {
+            if (mounted && alertRequest === alertLoadSequenceRef.current) setDatabaseError(error.message || 'Unable to refresh CAP alerts.');
+          });
+      });
+    } catch (error) {
+      setDatabaseError(error.message || 'CAP alert realtime is unavailable.');
+    }
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentCell) {
@@ -1047,35 +1074,40 @@ export default function OfficerDashboard() {
   };
 
   const handleApproveAlert = async (alert) => {
-    const { data, error } = await approveAlert(alert.id);
-    if (error) {
+    if (!['DRAFT', 'UNDER_REVIEW'].includes(alert.status) || pendingAlertActionId) return;
+    setPendingAlertActionId(alert.id);
+    try {
+      let reviewRecord = alert;
+      if (alert.status === 'DRAFT') {
+        const review = await beginAlertReview(alert.id);
+        if (review.error) throw review.error;
+        reviewRecord = Array.isArray(review.data) ? review.data[0] : review.data;
+        setAlerts((prev) => prev.map((item) => item.id === alert.id
+          ? { ...item, ...(reviewRecord || {}), status: 'UNDER_REVIEW' }
+          : item));
+      }
+
+      const result = await approveAlert(alert.id);
+      if (result.error) throw result.error;
+      const approvedRecord = Array.isArray(result.data) ? result.data[0] : result.data;
+      const approvedAlert = { ...alert, ...(reviewRecord || {}), ...(approvedRecord || {}), status: 'APPROVED' };
+      setDatabaseError('');
+      setAlerts((prev) => prev.map((item) => item.id === alert.id
+        ? { ...item, ...approvedAlert, reviewedBy: dutyOfficer, reviewedAt: approvedRecord?.approved_at || new Date().toISOString() }
+        : item));
+      downloadCapXmlFile(approvedAlert);
+      setBroadcastBanner({
+        alertId: alert.id,
+        headline: approvedAlert.headline_en || `${alert.tier} ${alert.hazardType}`,
+        location: alert.location,
+        recipients: 'Approved alert is available to subscribed citizen clients.',
+        timestamp: new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST',
+      });
+    } catch (error) {
       setDatabaseError(`Alert approval failed: ${error.message}`);
-      return;
+    } finally {
+      setPendingAlertActionId(null);
     }
-    setDatabaseError('');
-
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === alert.id
-          ? {
-              ...a,
-              ...(data || {}),
-              status: 'APPROVED',
-              reviewedBy: dutyOfficer,
-              reviewedAt: data?.approved_at || new Date().toISOString(),
-            }
-          : a
-      )
-    );
-
-    // Show Emergency Broadcast Banner
-    setBroadcastBanner({
-      alertId: alert.id,
-      headline: alert.headline_en || `${alert.tier} ${alert.hazardType}`,
-      location: alert.location,
-      recipients: 'Approved alert is available to subscribed citizen clients.',
-      timestamp: new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST',
-    });
   };
 
   const handleStartRejectAlert = (alert) => {
@@ -1090,30 +1122,32 @@ export default function OfficerDashboard() {
       return;
     }
 
-    const { data, error } = await rejectAlert(rejectingAlert.id, rejectionRationale.trim());
-    if (error) {
+    if (pendingAlertActionId) return;
+    setPendingAlertActionId(rejectingAlert.id);
+    try {
+      if (rejectingAlert.status === 'DRAFT') {
+        const review = await beginAlertReview(rejectingAlert.id);
+        if (review.error) throw review.error;
+        const reviewRecord = Array.isArray(review.data) ? review.data[0] : review.data;
+        setAlerts((prev) => prev.map((item) => item.id === rejectingAlert.id
+          ? { ...item, ...(reviewRecord || {}), status: 'UNDER_REVIEW' }
+          : item));
+        setRejectingAlert((item) => ({ ...item, ...(reviewRecord || {}), status: 'UNDER_REVIEW' }));
+      }
+      const result = await rejectAlert(rejectingAlert.id, rejectionRationale.trim());
+      if (result.error) throw result.error;
+      const rejectedRecord = Array.isArray(result.data) ? result.data[0] : result.data;
+      setAlerts((prev) => prev.map((item) => item.id === rejectingAlert.id
+        ? { ...item, ...(rejectedRecord || {}), status: 'REJECTED', rejectionReason: rejectionRationale.trim(), reviewedBy: dutyOfficer, reviewedAt: rejectedRecord?.updated_at || new Date().toISOString() }
+        : item));
+      setRejectingAlert(null);
+      setRejectionRationale('');
+      setRejectionError('');
+    } catch (error) {
       setRejectionError(`Alert rejection failed: ${error.message}`);
-      return;
+    } finally {
+      setPendingAlertActionId(null);
     }
-
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === rejectingAlert.id
-          ? {
-              ...a,
-              ...(data || {}),
-              status: 'REJECTED',
-              rejectionReason: rejectionRationale.trim(),
-              reviewedBy: dutyOfficer,
-              reviewedAt: data?.updated_at || new Date().toISOString(),
-            }
-          : a
-      )
-    );
-
-    setRejectingAlert(null);
-    setRejectionRationale('');
-    setRejectionError('');
   };
 
   const handleExportCapXml = (alert) => {
@@ -1185,6 +1219,7 @@ export default function OfficerDashboard() {
   const filteredAlerts = alerts.filter((alert) => {
     if (queueFilter === 'ALL') return true;
     if (queueFilter === 'DRAFT') return alert.status === 'DRAFT';
+    if (queueFilter === 'UNDER_REVIEW') return alert.status === 'UNDER_REVIEW';
     if (queueFilter === 'SEVERE') return alert.tier === 'SEVERE' && alert.status !== 'REJECTED';
     if (queueFilter === 'WARNING') return alert.tier === 'WARNING' && alert.status !== 'REJECTED';
     if (queueFilter === 'APPROVED') return alert.status === 'APPROVED';
@@ -1580,6 +1615,7 @@ export default function OfficerDashboard() {
               {[
                 { id: 'ALL', label: 'All', count: alerts.length },
                 { id: 'DRAFT', label: 'Drafts', count: draftCount },
+                { id: 'UNDER_REVIEW', label: 'Under review', count: alerts.filter((a) => a.status === 'UNDER_REVIEW').length },
                 { id: 'SEVERE', label: 'Severe', count: severeCount },
                 { id: 'APPROVED', label: 'Approved', count: approvedCount },
               ].map((tab) => (
@@ -1613,6 +1649,7 @@ export default function OfficerDashboard() {
                 const isApproved = alert.status === 'APPROVED';
                 const isRejected = alert.status === 'REJECTED';
                 const isDraft = alert.status === 'DRAFT';
+                const isUnderReview = alert.status === 'UNDER_REVIEW';
 
                 return (
                   <div
@@ -1679,7 +1716,7 @@ export default function OfficerDashboard() {
 
                     {/* Status Pill & Audit Metadata */}
                     <div className="flex items-center justify-between text-[10px] font-mono text-[#6C7278] pt-1 border-t border-[#E5E0D8]">
-                      <span>Status: <strong className={isApproved ? 'text-emerald-700' : isRejected ? 'text-red-700' : 'text-amber-700'}>{alert.status}</strong></span>
+                      <span>Status: <strong className={isApproved ? 'text-emerald-700' : isRejected ? 'text-red-700' : isUnderReview ? 'text-blue-700' : 'text-amber-700'}>{alert.status}</strong></span>
                       <span>Created: {alert.createdTimestamp}</span>
                     </div>
 
@@ -1717,22 +1754,24 @@ export default function OfficerDashboard() {
                       </button>
 
                       {/* 3. Approve & Broadcast (For DRAFT) */}
-                      {isDraft && (
+                      {(isDraft || isUnderReview) && (
                         <button
                           type="button"
                           onClick={() => handleApproveAlert(alert)}
+                          disabled={pendingAlertActionId === alert.id}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" />
-                          <span>Approve &amp; Broadcast</span>
+                          <span>{pendingAlertActionId === alert.id ? 'Processing…' : 'Approve &amp; Broadcast'}</span>
                         </button>
                       )}
 
                       {/* 4. Reject / Dismiss (For DRAFT) */}
-                      {isDraft && (
+                      {(isDraft || isUnderReview) && (
                         <button
                           type="button"
                           onClick={() => handleStartRejectAlert(alert)}
+                          disabled={pendingAlertActionId === alert.id}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-red-50 text-red-600 border border-red-200 flex items-center justify-center space-x-1 transition-colors cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />

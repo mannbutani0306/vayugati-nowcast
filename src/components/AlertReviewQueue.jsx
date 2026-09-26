@@ -10,7 +10,7 @@
  * - Complete audit log recording on all state transitions.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   ShieldAlert,
@@ -38,117 +38,18 @@ import {
 } from 'lucide-react';
 import { SEVERITY_TIERS } from '../utils/mockDataSeed';
 import { generateCapXml, downloadCapXmlFile } from '../utils/capXmlGenerator';
+import { fetchOfficerAlerts, fetchCapAlertAuditLogs, subscribeToCapAlerts, beginAlertReview, approveAlert, rejectAlert } from '../lib/spatialQueries';
 import SHAPExplainability from './SHAPExplainability';
-
-// Initial synthetic AI-generated draft alerts pending duty forecaster review
-const INITIAL_DRAFT_ALERTS = [
-  {
-    id: 'DRAFT-HZ-001',
-    cellId: 'CELL-A1',
-    cellName: 'Sahastradhara Cloudburst Core',
-    hazardType: 'CLOUDBURST',
-    tier: 'SEVERE',
-    targetGrid: '1.5 km Mesh • Sahastradhara River Basin & Rajpur Foothills',
-    affectedDistricts: ['Sahastradhara Basin', 'Rajpur Road', 'Mussoorie Bypass', 'Rispana Catchment'],
-    riskScore: 0.94,
-    leadTimeHours: '0 – 1.0 h',
-    leadTimeMinutes: 45,
-    maxReflectivityDbz: 63.8,
-    expectedRainfallRateMmHr: 118,
-    windGustKmh: 92,
-    aiDraftedText:
-      'CRITICAL CLOUDBURST ALERT: Doppler C-Band dual-pol Zdr signature and 3.0σ lightning flash jump detect severe precipitation core over Sahastradhara & Rajpur foothills. Rain rates exceeding 110 mm/hr will trigger immediate flash flooding in Rispana/Bindal stream beds. Seek reinforced shelter away from hill torrents. Do not cross low bridges.',
-    aiRationale:
-      'Dual-pol differential reflectivity (> +4.2 dB) accompanied by Vertically Integrated Liquid of 68 kg/m² and sudden lightning jump (+42% flash acceleration) confirms severe hydrometeor loading. High confidence (94%).',
-    status: 'DRAFT',
-    createdTimestamp: '18:04:12 IST',
-    reviewedBy: null,
-    reviewedAt: null,
-    rejectionReason: null,
-    modifiedNotes: null,
-  },
-  {
-    id: 'DRAFT-HZ-002',
-    cellId: 'CELL-B2',
-    cellName: 'Haridwar Ridge Multicell Cluster',
-    hazardType: 'HAIL',
-    tier: 'WARNING',
-    targetGrid: '2.0 km Mesh • Haridwar Bypass & Roorkee Fringe',
-    affectedDistricts: ['Haridwar Ghats', 'Roorkee Canal', 'Chidderwala Plains'],
-    riskScore: 0.84,
-    leadTimeHours: '1.0 – 2.5 h',
-    leadTimeMinutes: 90,
-    maxReflectivityDbz: 52.4,
-    expectedRainfallRateMmHr: 58,
-    windGustKmh: 76,
-    aiDraftedText:
-      'SEVERE HAIL & DOWNBURST WARNING: Multicell cluster propagating along Shivalik southern escarpment. Three-Body Scatter Spike (TBSS) radar signature indicates 2.5–3.0 cm hail shafts and surface wind gusts reaching 75 km/h. Secure tin carports and harvest produce.',
-    aiRationale:
-      'Persistent Three-Body Scatter Spike (TBSS) radar artifact and -61.2°C cloud top temperature verify hail core aloft with high downdraft momentum.',
-    status: 'DRAFT',
-    createdTimestamp: '18:08:45 IST',
-    reviewedBy: null,
-    reviewedAt: null,
-    rejectionReason: null,
-    modifiedNotes: null,
-  },
-  {
-    id: 'DRAFT-HZ-003',
-    cellId: 'CELL-C3',
-    cellName: 'Mohand Pass Orographic Feeder',
-    hazardType: 'THUNDERSTORM',
-    tier: 'WATCH',
-    targetGrid: '3.0 km Mesh • Shivalik Tunnel Approach',
-    affectedDistricts: ['Mohand Pass', 'Shivalik Tunnel', 'Clement Town South'],
-    riskScore: 0.72,
-    leadTimeHours: '2.5 – 4.0 h',
-    leadTimeMinutes: 180,
-    maxReflectivityDbz: 41.5,
-    expectedRainfallRateMmHr: 32,
-    windGustKmh: 54,
-    aiDraftedText:
-      'THUNDERSTORM & GUST WATCH: Moderate convective towers developing along southern foothill boundary. Intermittent cloud-to-ground lightning flashes and slippery hill road conditions expected.',
-    aiRationale:
-      'Orographic updrafts triggered by south-easterly low-level moisture jet. CIN cap breached (-24 J/kg); moderate convective organization.',
-    status: 'DRAFT',
-    createdTimestamp: '18:11:30 IST',
-    reviewedBy: null,
-    reviewedAt: null,
-    rejectionReason: null,
-    modifiedNotes: null,
-  },
-  {
-    id: 'DRAFT-HZ-004',
-    cellId: 'CELL-D4',
-    cellName: 'Doon South Thermal Flank',
-    hazardType: 'DOWNBURST',
-    tier: 'WARNING',
-    targetGrid: '1.5 km Mesh • ISBT Dehradun Inter-State Hub',
-    affectedDistricts: ['ISBT Dehradun', 'Majra', 'Patel Nagar'],
-    riskScore: 0.48,
-    leadTimeHours: '0.5 – 1.5 h',
-    leadTimeMinutes: 50,
-    maxReflectivityDbz: 34.0,
-    expectedRainfallRateMmHr: 18,
-    windGustKmh: 42,
-    aiDraftedText:
-      'DOWNBURST ADVISORY: Boundary-layer thermal convergence detected south of ISBT. Brief gust front possible.',
-    aiRationale:
-      'Model detects localized moisture pool; however, radar reflectivity remains below 35 dBZ without lightning jump corroboration. Marginal confidence (48%).',
-    status: 'DRAFT',
-    createdTimestamp: '18:14:02 IST',
-    reviewedBy: null,
-    reviewedAt: null,
-    rejectionReason: null,
-    modifiedNotes: null,
-  },
-];
 
 export default function AlertReviewQueue({ onBroadcastApproved }) {
   const { profile } = useAuth();
 
-  const [alerts, setAlerts] = useState(INITIAL_DRAFT_ALERTS);
-  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL', 'DRAFT', 'APPROVED', 'REJECTED'
+  const [alerts, setAlerts] = useState([]);
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [loading, setLoading] = useState(true);
+  const [queueError, setQueueError] = useState('');
+  const [pendingAlertId, setPendingAlertId] = useState(null);
+  const alertLoadSequenceRef = useRef(0);
   const [selectedAlertForEdit, setSelectedAlertForEdit] = useState(null);
   const [selectedAlertForReject, setSelectedAlertForReject] = useState(null);
   const [selectedAlertForCapXml, setSelectedAlertForCapXml] = useState(null);
@@ -159,105 +60,109 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
   const [showAuditLogDrawer, setShowAuditLogDrawer] = useState(false);
 
   // Audit Log State
-  const [auditLogs, setAuditLogs] = useState([
-    {
-      id: 'AUD-001',
-      timestamp: '17:45:10 IST',
-      alertId: 'HZ-HIST-901',
-      action: 'APPROVED_AND_BROADCAST',
-      officer: 'Inspector Vikramaditya Rawat (NDRF-OFF-402)',
-      tier: 'WARNING',
-      details: 'Broadcast verified for Haridwar Squall line. Pushed to 82,000 citizens.',
-    },
-    {
-      id: 'AUD-002',
-      timestamp: '17:22:33 IST',
-      alertId: 'HZ-HIST-899',
-      action: 'REJECTED',
-      officer: 'Dr. Kailash S. Murthy (IMD-ADMIN-01)',
-      tier: 'WARNING',
-      details: 'Rejected due to anomalous propagation side-lobe reflection over Mussoorie ridge.',
-    },
-  ]);
+  const [auditLogs, setAuditLogs] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    let subscription;
+    const refreshAlerts = () => {
+      const request = ++alertLoadSequenceRef.current;
+      fetchOfficerAlerts()
+        .then((rows) => { if (mounted && request === alertLoadSequenceRef.current) setAlerts(rows); })
+        .catch((error) => {
+          if (mounted && request === alertLoadSequenceRef.current) setQueueError(error.message || 'Unable to refresh CAP alerts.');
+        });
+    };
+    const refreshAuditLogs = () => fetchCapAlertAuditLogs()
+      .then((rows) => { if (mounted) setAuditLogs(rows); })
+      .catch((error) => { if (mounted) setQueueError(error.message || 'Unable to load CAP audit history.'); });
+    const initialRequest = ++alertLoadSequenceRef.current;
+    fetchOfficerAlerts()
+      .then((rows) => { if (mounted && initialRequest === alertLoadSequenceRef.current) setAlerts(rows); })
+      .catch((error) => {
+        if (mounted && initialRequest === alertLoadSequenceRef.current) setQueueError(error.message || 'Unable to load CAP alerts.');
+      })
+      .finally(() => { if (mounted) setLoading(false); });
+    refreshAuditLogs();
+    try {
+      subscription = subscribeToCapAlerts(({ alert }) => {
+        if (alert?.id) {
+          refreshAlerts();
+          refreshAuditLogs();
+        }
+      });
+    } catch (error) {
+      setQueueError(error.message || 'CAP alert realtime is unavailable.');
+    }
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const officerBadge = profile?.badge_id || 'NDRF-OFF-402';
   const officerName = profile?.full_name || 'Inspector Vikramaditya Rawat';
 
-  // Helper to log audit trail
-  const appendAuditLog = (alertId, action, tier, details) => {
-    const newLog = {
-      id: `AUD-${Date.now().toString().slice(-4)}`,
-      timestamp: new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST',
-      alertId,
-      action,
-      officer: `${officerName} (${officerBadge})`,
-      tier,
-      details,
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-  };
-
   /**
    * Action 1: Approve & Broadcast
    */
-  const handleApprove = (alertItem) => {
+  const handleApprove = async (alertItem, editedText = {}) => {
+    if (pendingAlertId || !['DRAFT', 'UNDER_REVIEW'].includes(alertItem.status)) return;
+    setPendingAlertId(alertItem.id);
     const nowTimestamp = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
-
-    setAlerts((prev) =>
-      prev.map((item) =>
-        item.id === alertItem.id
-          ? {
-              ...item,
-              status: 'APPROVED',
-              reviewedBy: `${officerName} (${officerBadge})`,
-              reviewedAt: nowTimestamp,
-            }
-          : item
-      )
-    );
-
-    appendAuditLog(
-      alertItem.id,
-      'APPROVED_AND_BROADCAST',
-      alertItem.tier,
-      `Authorized publication of ${alertItem.hazardType} alert for ${alertItem.targetGrid}. Cell broadcast triggered.`
-    );
-
-    if (onBroadcastApproved) {
-      onBroadcastApproved(alertItem);
+    try {
+      let reviewRow = alertItem;
+      if (alertItem.status === 'DRAFT') {
+        const review = await beginAlertReview(alertItem.id, editedText);
+        if (review.error) throw review.error;
+        reviewRow = Array.isArray(review.data) ? review.data[0] : review.data;
+        setAlerts((prev) => prev.map((item) => item.id === alertItem.id
+          ? { ...item, ...(reviewRow || {}), status: 'UNDER_REVIEW' }
+          : item));
+      }
+      const result = await approveAlert(alertItem.id);
+      if (result.error) throw result.error;
+      const approvedRow = Array.isArray(result.data) ? result.data[0] : result.data;
+      const approvedAlert = {
+        ...alertItem,
+        ...(reviewRow || {}),
+        ...(approvedRow || {}),
+        headline: approvedRow?.headline_en || reviewRow?.headline_en || alertItem.headline_en,
+        aiDraftedText: approvedRow?.description_en || reviewRow?.description_en || alertItem.aiDraftedText,
+        targetGrid: approvedRow?.location_label || reviewRow?.location_label || alertItem.targetGrid,
+        tier: ({ Extreme: 'SEVERE', Severe: 'WARNING', Moderate: 'WATCH', Minor: 'INFO' })[approvedRow?.severity || reviewRow?.severity] || alertItem.tier,
+        leadTimeMinutes: approvedRow?.eta_minutes ?? reviewRow?.eta_minutes ?? alertItem.leadTimeMinutes,
+        status: 'APPROVED',
+      };
+      setAlerts((prev) => prev.map((item) => item.id === alertItem.id
+        ? { ...item, ...approvedAlert, reviewedBy: `${officerName} (${officerBadge})`, reviewedAt: approvedRow?.approved_at || nowTimestamp }
+        : item));
+      downloadCapXmlFile(approvedAlert);
+      onBroadcastApproved?.(approvedAlert);
+      return true;
+    } catch (error) {
+      setQueueError(error.message || 'Alert approval failed.');
+      return false;
+    } finally {
+      setPendingAlertId(null);
     }
   };
 
   /**
    * Action 2: Confirm Modify & Save
    */
-  const handleSaveModifiedAlert = (e) => {
+  const handleSaveModifiedAlert = async (e) => {
     e.preventDefault();
     if (!selectedAlertForEdit) return;
 
-    const nowTimestamp = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
-
-    setAlerts((prev) =>
-      prev.map((item) =>
-        item.id === selectedAlertForEdit.id
-          ? {
-              ...selectedAlertForEdit,
-              status: 'APPROVED', // Marked approved upon custom review
-              reviewedBy: `${officerName} (${officerBadge})`,
-              reviewedAt: nowTimestamp,
-            }
-          : item
-      )
-    );
-
-    appendAuditLog(
-      selectedAlertForEdit.id,
-      'MODIFIED_AND_APPROVED',
-      selectedAlertForEdit.tier,
-      `Duty Forecaster adjusted tier to ${selectedAlertForEdit.tier} & modified copy before broadcasting.`
-    );
-
-    setSelectedAlertForEdit(null);
+    const tierSeverity = { SEVERE: 'Extreme', WARNING: 'Severe', WATCH: 'Moderate', INFO: 'Minor' };
+    const approved = await handleApprove(selectedAlertForEdit, {
+      description_en: selectedAlertForEdit.aiDraftedText,
+      severity: tierSeverity[selectedAlertForEdit.tier],
+      location_label: selectedAlertForEdit.targetGrid,
+      eta_minutes: selectedAlertForEdit.leadTimeMinutes,
+    });
+    if (approved) setSelectedAlertForEdit(null);
   };
 
   /**
@@ -267,32 +172,32 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
     e.preventDefault();
     if (!selectedAlertForReject) return;
 
-    const nowTimestamp = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
     const finalReason = customRejectNote ? `${rejectionReason}: ${customRejectNote}` : rejectionReason;
-
-    setAlerts((prev) =>
-      prev.map((item) =>
-        item.id === selectedAlertForReject.id
-          ? {
-              ...item,
-              status: 'REJECTED',
-              rejectionReason: finalReason,
-              reviewedBy: `${officerName} (${officerBadge})`,
-              reviewedAt: nowTimestamp,
-            }
-          : item
-      )
-    );
-
-    appendAuditLog(
-      selectedAlertForReject.id,
-      'REJECTED',
-      selectedAlertForReject.tier,
-      `Vetoed by forecaster. Reason: ${finalReason}`
-    );
-
-    setSelectedAlertForReject(null);
-    setCustomRejectNote('');
+    if (pendingAlertId) return;
+    setPendingAlertId(selectedAlertForReject.id);
+    try {
+      if (selectedAlertForReject.status === 'DRAFT') {
+        const review = await beginAlertReview(selectedAlertForReject.id);
+        if (review.error) throw review.error;
+        const reviewRow = Array.isArray(review.data) ? review.data[0] : review.data;
+        setAlerts((prev) => prev.map((item) => item.id === selectedAlertForReject.id
+          ? { ...item, ...(reviewRow || {}), status: 'UNDER_REVIEW' }
+          : item));
+        setSelectedAlertForReject((item) => ({ ...item, ...(reviewRow || {}), status: 'UNDER_REVIEW' }));
+      }
+      const result = await rejectAlert(selectedAlertForReject.id, finalReason);
+      if (result.error) throw result.error;
+      const rejectedRow = Array.isArray(result.data) ? result.data[0] : result.data;
+      setAlerts((prev) => prev.map((item) => item.id === selectedAlertForReject.id
+        ? { ...item, ...(rejectedRow || {}), status: 'REJECTED', rejectionReason: finalReason }
+        : item));
+      setSelectedAlertForReject(null);
+      setCustomRejectNote('');
+    } catch (error) {
+      setQueueError(error.message || 'Alert rejection failed.');
+    } finally {
+      setPendingAlertId(null);
+    }
   };
 
   // Filtered alert list
@@ -301,7 +206,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
     return item.status === filterStatus;
   });
 
-  const pendingCount = alerts.filter((a) => a.status === 'DRAFT').length;
+  const pendingCount = alerts.filter((a) => a.status === 'DRAFT' || a.status === 'UNDER_REVIEW').length;
 
   return (
     <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-5 shadow-2xs space-y-5 antialiased">
@@ -343,6 +248,12 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
         </div>
       </div>
 
+      {(queueError || loading) && (
+        <div className={`rounded border px-3 py-2 text-xs ${queueError ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`} role={queueError ? 'alert' : 'status'}>
+          {queueError || 'Loading CAP alerts from Supabase…'}
+        </div>
+      )}
+
       {/* 2. FILTER STATUS TABS */}
       <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
         <div className="flex items-center space-x-1 bg-[#FAF7F2] p-1 rounded-lg border border-[#E5E0D8]">
@@ -350,7 +261,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
             <Filter className="w-3 h-3" />
             Filter:
           </span>
-          {['ALL', 'DRAFT', 'APPROVED', 'REJECTED'].map((st) => (
+          {['ALL', 'DRAFT', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'].map((st) => (
             <button
               key={st}
               type="button"
@@ -375,12 +286,13 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
       <div className="space-y-4">
         {filteredAlerts.length === 0 ? (
           <div className="p-8 text-center bg-[#FAF7F2] rounded-lg border border-[#E5E0D8] text-[#6C7278] text-xs">
-            No alerts found under filter &quot;{filterStatus}&quot;.
+            {loading ? 'Loading CAP alerts…' : `No alerts found under filter "${filterStatus}".`}
           </div>
         ) : (
           filteredAlerts.map((alert) => {
             const tierMeta = SEVERITY_TIERS[alert.tier] || SEVERITY_TIERS.INFO;
             const isDraft = alert.status === 'DRAFT';
+            const isUnderReview = alert.status === 'UNDER_REVIEW';
             const isApproved = alert.status === 'APPROVED';
             const isRejected = alert.status === 'REJECTED';
 
@@ -388,8 +300,10 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
               <div
                 key={alert.id}
                 className={`p-5 rounded-xl border transition-all space-y-3.5 ${
-                  isDraft
+                      isDraft
                     ? 'bg-white border-[#E5E0D8] shadow-xs'
+                        : isUnderReview
+                        ? 'bg-blue-50/40 border-blue-300'
                     : isApproved
                     ? 'bg-emerald-50/40 border-emerald-300'
                     : 'bg-neutral-50 border-neutral-300 opacity-75'
@@ -411,6 +325,8 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                         isDraft
                           ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : isUnderReview
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
                           : isApproved
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           : 'bg-red-100 text-red-800 border border-red-300'
@@ -496,7 +412,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                 )}
 
                 {/* Duty Forecaster Review Actions (For DRAFT alerts) */}
-                {isDraft && (
+                {(isDraft || isUnderReview) && (
                   <div className="pt-2 border-t border-[#E5E0D8] flex flex-wrap items-center justify-between gap-2 text-xs">
                     {/* Diagnostic Tools (SHAP & CAP Preview) */}
                     <div className="flex items-center space-x-2">
@@ -525,6 +441,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                       <button
                         type="button"
                         onClick={() => setSelectedAlertForReject(alert)}
+                        disabled={pendingAlertId === alert.id}
                         className="px-3.5 py-1.5 rounded-lg border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -532,23 +449,27 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                       </button>
 
                       {/* Action 2: Modify */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAlertForEdit({ ...alert })}
-                        className="px-3.5 py-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF7F2] hover:bg-[#E5E0D8] text-[#1A1D20] font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-[#D9532F]" />
-                        <span>Modify</span>
-                      </button>
+                      {isDraft && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAlertForEdit({ ...alert })}
+                          disabled={pendingAlertId === alert.id}
+                          className="px-3.5 py-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF7F2] hover:bg-[#E5E0D8] text-[#1A1D20] font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-[#D9532F]" />
+                          <span>Modify</span>
+                        </button>
+                      )}
 
                       {/* Action 3: Approve & Broadcast */}
                       <button
                         type="button"
                         onClick={() => handleApprove(alert)}
+                        disabled={pendingAlertId === alert.id}
                         className="px-4 py-1.5 rounded-lg bg-[#2E7D32] hover:bg-emerald-800 text-white font-bold flex items-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
-                        <span>Approve &amp; Broadcast</span>
+                        <span>{pendingAlertId === alert.id ? 'Processing…' : 'Approve &amp; Broadcast'}</span>
                       </button>
                     </div>
                   </div>
@@ -607,9 +528,12 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                   </label>
                   <input
                     type="text"
-                    value={selectedAlertForEdit.leadTimeHours}
+                    type="number"
+                    min="0"
+                    max="1440"
+                    value={selectedAlertForEdit.leadTimeMinutes ?? ''}
                     onChange={(e) =>
-                      setSelectedAlertForEdit({ ...selectedAlertForEdit, leadTimeHours: e.target.value })
+                      setSelectedAlertForEdit({ ...selectedAlertForEdit, leadTimeMinutes: e.target.value === '' ? null : Number(e.target.value) })
                     }
                     className="w-full p-2 rounded border border-[#E5E0D8] bg-[#FAF7F2] font-mono"
                   />
@@ -759,38 +683,43 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
               </h4>
             </div>
             <span className="font-mono text-[10px] text-[#6C7278]">
-              Recorded on public.audit_log
+              Immutable rows from public.audit_logs
             </span>
           </div>
 
           <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1 font-mono">
-            {auditLogs.map((log) => (
-              <div
-                key={log.id}
-                className="p-2.5 bg-white rounded border border-[#E5E0D8] flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-              >
-                <div className="space-y-0.5">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-[#1A1D20]">{log.alertId}</span>
-                    <span
-                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                        log.action.includes('APPROVED')
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {log.action}
-                    </span>
-                    <span className="text-[10px] text-[#6C7278]">{log.timestamp}</span>
+            {auditLogs.length === 0 ? (
+              <p className="text-xs text-[#6C7278]">No persisted CAP audit events are available.</p>
+            ) : auditLogs.map((log) => {
+              const oldText = log.old_values?.description_en || log.old_values?.headline_en;
+              const newText = log.new_values?.description_en || log.new_values?.headline_en;
+              return (
+                <div
+                  key={log.log_id}
+                  className="p-2.5 bg-white rounded border border-[#E5E0D8] flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center space-x-2 flex-wrap">
+                      <span className="font-bold text-[#1A1D20]">{log.entity_id}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${log.action.startsWith('APPROVE') ? 'bg-emerald-100 text-emerald-800' : log.action === 'BEGIN_REVIEW' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
+                        {log.action}
+                      </span>
+                      <span className="text-[10px] text-[#6C7278]">{new Date(log.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-[11px] text-[#1A1D20] font-sans break-words">
+                      {log.rationale || newText || 'State transition committed.'}
+                    </p>
+                    {oldText && newText && oldText !== newText && (
+                      <p className="text-[10px] text-[#6C7278] font-sans break-words">Before: {oldText}<br />After: {newText}</p>
+                    )}
                   </div>
-                  <p className="text-[11px] text-[#1A1D20] font-sans">{log.details}</p>
+                  <div className="text-[10px] text-[#6C7278] text-right shrink-0">
+                    <span className="block font-sans font-semibold text-[#1A1D20]">Actor {log.actor_id}</span>
+                    <span>Log Ref #{log.log_id}</span>
+                  </div>
                 </div>
-                <div className="text-[10px] text-[#6C7278] text-right shrink-0">
-                  <span className="block font-sans font-semibold text-[#1A1D20]">{log.officer}</span>
-                  <span>Log Ref #{log.id}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
