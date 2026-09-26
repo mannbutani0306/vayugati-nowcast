@@ -1323,16 +1323,17 @@ export default function OfficerDashboard() {
       {/* 2. BROADCAST & EXPORT NOTIFICATION BANNERS */}
       {/* ------------------------------------------------------------- */}
       {broadcastBanner && (
-        <div className="bg-emerald-900 border-b border-emerald-700 text-white px-4 py-2.5 text-xs flex items-center justify-between">
+        <div className="bg-emerald-900 border-b border-emerald-700 text-white px-4 py-2.5 text-xs flex items-center justify-between" role="status" aria-live="polite" aria-label="Alert approval confirmation">
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
             <span>
-              <strong>EMERGENCY BROADCAST AUTHORIZED:</strong> {broadcastBanner.headline} for {broadcastBanner.location} dispatched at {broadcastBanner.timestamp}. {broadcastBanner.recipients}
+              <strong>APPROVAL RECORDED:</strong> {broadcastBanner.headline} for {broadcastBanner.location} at {broadcastBanner.timestamp}. {broadcastBanner.recipients}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setBroadcastBanner(null)}
+            aria-label="Dismiss approval confirmation"
             className="text-emerald-300 hover:text-white ml-2 cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -1341,25 +1342,25 @@ export default function OfficerDashboard() {
       )}
 
       {liveCellsError && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700">
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert" aria-label="Live cell data unavailable">
           Offline Database: {liveCellsError} No live cell data is available.
         </div>
       )}
 
       {databaseError && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert">
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert" aria-label="Database operation error">
           Offline Database: {databaseError} Alert changes are not shown as saved unless Supabase confirms them.
         </div>
       )}
 
       {nwpError && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900" role="alert">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900" role="alert" aria-label="NWP feed status">
           {nwpError} {selectedNwp ? 'Showing the last successful sounding for this cell.' : 'Live instability values are unavailable.'}
         </div>
       )}
 
       {exportNotice && (
-        <div className="bg-blue-900 border-b border-blue-700 text-white px-4 py-2 text-xs flex items-center justify-between">
+        <div className="bg-blue-900 border-b border-blue-700 text-white px-4 py-2 text-xs flex items-center justify-between" role="status" aria-live="polite" aria-label="CAP export result">
           <div className="flex items-center space-x-2 font-mono">
             <FileText className="w-4 h-4 text-blue-300 shrink-0" />
             <span>

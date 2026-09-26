@@ -19,6 +19,58 @@ ALTER TABLE public.cap_alerts
     ADD CONSTRAINT cap_alerts_status_lifecycle_check
     CHECK (status IN ('DRAFT', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'CANCELLED'));
 
+ALTER TABLE public.cap_alerts
+    ADD COLUMN IF NOT EXISTS headline_mr text,
+    ADD COLUMN IF NOT EXISTS description_hi text,
+    ADD COLUMN IF NOT EXISTS description_mr text;
+
+DROP FUNCTION IF EXISTS public.get_officer_cap_alerts();
+CREATE FUNCTION public.get_officer_cap_alerts()
+RETURNS TABLE (
+    id uuid,
+    identifier text,
+    event_type text,
+    urgency text,
+    severity text,
+    certainty text,
+    headline_en text,
+    headline_hi text,
+    headline_mr text,
+    description_en text,
+    description_hi text,
+    description_mr text,
+    affected_zone_geojson jsonb,
+    status text,
+    approved_by uuid,
+    approved_at timestamptz,
+    rejection_reason text,
+    cell_uid text,
+    location_label text,
+    risk_score numeric,
+    eta_minutes integer,
+    max_dbz numeric,
+    rain_rate_mm_hr numeric,
+    wind_gust_kmh numeric,
+    created_at timestamptz,
+    updated_at timestamptz
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT a.id, a.identifier, a.event_type, a.urgency, a.severity, a.certainty,
+           a.headline_en, a.headline_hi, a.headline_mr,
+           a.description_en, a.description_hi, a.description_mr,
+           ST_AsGeoJSON(a.affected_zone)::jsonb, a.status, a.approved_by,
+           a.approved_at, a.rejection_reason, a.cell_uid, a.location_label,
+           a.risk_score, a.eta_minutes, a.max_dbz, a.rain_rate_mm_hr,
+           a.wind_gust_kmh, a.created_at, a.updated_at
+    FROM public.cap_alerts AS a
+    WHERE public.is_duty_officer_or_admin()
+    ORDER BY a.created_at DESC;
+$$;
+REVOKE ALL ON FUNCTION public.get_officer_cap_alerts() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_officer_cap_alerts() TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.guard_cap_alert_status_transition()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -108,7 +160,11 @@ CREATE OR REPLACE FUNCTION public.begin_cap_alert_review(
     p_description_en text DEFAULT NULL,
     p_severity text DEFAULT NULL,
     p_location_label text DEFAULT NULL,
-    p_eta_minutes integer DEFAULT NULL
+    p_eta_minutes integer DEFAULT NULL,
+    p_headline_hi text DEFAULT NULL,
+    p_headline_mr text DEFAULT NULL,
+    p_description_hi text DEFAULT NULL,
+    p_description_mr text DEFAULT NULL
 )
 RETURNS public.cap_alerts
 LANGUAGE plpgsql
@@ -140,6 +196,10 @@ BEGIN
        SET status = 'UNDER_REVIEW',
            headline_en = coalesce(trim(p_headline_en), headline_en),
            description_en = coalesce(p_description_en, description_en),
+           headline_hi = coalesce(nullif(trim(p_headline_hi), ''), headline_hi),
+           headline_mr = coalesce(nullif(trim(p_headline_mr), ''), headline_mr),
+           description_hi = coalesce(nullif(trim(p_description_hi), ''), description_hi),
+           description_mr = coalesce(nullif(trim(p_description_mr), ''), description_mr),
            severity = coalesce(p_severity, severity),
            location_label = coalesce(nullif(trim(p_location_label), ''), location_label),
            eta_minutes = coalesce(p_eta_minutes, eta_minutes),
@@ -245,11 +305,11 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.begin_cap_alert_review(uuid, text, text, text, text, integer) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.begin_cap_alert_review(uuid, text, text, text, text, integer, text, text, text, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.approve_cap_alert(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.reject_cap_alert(uuid, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.cancel_cap_alert(uuid, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.begin_cap_alert_review(uuid, text, text, text, text, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.begin_cap_alert_review(uuid, text, text, text, text, integer, text, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.approve_cap_alert(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reject_cap_alert(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_cap_alert(uuid, text) TO authenticated;
@@ -269,7 +329,10 @@ RETURNS TABLE (
     certainty text,
     headline_en text,
     headline_hi text,
+    headline_mr text,
     description_en text,
+    description_hi text,
+    description_mr text,
     affected_zone_geojson jsonb,
     status text,
     distance_km numeric,
@@ -299,7 +362,8 @@ BEGIN
 
     RETURN QUERY
     SELECT a.id, a.identifier, a.event_type, a.severity, a.urgency, a.certainty,
-           a.headline_en, a.headline_hi, a.description_en,
+            a.headline_en, a.headline_hi, a.headline_mr,
+            a.description_en, a.description_hi, a.description_mr,
            ST_AsGeoJSON(a.affected_zone)::jsonb, a.status,
            round((ST_Distance(a.affected_zone::geography, user_geography) / 1000.0)::numeric, 2),
            ST_Intersects(a.affected_zone, user_point),

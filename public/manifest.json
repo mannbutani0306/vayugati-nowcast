@@ -1,0 +1,35 @@
+{
+  "id": "/citizen",
+  "name": "VayuGati Nowcast",
+  "short_name": "VayuGati",
+  "description": "Weather monitoring and approved local alert information for citizens.",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "start_url": "/citizen",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#102C3A",
+  "background_color": "#FAF7F2",
+  "categories": ["weather", "safety"],
+  "icons": [
+    {
+      "src": "/icons/vayugati-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/vayugati-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/vayugati-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

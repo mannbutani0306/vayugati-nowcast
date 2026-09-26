@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
   --bg-sand: #FAF7F2;
@@ -12,6 +13,10 @@
   --tier-watch: #D97706;
   --tier-warning: #EA580C;
   --tier-severe: #DC2626;
+  --app-font-scale: 1;
+  --app-focus-color: #D9532F;
+  font-size: calc(16px * var(--app-font-scale));
+  transition: font-size 180ms ease;
 }
 
 body {
@@ -21,12 +26,12 @@ body {
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
-  transition: font-size 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* 1. GIGW Contrast Mode: High-Contrast Dark */
 html.contrast-dark {
-  filter: contrast(120%);
+  color-scheme: dark;
+  --app-focus-color: #67e8f9;
 }
 
 html.contrast-dark body {
@@ -48,8 +53,18 @@ html.contrast-dark .bg-\[\#FFFFFF\] {
 
 html.contrast-dark .text-\[\#1A1D20\],
 html.contrast-dark .text-neutral-900,
-html.contrast-dark .text-gray-900 {
-  color: #ffffff !important;
+html.contrast-dark .text-gray-900,
+html.contrast-dark main p,
+html.contrast-dark main li,
+html.contrast-dark main dt,
+html.contrast-dark main dd,
+html.contrast-dark main td,
+html.contrast-dark main th,
+html.contrast-dark main label,
+html.contrast-dark main strong,
+html.contrast-dark footer p,
+html.contrast-dark footer li {
+  color: #f8fafc !important;
 }
 
 html.contrast-dark .text-\[\#6C7278\],
@@ -57,68 +72,112 @@ html.contrast-dark .text-neutral-600 {
   color: #cbd5e1 !important;
 }
 
-html.contrast-dark .border-\[\#E5E0D8\] {
-  border-color: #334155 !important;
+html.contrast-dark .border-\[\#E5E0D8\],
+html.contrast-dark main section,
+html.contrast-dark main article,
+html.contrast-dark main table {
+  border-color: #64748b !important;
 }
 
-/* 2. GIGW Contrast Mode: High-Contrast Yellow on Navy (#001F3F / #FFD700) */
+html.contrast-dark main input,
+html.contrast-dark main select,
+html.contrast-dark main textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+html.contrast-yellow-navy {
+  color-scheme: dark;
+  --app-focus-color: #FFD700;
+}
+
 html.contrast-yellow-navy body {
   background-color: #001f3f !important;
   color: #ffd700 !important;
 }
 
 html.contrast-yellow-navy .bg-\[\#FAF7F2\],
-html.contrast-yellow-navy .bg-sand {
-  background-color: #001730 !important;
-}
-
+html.contrast-yellow-navy .bg-sand,
 html.contrast-yellow-navy .bg-white,
 html.contrast-yellow-navy .bg-\[\#FFFFFF\] {
-  background-color: #001f3f !important;
-  color: #ffd700 !important;
-  border-color: #ffd700 !important;
+  background-color: #001730 !important;
 }
 
 html.contrast-yellow-navy .text-\[\#1A1D20\],
 html.contrast-yellow-navy .text-neutral-900,
 html.contrast-yellow-navy .text-gray-900,
 html.contrast-yellow-navy .text-\[\#6C7278\],
-html.contrast-yellow-navy .text-neutral-600 {
-  color: #ffd700 !important;
-}
-
-html.contrast-yellow-navy .border-\[\#E5E0D8\],
-html.contrast-yellow-navy .border-neutral-200 {
-  border-color: #ffd700 !important;
-}
-
+html.contrast-yellow-navy .text-neutral-600,
+html.contrast-yellow-navy main p,
+html.contrast-yellow-navy main li,
+html.contrast-yellow-navy main dt,
+html.contrast-yellow-navy main dd,
+html.contrast-yellow-navy main td,
+html.contrast-yellow-navy main th,
+html.contrast-yellow-navy main label,
+html.contrast-yellow-navy main strong,
+html.contrast-yellow-navy footer p,
+html.contrast-yellow-navy footer li,
 html.contrast-yellow-navy a,
 html.contrast-yellow-navy button {
   color: #ffd700 !important;
 }
 
-/* Accessible Focus Outlines (W3C WAI-AA) */
+html.contrast-yellow-navy .border-\[\#E5E0D8\],
+html.contrast-yellow-navy .border-neutral-200,
+html.contrast-yellow-navy main section,
+html.contrast-yellow-navy main article,
+html.contrast-yellow-navy main table {
+  border-color: #ffd700 !important;
+}
+
+html.contrast-yellow-navy main input,
+html.contrast-yellow-navy main select,
+html.contrast-yellow-navy main textarea {
+  background-color: #001730 !important;
+  color: #ffd700 !important;
+  border-color: #ffd700 !important;
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #D9532F !important;
+  outline: 2px solid var(--app-focus-color) !important;
   outline-offset: 2px !important;
 }
 
-/* Custom scrollbars for telemetry grids */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: #FAF7F2;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #E5E0D8;
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #6C7278;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

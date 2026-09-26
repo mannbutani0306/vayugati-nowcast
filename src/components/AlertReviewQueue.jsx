@@ -129,6 +129,10 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
         ...(approvedRow || {}),
         headline: approvedRow?.headline_en || reviewRow?.headline_en || alertItem.headline_en,
         aiDraftedText: approvedRow?.description_en || reviewRow?.description_en || alertItem.aiDraftedText,
+        headline_hi: approvedRow?.headline_hi || reviewRow?.headline_hi || alertItem.headline_hi,
+        headline_mr: approvedRow?.headline_mr || reviewRow?.headline_mr || alertItem.headline_mr,
+        description_hi: approvedRow?.description_hi || reviewRow?.description_hi || alertItem.description_hi,
+        description_mr: approvedRow?.description_mr || reviewRow?.description_mr || alertItem.description_mr,
         targetGrid: approvedRow?.location_label || reviewRow?.location_label || alertItem.targetGrid,
         tier: ({ Extreme: 'SEVERE', Severe: 'WARNING', Moderate: 'WATCH', Minor: 'INFO' })[approvedRow?.severity || reviewRow?.severity] || alertItem.tier,
         leadTimeMinutes: approvedRow?.eta_minutes ?? reviewRow?.eta_minutes ?? alertItem.leadTimeMinutes,
@@ -158,6 +162,10 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
     const tierSeverity = { SEVERE: 'Extreme', WARNING: 'Severe', WATCH: 'Moderate', INFO: 'Minor' };
     const approved = await handleApprove(selectedAlertForEdit, {
       description_en: selectedAlertForEdit.aiDraftedText,
+      headline_hi: selectedAlertForEdit.headline_hi,
+      headline_mr: selectedAlertForEdit.headline_mr,
+      description_hi: selectedAlertForEdit.description_hi,
+      description_mr: selectedAlertForEdit.description_mr,
       severity: tierSeverity[selectedAlertForEdit.tier],
       location_label: selectedAlertForEdit.targetGrid,
       eta_minutes: selectedAlertForEdit.leadTimeMinutes,
@@ -483,7 +491,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
       {/* 4. MODAL: MODIFY ALERT PARAMETERS */}
       {selectedAlertForEdit && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-xl bg-white rounded-xl border border-[#E5E0D8] shadow-2xl p-6 space-y-4">
+          <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white rounded-xl border border-[#E5E0D8] shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3">
               <div>
                 <h4 className="font-bold text-base text-[#1A1D20]">
@@ -566,6 +574,28 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                   }
                   className="w-full p-2.5 rounded border border-[#E5E0D8] bg-[#FAF7F2] text-[#1A1D20] font-sans"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="review-headline-hi" className="block font-semibold text-[#1A1D20] mb-1">Hindi warning title</label>
+                  <input id="review-headline-hi" value={selectedAlertForEdit.headline_hi || ''} onChange={(e) => setSelectedAlertForEdit({ ...selectedAlertForEdit, headline_hi: e.target.value })} className="w-full p-2 rounded border border-[#E5E0D8] bg-[#FAF7F2]" />
+                </div>
+                <div>
+                  <label htmlFor="review-headline-mr" className="block font-semibold text-[#1A1D20] mb-1">Marathi warning title</label>
+                  <input id="review-headline-mr" value={selectedAlertForEdit.headline_mr || ''} onChange={(e) => setSelectedAlertForEdit({ ...selectedAlertForEdit, headline_mr: e.target.value })} className="w-full p-2 rounded border border-[#E5E0D8] bg-[#FAF7F2]" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="review-description-hi" className="block font-semibold text-[#1A1D20] mb-1">Hindi advisory</label>
+                  <textarea id="review-description-hi" rows={3} value={selectedAlertForEdit.description_hi || ''} onChange={(e) => setSelectedAlertForEdit({ ...selectedAlertForEdit, description_hi: e.target.value })} className="w-full p-2 rounded border border-[#E5E0D8] bg-[#FAF7F2]" />
+                </div>
+                <div>
+                  <label htmlFor="review-description-mr" className="block font-semibold text-[#1A1D20] mb-1">Marathi advisory</label>
+                  <textarea id="review-description-mr" rows={3} value={selectedAlertForEdit.description_mr || ''} onChange={(e) => setSelectedAlertForEdit({ ...selectedAlertForEdit, description_mr: e.target.value })} className="w-full p-2 rounded border border-[#E5E0D8] bg-[#FAF7F2]" />
+                </div>
               </div>
 
               <div className="pt-2 border-t border-[#E5E0D8] flex items-center justify-end space-x-2">

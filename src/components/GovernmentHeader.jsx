@@ -124,9 +124,8 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const [istTime, setIstTime] = useState('');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
 
-  // Live Emergency Ticker Bulletin Text
   const emergencyMarqueeText =
-    'RED ALERT (NDMA CAP v1.2): Severe convective cell detected over North Pune & Sahastradhara corridor (63.8 dBZ Hail Core). Flash flood risk within 45 minutes. Avoid river streams & low-lying bridges. Pre-positioning Stage 3 activated.';
+    'Approved CAP alerts appear in the Citizen Portal after authorized review. This channel message does not indicate that an alert is currently active.';
 
   // Live IST Clock
   useEffect(() => {
@@ -148,8 +147,9 @@ export default function GovernmentHeader({ onOpenLogin }) {
   }, []);
 
   const handleDashboardRedirect = () => {
-    if (role === 'admin') navigate('/admin');
-    else if (role === 'officer') navigate('/officer');
+    const normalizedRole = String(role || '').toLowerCase().replace(/[- ]/g, '_');
+    if (normalizedRole === 'admin') navigate('/admin');
+    else if (normalizedRole === 'officer' || normalizedRole === 'duty_officer') navigate('/officer');
     else navigate('/citizen');
   };
 
@@ -226,6 +226,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
               onClick={() => setFontScale('sm')}
               title="Decrease Font Size (A-)"
               aria-label="Decrease Font Size"
+              aria-pressed={fontScale === 'sm'}
               className={`px-1.5 py-0.2 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                 fontScale === 'sm'
                   ? 'bg-[#D9532F] text-white'
@@ -239,6 +240,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
               onClick={() => setFontScale('md')}
               title="Standard Font Size (A)"
               aria-label="Standard Font Size"
+              aria-pressed={fontScale === 'md'}
               className={`px-1.5 py-0.2 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                 fontScale === 'md'
                   ? 'bg-[#D9532F] text-white'
@@ -252,6 +254,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
               onClick={() => setFontScale('lg')}
               title="Increase Font Size (A+)"
               aria-label="Increase Font Size"
+              aria-pressed={fontScale === 'lg'}
               className={`px-1.5 py-0.2 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                 fontScale === 'lg'
                   ? 'bg-[#D9532F] text-white'
@@ -268,6 +271,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
             onClick={cycleContrastMode}
             title={`Active Mode: ${contrastMode.toUpperCase()} (Click to Cycle Contrast)`}
             aria-label={`Cycle High Contrast Mode. Current: ${contrastMode}`}
+            aria-pressed={contrastMode !== 'default'}
             className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center space-x-1.5 border transition-all cursor-pointer ${
               contrastMode === 'yellow-navy'
                 ? 'bg-[#001F3F] text-[#FFD700] border-[#FFD700] shadow-2xs font-extrabold'
@@ -309,10 +313,10 @@ export default function GovernmentHeader({ onOpenLogin }) {
             {isLangMenuOpen && (
               <div className="absolute right-0 top-full mt-1 w-48 bg-[#0F172A] border border-[#233857] rounded-lg shadow-2xl py-1 z-50 text-xs divide-y divide-[#1E293B]">
                 <div className="px-3 py-1.5 text-[9px] uppercase font-bold text-neutral-400 tracking-wider">
-                  12 Scheduled Languages
+                  Available languages
                 </div>
                 <div className="max-h-64 overflow-y-auto">
-                  {SUPPORTED_LANGUAGES.map((lang) => (
+                  {SUPPORTED_LANGUAGES.filter((lang) => ['en', 'hi', 'mr'].includes(lang.code)).map((lang) => (
                     <button
                       key={lang.code}
                       type="button"
@@ -367,8 +371,8 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   <span className="text-xs font-extrabold text-[#FAF7F2] tracking-wide">
                     VayuGati Nowcast
                   </span>
-                  <span className="text-[9px] bg-[#1E3A8A] text-blue-100 border border-blue-400/40 px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
-                    MoES - IMD Operational
+                  <span className="text-[9px] bg-[#1E293B] text-slate-200 border border-slate-500/50 px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
+                    Weather operations prototype
                   </span>
                   <span className="text-[10px] text-neutral-400 hidden lg:inline">
                     Convective-Scale Nowcasting (0–6 Hr Lead Time, 1–3 km Mesh)
@@ -388,12 +392,21 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
             {/* Operational System Status Indicator */}
             <div
-              className="border px-2.5 py-1.5 rounded text-[11px] flex items-center space-x-1.5 bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
-              title="Doppler radar network and nowcast processing nodes active"
+              className={`border px-2.5 py-1.5 rounded text-[11px] flex items-center space-x-1.5 ${isConfigured ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300' : 'bg-amber-950/80 border-amber-500/50 text-amber-200'}`}
+              title="Configuration indicator only; individual feed availability is shown with its source status."
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="font-medium">System Status: Operational</span>
+              <span className={`w-2 h-2 rounded-full ${isConfigured ? 'bg-emerald-400' : 'bg-amber-300'}`}></span>
+              <span className="font-medium">Core configuration: {isConfigured ? 'Ready' : 'Required'}</span>
             </div>
+
+            <Link
+              to="/data-sources"
+              aria-label="Data sources and attribution"
+              className="border border-[#1E3A5F] bg-[#14233D] px-2.5 py-1.5 text-[11px] text-white hover:bg-[#1C3254] inline-flex items-center gap-1.5"
+            >
+              <Database aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
+              <span>Data sources</span>
+            </Link>
 
             {/* User Profile / Portal Action */}
             {profile ? (
@@ -433,17 +446,17 @@ export default function GovernmentHeader({ onOpenLogin }) {
       <div className="bg-[#B91C1C] text-white text-xs py-1.5 px-4 overflow-hidden border-b border-[#991B1B] flex items-center shadow-inner">
         {/* Warning Badge & Audio TTS Trigger */}
         <div className="flex items-center space-x-2 shrink-0 mr-3">
-          <span className="bg-yellow-400 text-black font-extrabold text-[10px] uppercase px-2 py-0.5 rounded tracking-wider flex items-center gap-1 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
-            <span>CAP BULLETIN</span>
+            <span className="bg-yellow-400 text-black font-extrabold text-[10px] uppercase px-2 py-0.5 rounded tracking-wider flex items-center gap-1 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-[#0B5D73]"></span>
+            <span>CAP DELIVERY</span>
           </span>
 
           {/* Web Speech API Audio Warning Button */}
           <button
             type="button"
             onClick={handleToggleVoiceAlert}
-            title={isSpeakingAlert ? 'Stop Audio Broadcast' : 'Read Emergency Bulletin Aloud (Web Speech API)'}
-            aria-label="Read Out Emergency Alert Aloud"
+            title={isSpeakingAlert ? 'Stop audio' : 'Read CAP delivery information aloud'}
+            aria-label={isSpeakingAlert ? 'Stop audio' : 'Read CAP delivery information aloud'}
             className={`p-1 rounded transition-all cursor-pointer flex items-center space-x-1 text-[11px] font-bold ${
               isSpeakingAlert
                 ? 'bg-yellow-300 text-black animate-pulse'
@@ -458,13 +471,11 @@ export default function GovernmentHeader({ onOpenLogin }) {
         </div>
 
         {/* Marquee Scrolling Text Strip */}
-        <div className="relative overflow-hidden w-full whitespace-nowrap">
+          <div className="relative overflow-hidden w-full whitespace-nowrap" role="status" aria-label="CAP delivery information" aria-live="polite">
           <div
             className="inline-block animate-marquee font-mono text-[11px] tracking-wide text-yellow-100 font-bold"
-            role="marquee"
-            aria-live="polite"
           >
-            {emergencyMarqueeText} • Doppler C-Band dual-pol Zdr signature and 3.0σ lightning flash jump detected • Cell broadcast sirens initiated to SDMA &amp; SDRF Quick Reaction Units.
+            {emergencyMarqueeText}
           </div>
         </div>
       </div>

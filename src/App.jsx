@@ -19,6 +19,7 @@ import LandingPage from './pages/LandingPage';
 import CitizenPortal from './pages/CitizenPortal';
 import OfficerDashboard from './pages/OfficerDashboard';
 import AdminPortal from './pages/AdminPortal';
+import DataSourcesPage from './pages/DataSourcesPage';
 import {
   ShieldAlert,
   ArrowRight,
@@ -49,8 +50,12 @@ function ProtectedRoute({ children, allowedRoles = [], onOpenLogin }) {
     );
   }
 
-  const effectiveRole = profile?.role || role || 'citizen';
-  const hasAccess = allowedRoles.length === 0 || allowedRoles.includes(effectiveRole);
+  const normalizeRole = (value) => {
+    const normalized = String(value || 'citizen').trim().toLowerCase().replace(/[- ]/g, '_');
+    return normalized === 'duty_officer' ? 'officer' : normalized;
+  };
+  const effectiveRole = normalizeRole(profile?.role || role);
+  const hasAccess = allowedRoles.length === 0 || allowedRoles.some((allowedRole) => normalizeRole(allowedRole) === effectiveRole);
 
   if (!hasAccess) {
     return (
@@ -87,7 +92,7 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
 
   return (
     <div className="fixed bottom-5 right-5 z-[200] max-w-md w-full animate-in slide-in-from-bottom-5 fade-in duration-300">
-      <div className="bg-[#1A1D20] text-white p-4 rounded-xl border border-red-500 shadow-2xl space-y-2.5">
+      <div className="bg-[#1A1D20] text-white p-4 rounded-xl border border-red-500 shadow-2xl space-y-2.5" role="alert" aria-label="Approved severe weather alert">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
@@ -98,6 +103,7 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
           <button
             type="button"
             onClick={onDismiss}
+            aria-label="Dismiss weather alert"
             className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -106,17 +112,16 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
 
         <div>
           <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-            <span>⛈️</span>
-            <span>{toast.title || 'Severe Convective Cell Triggered'}</span>
+            <span>{toast.title}</span>
           </h4>
           <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
-            {toast.message || 'Extreme precipitation core (>110 mm/hr) and hail detected. Low-lying streams rising rapidly.'}
+            {toast.message}
           </p>
         </div>
 
         <div className="flex items-center justify-between pt-1 border-t border-neutral-700 text-xs">
           <span className="text-[10px] font-mono text-neutral-400">
-            Target: {toast.sector || 'Sahastradhara & Rajpur Foothills'}
+            Target: {toast.sector}
           </span>
           <button
             type="button"
@@ -184,6 +189,9 @@ function GovernmentFooter() {
               </li>
               <li>
                 <Link to="/admin" className="hover:text-[#FF9933] transition-colors">District Admin &amp; DDMA Command</Link>
+              </li>
+              <li>
+                <Link to="/data-sources" className="hover:text-[#FF9933] transition-colors">Data Sources &amp; Attribution</Link>
               </li>
             </ul>
           </div>
@@ -260,12 +268,7 @@ function MainLayout() {
   const navigate = useNavigate();
 
   // Global Severe Alert Toast Notification State
-  const [activeToast, setActiveToast] = useState({
-    tier: 'SEVERE',
-    title: 'Sahastradhara Cloudburst Flash Flood Warning',
-    message: 'Radar reflectivity 63.8 dBZ. Rain rates > 110 mm/hr approaching foothill streams within 30 mins.',
-    sector: 'Dehradun & Rishikesh Foothills',
-  });
+  const [activeToast, setActiveToast] = useState(null);
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col font-sans">
@@ -277,6 +280,8 @@ function MainLayout() {
         <Routes>
           {/* Public Landing Page */}
           <Route path="/" element={<LandingPage onOpenLogin={() => setIsLoginModalOpen(true)} />} />
+
+          <Route path="/data-sources" element={<DataSourcesPage />} />
 
           {/* Citizen Early Warning Portal */}
           <Route
@@ -323,7 +328,7 @@ function MainLayout() {
         }}
       />
 
-      {/* Global Hackathon Evaluation Login Modal */}
+      {/* Authentication modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}

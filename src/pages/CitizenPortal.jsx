@@ -26,6 +26,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { isSupabaseConfigured, supabaseConfigurationError } from '../lib/supabaseClient';
+import { useAccessibility } from '../context/AccessibilityContext';
 import {
   fetchNearbyAlerts,
   subscribeToApprovedAlerts,
@@ -84,6 +85,7 @@ const TRANSLATIONS = {
     minsAgo: 'mins ago',
     activeConeWarningHeadline: 'APPROVED WEATHER ALERT IN YOUR AREA',
     activeConeWarningSub: 'An approved alert polygon intersects your current coordinates. Follow the official alert instructions below.',
+    originalTextFallback: 'Alert copy shown in its original language; no translation is available.',
     databaseOffline: 'Offline Database: live approved alerts are unavailable.',
     impactCountdownPrefix: 'Impact expected in:',
     minutesUnit: 'Minutes',
@@ -143,6 +145,7 @@ const TRANSLATIONS = {
     minsAgo: 'मिनट पहले',
     activeConeWarningHeadline: 'आपके क्षेत्र के लिए आधिकारिक मौसम चेतावनी',
     activeConeWarningSub: 'स्वीकृत चेतावनी क्षेत्र आपकी स्थिति को कवर करता है। नीचे दिए गए आधिकारिक निर्देशों का पालन करें।',
+    originalTextFallback: 'चेतावनी का मूल पाठ दिखाया गया है; अनुवाद उपलब्ध नहीं है।',
     databaseOffline: 'डेटाबेस ऑफ़लाइन: लाइव स्वीकृत चेतावनियाँ उपलब्ध नहीं हैं।',
     impactCountdownPrefix: 'संभावित प्रभाव समय:',
     minutesUnit: 'मिनट',
@@ -202,6 +205,7 @@ const TRANSLATIONS = {
     minsAgo: 'मिनिटांपूर्वी',
     activeConeWarningHeadline: 'तुमच्या परिसरासाठी अधिकृत हवामान इशारा',
     activeConeWarningSub: 'मंजूर इशारा क्षेत्रात तुमचे स्थान येते. खालील अधिकृत सूचनांचे पालन करा.',
+    originalTextFallback: 'सूचनेचा मूळ मजकूर दाखवला आहे; भाषांतर उपलब्ध नाही.',
     databaseOffline: 'डेटाबेस ऑफलाइन: थेट मंजूर इशारे उपलब्ध नाहीत.',
     impactCountdownPrefix: 'संभाव्य धोका वेळ:',
     minutesUnit: 'मिनिटे',
@@ -244,6 +248,11 @@ const TRANSLATIONS = {
     testSafeZone: 'सुरक्षित भाग (मोहंड)',
   },
 };
+
+function localizedAlertText(alert, field, language) {
+  const localized = language === 'en' ? null : alert?.[`${field}_${language}`];
+  return localized || alert?.[`${field}_en`] || '';
+}
 
 // Pilot region coordinates & metadata
 const PILOT_LOCATIONS = [
@@ -327,17 +336,24 @@ const PERSONA_DIRECTIVES = {
   },
 };
 
+function persistAlertsToServiceWorker(payload) {
+  if (!('serviceWorker' in navigator)) return;
+  const send = (registration) => {
+    const worker = navigator.serviceWorker.controller || registration?.active;
+    worker?.postMessage({ type: 'CACHE_ACTIVE_ALERTS', payload });
+  };
+  if (navigator.serviceWorker.controller) send(null);
+  else navigator.serviceWorker.ready.then(send).catch(() => {});
+}
+
 // 0-6 Hour Hourly Progression Data
 export default function CitizenPortal() {
-  // 1. Language state: 'en' | 'hi' | 'mr'
-  const [lang, setLang] = useState(() => {
-    return localStorage.getItem('vayugati_lang') || 'en';
-  });
+  const { language, changeLanguage } = useAccessibility();
+  const lang = ['en', 'hi', 'mr'].includes(language) ? language : 'en';
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
   const handleLangChange = (newLang) => {
-    setLang(newLang);
-    localStorage.setItem('vayugati_lang', newLang);
+    changeLanguage(newLang);
   };
 
   // 2. Location & Coordinate State
@@ -369,6 +385,9 @@ export default function CitizenPortal() {
   const [isCachedDataDisplayed, setIsCachedDataDisplayed] = useState(false);
   const directAlert = useMemo(() => nearbyAlerts.find((alert) => alert.is_direct_intersection), [nearbyAlerts]);
   const activeAlert = useMemo(() => directAlert || nearbyAlerts[0] || null, [directAlert, nearbyAlerts]);
+  const localizedHeadline = localizedAlertText(activeAlert, 'headline', lang);
+  const localizedDescription = localizedAlertText(activeAlert, 'description', lang);
+  const alertCopyNeedsFallback = Boolean(activeAlert && lang !== 'en' && (!activeAlert[`headline_${lang}`] || !activeAlert[`description_${lang}`]));
   const spatialAssessmentSequenceRef = useRef(0);
 
   // 5. Persona Guidance Tab
@@ -389,6 +408,7 @@ export default function CitizenPortal() {
       };
       localStorage.setItem('vayugati_citizen_cached_alerts_v2', JSON.stringify(cachePayload));
       localStorage.setItem('vayugati_last_sync_timestamp', new Date().toISOString());
+      persistAlertsToServiceWorker(cachePayload);
       setLastSyncTime(new Date());
     } catch (e) {
       console.warn('LocalStorage write failed:', e);
@@ -396,38 +416,45 @@ export default function CitizenPortal() {
   }, []);
 
   // Hydrate from LocalStorage if available
-  const loadAlertsFromCache = useCallback(() => {
+  const loadAlertsFromCache = useCallback(async () => {
+    const restore = (parsed) => {
+      if (!Array.isArray(parsed?.alerts)) return false;
+      persistAlertsToServiceWorker(parsed);
+      const cachedAt = parsed.timestamp ? new Date(parsed.timestamp).getTime() : Date.now();
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - cachedAt) / 1000));
+      const remainingEtaSeconds = parsed.alerts.map((alert) => {
+        if (alert.eta_minutes == null || !Number.isFinite(Number(alert.eta_minutes))) return null;
+        return Math.max(0, Number(alert.eta_minutes) * 60 - elapsedSeconds);
+      });
+      const cachedAlerts = parsed.alerts.map((alert, index) => Number.isFinite(remainingEtaSeconds[index])
+        ? { ...alert, eta_minutes: Math.ceil(remainingEtaSeconds[index] / 60) }
+        : alert);
+      setNearbyAlerts(cachedAlerts);
+      setIsInsideStormCone(Boolean(parsed.isInsideCone));
+      const availableEtas = remainingEtaSeconds.filter((eta) => Number.isFinite(eta) && eta >= 0);
+      if (availableEtas.length) {
+        const remainingSeconds = Math.min(...availableEtas);
+        setCountdownMinutes(Math.floor(remainingSeconds / 60));
+        setCountdownSeconds(remainingSeconds % 60);
+      }
+      setIsCachedDataDisplayed(true);
+      if (parsed.timestamp) setLastSyncTime(new Date(parsed.timestamp));
+      return true;
+    };
+
     try {
       const raw = localStorage.getItem('vayugati_citizen_cached_alerts_v2');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.alerts && Array.isArray(parsed.alerts)) {
-          const cachedAt = parsed.timestamp ? new Date(parsed.timestamp).getTime() : Date.now();
-          const elapsedSeconds = Math.max(0, Math.floor((Date.now() - cachedAt) / 1000));
-          const remainingEtaSeconds = parsed.alerts.map((alert) => {
-            if (alert.eta_minutes == null || !Number.isFinite(Number(alert.eta_minutes))) return null;
-            return Math.max(0, Number(alert.eta_minutes) * 60 - elapsedSeconds);
-          });
-          const cachedAlerts = parsed.alerts.map((alert, index) => Number.isFinite(remainingEtaSeconds[index])
-            ? { ...alert, eta_minutes: Math.ceil(remainingEtaSeconds[index] / 60) }
-            : alert);
-          setNearbyAlerts(cachedAlerts);
-          setIsInsideStormCone(Boolean(parsed.isInsideCone));
-          const availableEtas = remainingEtaSeconds.filter((eta) => Number.isFinite(eta) && eta >= 0);
-          if (availableEtas.length) {
-            const remainingSeconds = Math.min(...availableEtas);
-            setCountdownMinutes(Math.floor(remainingSeconds / 60));
-            setCountdownSeconds(remainingSeconds % 60);
-          }
-          setIsCachedDataDisplayed(true);
-          if (parsed.timestamp) {
-            setLastSyncTime(new Date(parsed.timestamp));
-          }
-          return true;
-        }
-      }
-    } catch (e) {
-      console.warn('LocalStorage read error:', e);
+      if (raw && restore(JSON.parse(raw))) return true;
+    } catch (error) {
+      console.warn('LocalStorage read error:', error);
+    }
+
+    try {
+      if (!('serviceWorker' in navigator)) return false;
+      const response = await fetch('/__offline/active-alerts.json', { cache: 'no-store' });
+      if (response.ok) return restore(await response.json());
+    } catch (error) {
+      console.warn('Offline warning snapshot read failed:', error);
     }
     return false;
   }, []);
@@ -822,6 +849,8 @@ export default function CitizenPortal() {
         {/* REQUIREMENT 1: AUTO-GPS HYPER-LOCAL RISK BANNER */}
         {nearbyAlerts.length > 0 ? (
           <section
+            role="alert"
+            aria-label={t.activeConeWarningHeadline}
             aria-live="assertive"
             className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-red-800 text-white p-5 sm:p-6 shadow-xl border-2 border-red-500 animate-pulse"
             style={{ animationDuration: '3s' }}
@@ -848,9 +877,13 @@ export default function CitizenPortal() {
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-tight text-white drop-shadow-sm">
                   {t.activeConeWarningHeadline}
                 </h2>
-                <p className="text-xs sm:text-sm text-red-100 font-medium leading-relaxed max-w-2xl">
-                  {activeAlert?.headline_en || t.activeConeWarningSub}
+                <p className="text-sm font-bold text-white leading-relaxed max-w-2xl">
+                  {localizedHeadline || t.activeConeWarningSub}
                 </p>
+                <p className="text-xs sm:text-sm text-red-100 font-medium leading-relaxed max-w-2xl">
+                  {localizedDescription || t.activeConeWarningSub}
+                </p>
+                {alertCopyNeedsFallback && <p className="text-[11px] text-red-200">{t.originalTextFallback}</p>}
                 <div className="text-[11px] text-red-200 font-mono pt-1">
                   {activeAlert?.identifier || activeAlert?.event_type || 'Approved alert'}
                 </div>
@@ -1156,7 +1189,7 @@ export default function CitizenPortal() {
                           {alert.tier || 'WARNING'}
                         </span>
                         <h4 className="font-bold text-xs text-[#1A1D20]">
-                          {alert.headline || alert.cellName || 'Convective Alert Bulletin'}
+                          {localizedAlertText(alert, 'headline', lang) || alert.cellName || 'Convective Alert Bulletin'}
                         </h4>
                       </div>
                       <span className="text-[10px] font-mono text-[#6C7278]">
@@ -1165,7 +1198,8 @@ export default function CitizenPortal() {
                     </div>
 
                     <p className="text-xs text-[#1A1D20] leading-relaxed">
-                      {alert.description_en || 'Follow the approved CAP alert instructions issued by your local authority.'}
+                      {localizedAlertText(alert, 'description', lang) || 'Follow the approved CAP alert instructions issued by your local authority.'}
+                      {lang !== 'en' && (!alert[`headline_${lang}`] || !alert[`description_${lang}`]) && <span className="block pt-1 text-[11px] text-[#59656D]">{t.originalTextFallback}</span>}
                     </p>
 
                     <div className="flex items-center justify-between pt-1 border-t border-[#E5E0D8] text-[10px] text-[#6C7278]">

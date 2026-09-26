@@ -175,7 +175,7 @@ class OpticalFlowRequest(BaseModel):
 # ==============================================================================
 # 1. OPEN-METEO INTEGRATION (THERMODYNAMIC SOUNDING RETRIEVAL)
 # ==============================================================================
-OPEN_METEO_BASE_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_BASE_URL = os.getenv("NWP_API_BASE_URL", "").strip() or "https://api.open-meteo.com/v1/forecast"
 
 # Representative Indian Meteorological Stations across vulnerable convective corridors
 KEY_INDIAN_STATIONS = [

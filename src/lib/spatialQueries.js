@@ -362,7 +362,10 @@ export async function submitDraftAlert(alertData) {
       certainty: alertData.certainty || 'Observed',
       headline_en: alertData.headline_en,
       headline_hi: alertData.headline_hi || '',
+      headline_mr: alertData.headline_mr || '',
       description_en: alertData.description_en || alertData.description || '',
+      description_hi: alertData.description_hi || '',
+      description_mr: alertData.description_mr || '',
       affected_zone: polygonToEwkt(alertData.affected_zone || alertData.polygon),
       cell_uid: alertData.cell_uid || alertData.cellId || null,
       location_label: alertData.location || alertData.cellName || null,
@@ -403,6 +406,10 @@ export async function beginAlertReview(alertId, editedText = {}) {
       p_severity: editedText.severity || null,
       p_location_label: editedText.location_label || null,
       p_eta_minutes: Number.isInteger(editedText.eta_minutes) ? editedText.eta_minutes : null,
+      p_headline_hi: editedText.headline_hi || null,
+      p_headline_mr: editedText.headline_mr || null,
+      p_description_hi: editedText.description_hi || null,
+      p_description_mr: editedText.description_mr || null,
     });
   } catch (error) {
     console.error('Failed to transition CAP alert into review:', error);

@@ -30,17 +30,20 @@ const AccessibilityContext = createContext(null);
 export function AccessibilityProvider({ children }) {
   // 1. Font Resizer: 'sm' (14px), 'md' (16px), 'lg' (18px)
   const [fontScale, setFontScale] = useState(() => {
-    return localStorage.getItem('vayugati_font_scale') || 'md';
+    const stored = localStorage.getItem('vayugati_font_scale');
+    return ['sm', 'md', 'lg'].includes(stored) ? stored : 'md';
   });
 
   // 2. High Contrast Tri-Mode: 'default' | 'dark' | 'yellow-navy'
   const [contrastMode, setContrastMode] = useState(() => {
-    return localStorage.getItem('vayugati_contrast_mode') || 'default';
+    const stored = localStorage.getItem('vayugati_contrast_mode');
+    return ['default', 'dark', 'yellow-navy'].includes(stored) ? stored : 'default';
   });
 
   // 3. 12-Language Selector
   const [language, setLanguage] = useState(() => {
-    return localStorage.getItem('vayugati_lang') || 'en';
+    const stored = localStorage.getItem('vayugati_lang');
+    return ['en', 'hi', 'mr'].includes(stored) ? stored : 'en';
   });
 
   // 4. Audio Text-to-Speech playing state
@@ -52,9 +55,7 @@ export function AccessibilityProvider({ children }) {
     root.classList.remove('font-scale-sm', 'font-scale-md', 'font-scale-lg');
     root.classList.add(`font-scale-${fontScale}`);
 
-    if (fontScale === 'sm') root.style.fontSize = '14.5px';
-    else if (fontScale === 'lg') root.style.fontSize = '18px';
-    else root.style.fontSize = '16px';
+    root.style.setProperty('--app-font-scale', fontScale === 'sm' ? '0.9' : fontScale === 'lg' ? '1.125' : '1');
 
     localStorage.setItem('vayugati_font_scale', fontScale);
   }, [fontScale]);
@@ -75,11 +76,15 @@ export function AccessibilityProvider({ children }) {
     localStorage.setItem('vayugati_contrast_mode', contrastMode);
   }, [contrastMode]);
 
+  useEffect(() => {
+    document.documentElement.lang = language;
+    localStorage.setItem('vayugati_lang', language);
+  }, [language]);
+
   // Apply Language Selection
   const changeLanguage = (code) => {
+    if (!['en', 'hi', 'mr'].includes(code)) return;
     setLanguage(code);
-    localStorage.setItem('vayugati_lang', code);
-    document.documentElement.lang = code;
   };
 
   // Cycle Contrast Modes: default -> dark -> yellow-navy -> default
