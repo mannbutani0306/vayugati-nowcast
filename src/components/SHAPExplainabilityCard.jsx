@@ -21,6 +21,7 @@
  */
 
 import React, { useState } from 'react';
+import DataStatusBadge from './DataStatusBadge';
 import {
   BrainCircuit,
   AlertTriangle,
@@ -218,11 +219,14 @@ const RISK_TIERS = [
  */
 export default function SHAPExplainabilityCard({
   cellData,
+  nwpData,
+  nwpStatus,
   onOverride,
   dutyOfficer = 'Inspector Vikramaditya Rawat',
   badgeId = 'NDRF-OFF-402',
   className = '',
 }) {
+  const liveNwpData = nwpData || cellData?.nwpData || null;
   // Merge incoming cell data with robust defaults ensuring all required metrics exist
   const cell = {
     ...DEFAULT_SEVERE_CELL,
@@ -231,10 +235,9 @@ export default function SHAPExplainabilityCard({
       ...DEFAULT_SEVERE_CELL.rawFeatures,
       ...(cellData?.rawFeatures || {}),
     },
-    shapAttributions:
-      cellData?.shapAttributions && cellData.shapAttributions.length > 0
-        ? cellData.shapAttributions
-        : DEFAULT_SEVERE_CELL.shapAttributions,
+    shapAttributions: cellData
+      ? (Array.isArray(cellData.shapAttributions) ? cellData.shapAttributions : [])
+      : DEFAULT_SEVERE_CELL.shapAttributions,
   };
 
   // Confidence score calculation (fallback to 94.2% if not set)
@@ -425,6 +428,37 @@ export default function SHAPExplainabilityCard({
         </div>
       </div>
 
+      <section className="border-b border-[#D7E4E8] bg-[#F1F8FA] px-4 py-3 sm:px-5" aria-label="Live numerical weather prediction values">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-[11px] font-bold uppercase text-[#23424D]">Selected Cell NWP Sounding</h4>
+          <DataStatusBadge
+            status={nwpStatus?.mode || liveNwpData?.metadata?.mode || 'OFFLINE'}
+            metadata={nwpStatus?.metadata || liveNwpData?.metadata}
+            hasCachedData={Boolean(liveNwpData)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            ['CAPE', liveNwpData?.current_cape, 'J/kg'],
+            ['CIN', liveNwpData?.cin_estimate, 'J/kg'],
+            ['Lifted Index', liveNwpData?.lifted_index, '°C'],
+            ['PWAT', liveNwpData?.pwat_mm, 'mm'],
+            ['0–6 km Shear', liveNwpData?.wind_shear_ms, 'm/s'],
+            ['Max Gust', liveNwpData?.max_gust_kmh, 'km/h'],
+          ].map(([label, value, unit]) => (
+            <div key={label} className="min-w-0 border-l-2 border-[#76A5B5] pl-2">
+              <span className="block text-[9px] font-semibold uppercase text-[#58727A]">{label}</span>
+              <strong className="text-sm font-mono text-[#163744]">
+                {typeof value === 'number' ? `${value} ${unit}` : 'Unavailable'}
+              </strong>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[9px] font-mono text-[#58727A]">
+          {liveNwpData?.timestamp ? `Valid time: ${liveNwpData.timestamp}` : 'No sounding returned for this cell.'}
+        </p>
+      </section>
+
       {/* 3. CORE METRIC SUMMARY: CONFIDENCE SCORE & PROBABILITY BRIDGE */}
       <div className="p-4 sm:p-6 bg-[#FAF7F2] border-b border-[#E5E0D8]">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
@@ -567,7 +601,11 @@ export default function SHAPExplainabilityCard({
 
         {/* TAB A: INTERACTIVE SVG WATERFALL BREAKDOWN PLOT */}
         {activeTab === 'waterfall' && (
-          <div className="space-y-4">
+          cell.shapAttributions.length === 0 ? (
+            <div className="rounded border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
+              No feature attribution payload was returned for this selected cell. Live NWP measurements are shown above; no sample attribution chart is substituted.
+            </div>
+          ) : <div className="space-y-4">
             <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#E5E0D8]">
               {/* Responsive SVG Chart */}
               <div className="w-full overflow-x-auto">
@@ -963,11 +1001,17 @@ export default function SHAPExplainabilityCard({
             <span className="font-bold text-[#0F172A] uppercase tracking-wide">
               Physical Feature Contribution Rankings (Normalized φ Weights)
             </span>
-            <span className="font-mono text-[11px]">All 4 Primary Drivers Pushing Hazard &gt; SEVERE</span>
+            <span className="font-mono text-[11px]">
+              {cell.shapAttributions.length ? `${cell.shapAttributions.length} attribution values returned` : 'No attribution payload returned'}
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {cell.shapAttributions.map((attr) => {
+            {cell.shapAttributions.length === 0 ? (
+              <div className="md:col-span-2 rounded border border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs text-slate-600">
+                Feature contribution rankings are unavailable for this cell.
+              </div>
+            ) : cell.shapAttributions.map((attr) => {
               const Icon = attr.icon || Activity;
               return (
                 <div

@@ -2,7 +2,7 @@
  * @file LiveConvectiveCellTracker.jsx
  * @description Advanced GIS Multi-Layer Convective Cell Tracker for VayuGati Nowcast .
  * Capabilities:
- * - 6 Switchable GIS Data Layers (Radar dBZ, Satellite CTT, Lightning Density, Risk Surface, Motion Vectors & Cone, Alert Pins).
+ * - Provider-backed radar, satellite, and lightning observation layers with per-feed status.
  * - Optical-flow vector trajectory calculations with 15/30/45/60 min predictive advection cones.
  * - Dynamic countdown timers for hyper-local sub-district impacts.
  * - Real-time storm cell directory with filtering and centering.
@@ -28,8 +28,11 @@ import {
   Maximize2,
   Wind,
   Navigation,
+  Info,
 } from 'lucide-react';
-import { SEVERITY_TIERS, SECTOR_INFO, getDbzColor, getCloudTopColor } from '../utils/mockDataSeed';
+import { SEVERITY_TIERS, SECTOR_INFO } from '../utils/mockDataSeed';
+import DataDisclaimerModal from './DataDisclaimerModal';
+import { fetchLightningFeed, fetchRadarFeed, fetchSatelliteFeed } from '../lib/apiClient';
 
 // Convective Cells Catalog with Optical Flow Vector Physics & Hyper-local Impact Trajectories
 export const MOCK_STORM_CELLS = [
@@ -183,19 +186,25 @@ export default function LiveConvectiveCellTracker() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef({});
+  const dataTileLayersRef = useRef({ radar: null, satellite: null });
 
   // Active selections
   const [selectedCellId, setSelectedCellId] = useState('CELL-A1');
   const [tierFilter, setTierFilter] = useState('ALL');
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [lightningFeed, setLightningFeed] = useState(null);
+  const [radarFeed, setRadarFeed] = useState(null);
+  const [satelliteFeed, setSatelliteFeed] = useState(null);
+  const [satellitePoint, setSatellitePoint] = useState(null);
 
-  // Layer Visibility Switches (Requirement 1: 6 Interactive Switchable GIS Layers)
+  // Observation overlays render only when the backend returns configured data.
   const [layersEnabled, setLayersEnabled] = useState({
-    radarDbz: true,        // Layer 1: Radar Reflectivity Mosaic (dBZ heat overlay)
-    satelliteCtt: true,    // Layer 2: Satellite Cloud-Top Temperature Overlay (-80°C cold tops)
-    lightningDensity: true,// Layer 3: Lightning Strike Density Heatmap & Real-time Dots
-    riskSurface: false,    // Layer 4: Fused Convective Risk Surface (0-6 hr grid)
-    motionVectors: true,   // Layer 5: Storm-Cell Motion Vectors & Projected Track Cone
-    alertPins: true,       // Layer 6: Pending Alert Status Pins
+    radarDbz: true,
+    satelliteCtt: true,
+    lightningDensity: true,
+    riskSurface: false,
+    motionVectors: true,
+    alertPins: false,
   });
 
   // Ticking seconds for live hyper-local impact countdowns
@@ -207,6 +216,57 @@ export default function LiveConvectiveCellTracker() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+
+    const refreshFeeds = async () => {
+      const results = await Promise.allSettled([
+        fetchLightningFeed({ signal: controller.signal }),
+        fetchRadarFeed({ signal: controller.signal }),
+        fetchSatelliteFeed({}, { signal: controller.signal }),
+        fetchSatelliteFeed({ lat: selectedCell.lat, lon: selectedCell.lon }, { signal: controller.signal }),
+      ]);
+      if (!active) return;
+
+      if (results[0].status === 'fulfilled') setLightningFeed(results[0].value);
+      else {
+        console.warn('Lightning feed unavailable:', results[0].reason);
+        setLightningFeed((previous) => ({
+          type: 'FeatureCollection',
+          features: previous?.features || [],
+          metadata: { ...previous?.metadata, status: previous?.features?.length ? 'CACHED' : 'OFFLINE', reason: results[0].reason?.message || 'Lightning feed unavailable' },
+        }));
+      }
+
+      if (results[1].status === 'fulfilled') setRadarFeed(results[1].value);
+      else {
+        console.warn('Radar feed unavailable:', results[1].reason);
+        setRadarFeed((previous) => ({ ...previous, status: 'OFFLINE', reason: results[1].reason?.message || 'Radar feed unavailable' }));
+      }
+
+      if (results[2].status === 'fulfilled') setSatelliteFeed(results[2].value);
+      else {
+        console.warn('Satellite feed unavailable:', results[2].reason);
+        setSatelliteFeed((previous) => ({ ...previous, status: 'OFFLINE', reason: results[2].reason?.message || 'Satellite feed unavailable' }));
+      }
+
+      if (results[3].status === 'fulfilled') setSatellitePoint(results[3].value);
+      else {
+        console.warn('Satellite point sounding unavailable:', results[3].reason);
+        setSatellitePoint({ status: 'OFFLINE', cloud_top_temperature_c: null });
+      }
+    };
+
+    refreshFeeds();
+    const refreshTimer = setInterval(refreshFeeds, 30000);
+    return () => {
+      active = false;
+      controller.abort();
+      clearInterval(refreshTimer);
+    };
+  }, [selectedCell.id, selectedCell.lat, selectedCell.lon]);
 
   const selectedCell = useMemo(() => {
     return MOCK_STORM_CELLS.find((c) => c.id === selectedCellId) || MOCK_STORM_CELLS[0];
@@ -296,6 +356,75 @@ export default function LiveConvectiveCellTracker() {
     };
   }, []);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return undefined;
+
+    Object.values(dataTileLayersRef.current).forEach((layer) => {
+      if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+    });
+    dataTileLayersRef.current = { radar: null, satellite: null };
+
+    if (layersEnabled.radarDbz && ['LIVE', 'CONFIGURED'].includes(radarFeed?.status) && radarFeed.tile_url && Array.isArray(radarFeed.bounds)) {
+      const radarOptions = {
+        opacity: 0.62,
+        bounds: L.latLngBounds(radarFeed.bounds),
+        attribution: radarFeed.attribution || 'IMD Doppler Weather Radar',
+      };
+      const radarTiles = radarFeed.mode === 'WMS'
+        ? L.tileLayer.wms(radarFeed.tile_url, {
+          ...radarOptions,
+          layers: radarFeed.layer_name,
+          format: 'image/png',
+          transparent: true,
+        })
+        : L.tileLayer(radarFeed.tile_url, {
+          ...radarOptions,
+          maxZoom: 18,
+          updateWhenIdle: true,
+          keepBuffer: 2,
+        });
+      radarTiles.addTo(map);
+      dataTileLayersRef.current.radar = radarTiles;
+    }
+
+    if (layersEnabled.satelliteCtt && ['LIVE', 'CONFIGURED'].includes(satelliteFeed?.status) && satelliteFeed.tile_url && Array.isArray(satelliteFeed.bounds)) {
+      const satelliteTiles = L.tileLayer(satelliteFeed.tile_url, {
+        opacity: 0.58,
+        bounds: L.latLngBounds(satelliteFeed.bounds),
+        maxZoom: 18,
+        attribution: 'MOSDAC INSAT-3D/3DR TIR1',
+        updateWhenIdle: true,
+        keepBuffer: 2,
+      }).addTo(map);
+      dataTileLayersRef.current.satellite = satelliteTiles;
+    }
+
+    return () => {
+      Object.values(dataTileLayersRef.current).forEach((layer) => {
+        if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+      });
+      dataTileLayersRef.current = { radar: null, satellite: null };
+    };
+  }, [
+    layersEnabled.radarDbz,
+    layersEnabled.satelliteCtt,
+    radarFeed?.status,
+    radarFeed?.tile_url,
+    radarFeed?.mode,
+    radarFeed?.layer_name,
+    radarFeed?.bounds?.[0]?.[0],
+    radarFeed?.bounds?.[0]?.[1],
+    radarFeed?.bounds?.[1]?.[0],
+    radarFeed?.bounds?.[1]?.[1],
+    satelliteFeed?.status,
+    satelliteFeed?.tile_url,
+    satelliteFeed?.bounds?.[0]?.[0],
+    satelliteFeed?.bounds?.[0]?.[1],
+    satelliteFeed?.bounds?.[1]?.[0],
+    satelliteFeed?.bounds?.[1]?.[1],
+  ]);
+
   /**
    * Render all GIS Layers dynamically whenever layer toggles or selected cell changes
    */
@@ -320,162 +449,28 @@ export default function LiveConvectiveCellTracker() {
     motionVectors.clearLayers();
     alertPins.clearLayers();
 
-    // -------------------------------------------------------------------------
-    // LAYER 1: RADAR REFLECTIVITY MOSAIC (dBZ heat overlay: 20 dBZ to 65+ dBZ)
-    // -------------------------------------------------------------------------
-    if (layersEnabled.radarDbz) {
-      MOCK_STORM_CELLS.forEach((cell) => {
-        const isFocus = cell.id === selectedCellId;
-        // Outer stratiform precipitation halo (30-38 dBZ - Light Green)
-        L.circle([cell.lat, cell.lon], {
-          radius: cell.cellDiameterKm * 750,
-          color: '#10B981',
-          weight: isFocus ? 1.5 : 1,
-          fillColor: '#10B981',
-          fillOpacity: 0.18,
-        }).addTo(radarDbz);
+    // Radar and satellite tile overlays are sourced and bounded by the ingestion API.
 
-        // Moderate convection mantle (42-48 dBZ - Amber/Orange)
-        L.circle([cell.lat, cell.lon], {
-          radius: cell.cellDiameterKm * 480,
-          color: '#EA580C',
-          weight: isFocus ? 1.5 : 1,
-          fillColor: '#F59E0B',
-          fillOpacity: 0.32,
-        }).addTo(radarDbz);
-
-        // Core Reflectivity Ring (55 - 64 dBZ - Severe Red & Purple)
-        if (cell.maxDbz >= 50) {
-          const coreColor = cell.maxDbz >= 60 ? '#701A75' : '#DC2626';
-          L.circle([cell.lat, cell.lon], {
-            radius: cell.cellDiameterKm * 250,
-            color: coreColor,
-            weight: isFocus ? 2.5 : 1.5,
-            fillColor: coreColor,
-            fillOpacity: 0.55,
-          }).addTo(radarDbz).bindPopup(`
-            <div style="font-family: sans-serif; font-size: 11px;">
-              <strong style="color: ${coreColor};">${cell.name}</strong><br/>
-              <b>Max Reflectivity:</b> ${cell.maxDbz} dBZ<br/>
-              <b>Rain Rate:</b> ${cell.rainRateMmHr} mm/hr<br/>
-              <b>VIL:</b> ${cell.vil} kg/m²
-            </div>
-          `);
-        }
-      });
-    }
-
-    // -------------------------------------------------------------------------
-    // LAYER 2: SATELLITE CLOUD-TOP TEMPERATURE OVERLAY (INSAT IR Channel -80°C)
-    // -------------------------------------------------------------------------
-    if (layersEnabled.satelliteCtt) {
-      MOCK_STORM_CELLS.forEach((cell) => {
-        if (cell.minCtt <= -50) {
-          // Cold penetrating cloud-top overlay
-          const cttColor = getCloudTopColor(cell.minCtt);
-          L.circle([cell.lat + 0.005, cell.lon - 0.005], {
-            radius: cell.cellDiameterKm * 580,
-            color: cttColor,
-            weight: 1.2,
-            dashArray: '3, 4',
-            fillColor: cttColor,
-            fillOpacity: 0.22,
-          }).addTo(satelliteCtt).bindPopup(`
-            <div style="font-family: sans-serif; font-size: 11px;">
-              <strong>INSAT-3DR Rapid-Scan CTT</strong><br/>
-              Minimum Cloud-Top Temp: <b style="color: ${cttColor}">${cell.minCtt}°C</b><br/>
-              Tropopause Penetration: 16.4 km MSL
-            </div>
-          `);
-        }
-      });
-    }
-
-    // -------------------------------------------------------------------------
-    // LAYER 3: LIGHTNING STRIKE DENSITY HEATMAP (Real-time flashing dots & rings)
-    // -------------------------------------------------------------------------
+    // Lightning observations are real GeoJSON points returned by the configured proxy.
     if (layersEnabled.lightningDensity) {
-      MOCK_STORM_CELLS.forEach((cell) => {
-        if (cell.tier === 'SEVERE' || cell.tier === 'WARNING') {
-          // Density contour heat ring
-          L.circle([cell.lat, cell.lon], {
-            radius: 12000,
-            color: '#F59E0B',
-            weight: 1,
-            dashArray: '2, 4',
-            fillColor: '#FEF3C7',
-            fillOpacity: 0.12,
-          }).addTo(lightningDensity);
-
-          // Realistic clustered strike flashes around the core
-          const offsets = [
-            { dLat: 0.012, dLon: 0.015, type: 'CG', ka: 68 },
-            { dLat: -0.018, dLon: -0.012, type: 'IC', ka: 32 },
-            { dLat: 0.022, dLon: -0.008, type: 'CG', ka: 94 },
-            { dLat: -0.008, dLon: 0.024, type: 'IC', ka: 41 },
-            { dLat: 0.035, dLon: 0.019, type: 'IC', ka: 25 },
-          ];
-
-          offsets.forEach((off, idx) => {
-            const isCg = off.type === 'CG';
-            const marker = L.circleMarker([cell.lat + off.dLat, cell.lon + off.dLon], {
-              radius: isCg ? 4.5 : 3.5,
-              color: isCg ? '#DC2626' : '#D97706',
-              weight: 1.5,
-              fillColor: isCg ? '#EF4444' : '#FBBF24',
-              fillOpacity: 0.9,
-            });
-            marker.bindPopup(`
-              <div style="font-family: sans-serif; font-size: 11px;">
-                <b>${isCg ? 'Cloud-to-Ground (CG)' : 'Intra-Cloud (IC)'} Flash</b><br/>
-                Peak Current: ${off.ka} kA<br/>
-                Discharge: 18 seconds ago
-              </div>
-            `);
-            marker.addTo(lightningDensity);
-          });
-        }
+      const features = lightningFeed?.features || [];
+      features.slice(0, 1500).forEach((feature) => {
+        const [lon, lat] = feature.geometry.coordinates;
+        const strokeCount = feature.properties?.stroke_count || 1;
+        const marker = L.circleMarker([lat, lon], {
+          radius: Math.min(8, 3 + Math.log2(strokeCount)),
+          color: '#92400E',
+          weight: 1,
+          fillColor: '#F59E0B',
+          fillOpacity: 0.85,
+        });
+        const popup = document.createElement('div');
+        popup.textContent = `Blitzortung proxy strike • ${strokeCount} stroke(s) • ${feature.properties?.timestamp || 'time unavailable'}`;
+        marker.bindPopup(popup).addTo(lightningDensity);
       });
     }
 
-    // -------------------------------------------------------------------------
-    // LAYER 4: FUSED CONVECTIVE RISK SURFACE (0-6 hr risk probability grid)
-    // -------------------------------------------------------------------------
-    if (layersEnabled.riskSurface) {
-      // 1.5 km synthetic risk surface tiles across sector
-      const gridOrigins = [
-        { lat: 30.32, lon: 78.02, risk: 0.85, color: '#DC2626' },
-        { lat: 30.34, lon: 78.06, risk: 0.92, color: '#DC2626' },
-        { lat: 30.36, lon: 78.10, risk: 0.96, color: '#991B1B' },
-        { lat: 30.38, lon: 78.14, risk: 0.88, color: '#EA580C' },
-        { lat: 30.40, lon: 78.18, risk: 0.76, color: '#EA580C' },
-        { lat: 30.28, lon: 78.00, risk: 0.58, color: '#D97706' },
-        { lat: 30.20, lon: 77.94, risk: 0.42, color: '#D97706' },
-      ];
-
-      gridOrigins.forEach((tile) => {
-        const bounds = [
-          [tile.lat - 0.015, tile.lon - 0.018],
-          [tile.lat + 0.015, tile.lon + 0.018],
-        ];
-        L.rectangle(bounds, {
-          color: tile.color,
-          weight: 0.8,
-          fillColor: tile.color,
-          fillOpacity: 0.28,
-        }).addTo(riskSurface).bindPopup(`
-          <div style="font-family: sans-serif; font-size: 11px;">
-            <b>Fused Convective Risk Mesh (1.5 km)</b><br/>
-            Composite Risk Score: <b>${Math.round(tile.risk * 100)}%</b><br/>
-            Model Fusion: Radar Zdr + Lightning + WRF CAPE
-          </div>
-        `);
-      });
-    }
-
-    // -------------------------------------------------------------------------
-    // LAYER 5: STORM-CELL MOTION VECTORS & PROJECTED TRACK CONE
-    // -------------------------------------------------------------------------
+    // Storm-cell forecast vectors remain independent of external sensor overlays.
     if (layersEnabled.motionVectors) {
       MOCK_STORM_CELLS.forEach((cell) => {
         const isSelected = cell.id === selectedCellId;
@@ -594,7 +589,7 @@ export default function LiveConvectiveCellTracker() {
         `);
       });
     }
-  }, [layersEnabled, selectedCellId]);
+  }, [layersEnabled, selectedCellId, lightningFeed]);
 
   /**
    * Center map on cell click
@@ -618,19 +613,19 @@ export default function LiveConvectiveCellTracker() {
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-xs font-bold text-[#1A1D20] block">GIS Layer Controls</span>
-            <span className="text-[10px] text-[#6C7278]">Toggle real-time multi-sensor radar &amp; model feeds</span>
+              <span className="text-xs font-bold text-[#1A1D20] block">Map Layer Controls</span>
+            <span className="text-[10px] text-[#6C7278]">Observation layers show provider availability</span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           {[
-            { key: 'radarDbz', label: '1. Radar (dBZ)', icon: Radio, activeColor: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
-            { key: 'satelliteCtt', label: '2. Satellite CTT', icon: CloudRain, activeColor: 'bg-blue-50 text-blue-800 border-blue-300' },
-            { key: 'lightningDensity', label: '3. Lightning Flashes', icon: Zap, activeColor: 'bg-amber-50 text-amber-800 border-amber-300' },
-            { key: 'riskSurface', label: '4. Fused Risk Grid', icon: TrendingUp, activeColor: 'bg-red-50 text-red-800 border-red-300' },
-            { key: 'motionVectors', label: '5. Motion Vectors', icon: Navigation, activeColor: 'bg-purple-50 text-purple-800 border-purple-300' },
-            { key: 'alertPins', label: '6. Hazard Pins', icon: MapPin, activeColor: 'bg-orange-50 text-orange-800 border-orange-300' },
+            { key: 'radarDbz', label: 'Radar tiles', icon: Radio, activeColor: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
+            { key: 'satelliteCtt', label: 'Satellite IR tiles', icon: CloudRain, activeColor: 'bg-blue-50 text-blue-800 border-blue-300' },
+            { key: 'lightningDensity', label: 'Lightning strikes', icon: Zap, activeColor: 'bg-amber-50 text-amber-800 border-amber-300' },
+            { key: 'riskSurface', label: 'Risk grid unavailable', icon: TrendingUp, activeColor: 'bg-neutral-100 text-neutral-500 border-neutral-300', disabled: true },
+            { key: 'motionVectors', label: 'Reference storm tracks', icon: Navigation, activeColor: 'bg-purple-50 text-purple-800 border-purple-300' },
+            { key: 'alertPins', label: 'Reference hazard pins', icon: MapPin, activeColor: 'bg-orange-50 text-orange-800 border-orange-300' },
           ].map((layer) => {
             const Icon = layer.icon;
             const isOn = layersEnabled[layer.key];
@@ -639,8 +634,12 @@ export default function LiveConvectiveCellTracker() {
                 key={layer.key}
                 type="button"
                 onClick={() => toggleLayer(layer.key)}
+                disabled={layer.disabled}
+                title={layer.disabled ? 'No live fused risk-grid feed is configured.' : `${layer.label}: ${layer.key === 'radarDbz' ? radarFeed?.status || 'LOADING' : layer.key === 'satelliteCtt' ? satelliteFeed?.status || 'LOADING' : layer.key === 'lightningDensity' ? lightningFeed?.metadata?.status || 'LOADING' : 'enabled'}`}
                 className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
-                  isOn
+                  layer.disabled
+                    ? 'bg-neutral-100 border-neutral-300 text-neutral-500 cursor-not-allowed'
+                    : isOn
                     ? `${layer.activeColor} shadow-2xs font-bold`
                     : 'bg-[#FAF7F2] border-[#E5E0D8] text-[#6C7278] hover:bg-neutral-100'
                 }`}
@@ -650,6 +649,19 @@ export default function LiveConvectiveCellTracker() {
               </button>
             );
           })}
+          <div className="flex flex-wrap items-center gap-1.5 border-l border-[#E5E0D8] pl-2 text-[9px] font-mono">
+            <span className={['LIVE', 'CONFIGURED'].includes(radarFeed?.status) ? 'text-emerald-700' : 'text-amber-700'}>Radar: {radarFeed?.status || 'LOADING'}</span>
+            <span className={['LIVE', 'CONFIGURED'].includes(satelliteFeed?.status) ? 'text-emerald-700' : 'text-amber-700'}>Satellite: {satelliteFeed?.status || 'LOADING'}</span>
+            <span className={lightningFeed?.metadata?.status === 'LIVE' ? 'text-emerald-700' : 'text-amber-700'}>Lightning: {lightningFeed?.metadata?.status || 'LOADING'}</span>
+          </div>
+          <button
+            className="inline-flex items-center gap-1.5 rounded border border-[#244452] bg-[#173644] px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-[#224957]"
+            onClick={() => setIsDataModalOpen(true)}
+            type="button"
+          >
+            <Info className="h-3.5 w-3.5" />
+            <span>Data Sources</span>
+          </button>
         </div>
       </div>
 
@@ -690,7 +702,7 @@ export default function LiveConvectiveCellTracker() {
               </div>
               <div className="p-1.5 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
                 <span className="text-[9px] text-[#6C7278] uppercase block font-semibold">Min CTT</span>
-                <span className="font-mono font-bold text-[#4C1D95] text-xs">{selectedCell.minCtt}°C</span>
+                  <span className="font-mono font-bold text-[#4C1D95] text-xs">{typeof satellitePoint?.cloud_top_temperature_c === 'number' ? `${satellitePoint.cloud_top_temperature_c}°C` : 'Unavailable'}</span>
               </div>
               <div className="p-1.5 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
                 <span className="text-[9px] text-[#6C7278] uppercase block font-semibold">Vector</span>
@@ -752,8 +764,8 @@ export default function LiveConvectiveCellTracker() {
           {/* MAP BOTTOM-RIGHT LEGEND */}
           <div className="absolute bottom-3 right-3 z-[400] bg-white/95 px-2.5 py-1.5 rounded-lg border border-[#E5E0D8] text-[10px] shadow-sm flex items-center space-x-3 text-[#1A1D20]">
             <div className="flex items-center space-x-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#701A75]"></span>
-              <span>&gt; 60 dBZ</span>
+                <span className="w-2.5 h-2.5 rounded-full border border-[#7A8990]"></span>
+                <span>IMD radar overlay</span>
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]"></span>
@@ -765,7 +777,7 @@ export default function LiveConvectiveCellTracker() {
             </div>
             <div className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#4C1D95]"></span>
-              <span>-75°C CTT</span>
+                <span>INSAT IR overlay</span>
             </div>
           </div>
         </div>
@@ -777,7 +789,7 @@ export default function LiveConvectiveCellTracker() {
             <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-2.5">
               <div className="flex items-center space-x-2">
                 <Compass className="w-4 h-4 text-[#D9532F]" />
-                <h3 className="font-bold text-sm text-[#1A1D20]">Active Storm Cells</h3>
+                <h3 className="font-bold text-sm text-[#1A1D20]">Reference Storm Tracks</h3>
               </div>
               <span className="text-[10px] font-mono text-[#6C7278]">
                 {filteredCells.length} Monitored
@@ -862,6 +874,7 @@ export default function LiveConvectiveCellTracker() {
           </div>
         </div>
       </div>
+      <DataDisclaimerModal open={isDataModalOpen} onClose={() => setIsDataModalOpen(false)} />
     </div>
   );
 }

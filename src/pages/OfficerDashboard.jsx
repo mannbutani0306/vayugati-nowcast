@@ -32,15 +32,20 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
-import SHAPExplainabilityCard, { DEFAULT_SEVERE_CELL } from '../components/SHAPExplainabilityCard';
-import { fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
+import SHAPExplainabilityCard from '../components/SHAPExplainabilityCard';
+import DataStatusBadge from '../components/DataStatusBadge';
+import { fetchInstabilityIndex } from '../lib/apiClient';
 import {
   generateMotionConePolygon,
   haversineDistance,
   calculateBoundingBox,
   calculatePolygonCentroid,
   subscribeToLiveCells,
+  fetchActiveConvectiveCells,
+  fetchOfficerAlerts,
   approveAlert,
+  rejectAlert,
+  recordForecasterAction,
   submitDraftAlert,
 } from '../lib/spatialQueries';
 import {
@@ -382,32 +387,32 @@ export default function OfficerDashboard() {
 
   const mapLiveCellToDashboard = useCallback((backendCell) => ({
     ...backendCell,
-    cellId: backendCell.cellId,
+    cellId: backendCell.cellId || backendCell.cell_uid,
     cellName: backendCell.cellName || 'Active Convective Cell',
     hazardType: backendCell.hazardType || 'CONVECTIVE CELL',
     sector: backendCell.sector || 'Operational Sector',
     tier: backendCell.tier || 'INFO',
     lat: backendCell.lat ?? 0,
     lon: backendCell.lon ?? 0,
-    speedKmh: backendCell.speedKmh ?? 30,
-    headingDeg: backendCell.headingDeg ?? 45,
-    radarDbz: backendCell.radarDbz ?? 35,
-    echoTopKm: backendCell.echoTopKm ?? 8,
-    vilKgM2: backendCell.vilKgM2 ?? 24,
-    cttCelsius: backendCell.cttCelsius ?? -40,
-    lightningRate: backendCell.lightningRate ?? 10,
-    rainRateMmHr: backendCell.rainRateMmHr ?? 12,
-    windGustKmh: backendCell.windGustKmh ?? 40,
-    etaMinutes: backendCell.etaMinutes ?? 15,
-    etaClock: backendCell.etaClock || `${backendCell.etaMinutes ?? 15} min`,
-    confidenceScore: backendCell.confidenceScore ?? 0.72,
-    baseRisk: backendCell.baseRisk ?? 0.12,
-    predictedRisk: backendCell.predictedRisk ?? backendCell.confidenceScore ?? 0.72,
+    speedKmh: backendCell.speedKmh ?? null,
+    headingDeg: backendCell.headingDeg ?? null,
+    radarDbz: backendCell.radarDbz ?? null,
+    echoTopKm: backendCell.echoTopKm ?? null,
+    vilKgM2: backendCell.vilKgM2 ?? null,
+    cttCelsius: backendCell.cttCelsius ?? null,
+    lightningRate: backendCell.lightningRate ?? null,
+    rainRateMmHr: backendCell.rainRateMmHr ?? null,
+    windGustKmh: backendCell.windGustKmh ?? null,
+    etaMinutes: backendCell.etaMinutes ?? null,
+    etaClock: backendCell.etaClock || 'Not provided',
+    confidenceScore: backendCell.confidenceScore ?? null,
+    baseRisk: backendCell.baseRisk ?? null,
+    predictedRisk: backendCell.predictedRisk ?? null,
     rawFeatures: backendCell.rawFeatures || {
-      cape: { value: backendCell.cape ?? 2000, unit: 'J/kg', label: 'Surface-Based CAPE', climatology: 1850, sensor: 'Operational Model' },
-      cloudTopGlaciation: { value: backendCell.cttCelsius ?? -40, unit: '°C', coolingRate: '0 °C / 15min', label: 'Cloud-Top Glaciation (IR)', climatology: -42.0, sensor: 'Operational Infrared Retrieval' },
-      lightningRate: { value: backendCell.lightningRate ?? 10, unit: 'strikes/min', threshold: '>0 strikes/min', jumpSigma: '+0.0σ', label: 'Ground Lightning Flash Rate', climatology: 8.0, sensor: 'Operational Lightning Network' },
-      dopplerShear: { value: backendCell.speedKmh ?? 30, unit: 'm/s', layer: '0–6 km Bulk Shear', label: 'Doppler Velocity Shear', climatology: 14.0, sensor: 'Atmospheric Motion Analysis' },
+      cape: { value: backendCell.cape ?? null, unit: 'J/kg', label: 'Surface-Based CAPE', climatology: 1850, sensor: 'Open-Meteo NWP pending point sounding' },
+      cloudTopGlaciation: { value: backendCell.cttCelsius ?? null, unit: '°C', coolingRate: null, label: 'Cloud-Top Glaciation (IR)', sensor: 'Supabase cell observation' },
+      lightningRate: { value: backendCell.lightningRate ?? null, unit: 'strikes/min', label: 'Ground Lightning Flash Rate', sensor: 'Supabase cell observation' },
+      dopplerShear: { value: null, unit: 'm/s', layer: '0–6 km Bulk Shear', label: '0–6 km Wind Shear', climatology: 14.0, sensor: 'Open-Meteo NWP pending point sounding' },
     },
     shapAttributions: backendCell.shapAttributions || [],
     description: backendCell.description || `${backendCell.cellName || 'Convective cell'} remains active with ongoing risk surface development.`,
@@ -420,18 +425,23 @@ export default function OfficerDashboard() {
   const [selectedStation, setSelectedStation] = useState(RADAR_STATIONS[0]);
 
   // Real-Time Status Bar State
-  const [socketStatus, setSocketStatus] = useState('CONNECTED'); // 'CONNECTED' | 'RECONNECTING' | 'OFFLINE'
-  const [lastSweepTime, setLastSweepTime] = useState('4 mins ago (18:24 IST)');
-  const [serverLatencyMs, setServerLatencyMs] = useState(24);
-  const [sweepSweepCount, setSweepSweepCount] = useState(148);
+  const [socketStatus, setSocketStatus] = useState('CONNECTING');
+  const [lastSweepTime, setLastSweepTime] = useState('Awaiting database observation');
+  const [serverLatencyMs, setServerLatencyMs] = useState(null);
+  const [sweepSweepCount, setSweepSweepCount] = useState(0);
 
   // Storm Cells & Queue State
-  const [cells, setCells] = useState(INITIAL_CONVECTIVE_CELLS);
-  const [alerts, setAlerts] = useState(INITIAL_DRAFT_ALERTS);
-  const [selectedCellId, setSelectedCellId] = useState('CELL-A1');
+  const [cells, setCells] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [selectedCellId, setSelectedCellId] = useState(null);
   const [queueFilter, setQueueFilter] = useState('ALL'); // 'ALL' | 'DRAFT' | 'SEVERE' | 'WARNING' | 'APPROVED'
   const [liveCellsLoading, setLiveCellsLoading] = useState(true);
   const [liveCellsError, setLiveCellsError] = useState('');
+  const [databaseError, setDatabaseError] = useState('');
+  const [nwpModel, setNwpModel] = useState('ncep_gfs_seamless');
+  const [nwpByCell, setNwpByCell] = useState({});
+  const [nwpStatus, setNwpStatus] = useState({ mode: 'LOADING', metadata: null });
+  const [nwpError, setNwpError] = useState('');
 
   // GIS Layer Visibility Switches
   const [layerVisibility, setLayerVisibility] = useState({
@@ -458,7 +468,7 @@ export default function OfficerDashboard() {
 
   // XAI Modal State
   const [isXaiModalOpen, setIsXaiModalOpen] = useState(false);
-  const [xaiTargetCell, setXaiTargetCell] = useState(INITIAL_CONVECTIVE_CELLS[0]);
+  const [xaiTargetCell, setXaiTargetCell] = useState(null);
 
   // Alert Rejection Modal State
   const [rejectingAlert, setRejectingAlert] = useState(null);
@@ -485,8 +495,27 @@ export default function OfficerDashboard() {
 
   // Active selected cell
   const currentCell = useMemo(() => {
-    return cells.find((c) => c.cellId === selectedCellId) || cells[0];
-  }, [cells, selectedCellId]);
+    const selected = cells.find((cell) => cell.cellId === selectedCellId);
+    if (!selected) return null;
+
+    const nwp = nwpByCell[selected.cellId];
+    if (!nwp) return selected;
+
+    return {
+      ...selected,
+      nwpData: nwp,
+      rawFeatures: {
+        ...selected.rawFeatures,
+        cape: { ...selected.rawFeatures?.cape, value: nwp.current_cape, unit: 'J/kg', sensor: 'Open-Meteo NWP' },
+        cin: { value: nwp.cin_estimate, unit: 'J/kg', label: 'Convective Inhibition', sensor: 'Open-Meteo NWP' },
+        liftedIndex: { value: nwp.lifted_index, unit: '°C', label: 'Lifted Index', sensor: 'Open-Meteo NWP' },
+        pwat: { value: nwp.pwat_mm, unit: 'mm', label: 'Precipitable Water', sensor: 'Open-Meteo NWP' },
+        dopplerShear: { ...selected.rawFeatures?.dopplerShear, value: nwp.wind_shear_ms, unit: 'm/s', label: '0–6 km Wind Shear', sensor: 'Open-Meteo NWP' },
+      },
+    };
+  }, [cells, selectedCellId, nwpByCell]);
+
+  const selectedNwp = currentCell ? nwpByCell[currentCell.cellId] : null;
 
   // Counts for Badges
   const draftCount = alerts.filter((a) => a.status === 'DRAFT').length;
@@ -494,43 +523,37 @@ export default function OfficerDashboard() {
   const approvedCount = alerts.filter((a) => a.status === 'APPROVED').length;
 
   // -------------------------------------------------------------
-  // REALTIME WEBSOCKET SUBSCRIPTION
+  // Load the operational source-of-truth rows from Supabase.
   // -------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
 
-    const loadLiveCells = async () => {
+    const loadOperationalData = async () => {
       setLiveCellsLoading(true);
       setLiveCellsError('');
+      const [cellResult, alertResult] = await Promise.allSettled([fetchActiveConvectiveCells(), fetchOfficerAlerts()]);
+      if (!isMounted) return;
 
-      try {
-        const payload = await fetchLiveFusionGrid({
-          min_lat: 6.0,
-          min_lon: 68.0,
-          max_lat: 38.0,
-          max_lon: 98.0,
-        });
-
-        const liveCells = normalizeLiveCells(payload).map(mapLiveCellToDashboard);
-
-        if (!isMounted) return;
-
-        if (liveCells.length > 0) {
-          setCells(liveCells);
-          setSelectedCellId((prev) => (liveCells.some((cell) => cell.cellId === prev) ? prev : liveCells[0].cellId));
-        } else {
-          setCells(INITIAL_CONVECTIVE_CELLS);
-        }
-      } catch (error) {
-        if (!isMounted) return;
-        setLiveCellsError(error.message || 'Unable to reach the nowcast engine.');
-        setCells(INITIAL_CONVECTIVE_CELLS);
-      } finally {
-        if (isMounted) setLiveCellsLoading(false);
+      if (cellResult.status === 'fulfilled') {
+        const databaseCells = cellResult.value.map(mapLiveCellToDashboard);
+        setCells(databaseCells);
+        setSelectedCellId((previous) => databaseCells.some((cell) => cell.cellId === previous) ? previous : databaseCells[0]?.cellId || null);
+      } else {
+        setCells([]);
+        setLiveCellsError(cellResult.reason?.message || 'Unable to load convective cells from Supabase.');
       }
+
+      if (alertResult.status === 'fulfilled') {
+        setAlerts(alertResult.value);
+        setDatabaseError('');
+      } else {
+        setAlerts([]);
+        setDatabaseError(alertResult.reason?.message || 'Unable to load alerts from Supabase.');
+      }
+      setLiveCellsLoading(false);
     };
 
-    loadLiveCells();
+    loadOperationalData();
 
     return () => {
       isMounted = false;
@@ -538,36 +561,58 @@ export default function OfficerDashboard() {
   }, [mapLiveCellToDashboard]);
 
   useEffect(() => {
+    if (!currentCell) {
+      setNwpStatus({ mode: 'OFFLINE', metadata: null });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setNwpStatus({ mode: 'LOADING', metadata: null });
+    setNwpError('');
+
+    fetchInstabilityIndex({ lat: currentCell.lat, lon: currentCell.lon, model: nwpModel, signal: controller.signal })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        const responseMode = payload.metadata?.mode || 'LIVE';
+        setNwpByCell((previous) => ({ ...previous, [currentCell.cellId]: payload }));
+        setNwpStatus({ mode: responseMode, metadata: payload.metadata });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error('Open-Meteo instability feed request failed:', error);
+        setNwpError(error.message || 'Open-Meteo NWP is currently unreachable.');
+        setNwpStatus({ mode: 'OFFLINE', metadata: error.metadata || null });
+      });
+
+    return () => controller.abort();
+  }, [currentCell?.cellId, currentCell?.lat, currentCell?.lon, nwpModel]);
+
+  useEffect(() => {
     let subHandle = null;
     try {
       subHandle = subscribeToLiveCells((event) => {
-        setServerLatencyMs((prev) => Math.floor(Math.random() * 12 + 18));
         if (event.cell) {
-          setCells((prev) =>
-            prev.map((c) => (c.cellId === event.cell.cell_id ? { ...c, ...event.cell } : c))
-          );
+          fetchActiveConvectiveCells()
+            .then((rows) => setCells(rows.map(mapLiveCellToDashboard)))
+            .catch((error) => setLiveCellsError(error.message));
+          setLastSweepTime(event.cell.updated_at || 'Database update received');
+          setSweepSweepCount((count) => count + 1);
+        }
+      }, (status) => {
+        setSocketStatus(status);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setLiveCellsError(`Supabase Realtime connection ${status.toLowerCase()}.`);
         }
       });
-      setSocketStatus('CONNECTED');
-    } catch (err) {
-      console.warn('Realtime subscription fallback:', err);
-      setSocketStatus('CONNECTED (DEMO)');
+    } catch (error) {
+      setSocketStatus('OFFLINE');
+      setLiveCellsError(error.message || 'Supabase Realtime is unavailable.');
     }
-
-    // Radar Sweep timer simulation: sweeps every 60s
-    const sweepInterval = setInterval(() => {
-      setSweepSweepCount((c) => c + 1);
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('en-IN', { hour12: false });
-      setLastSweepTime(`Just now (${timeStr} IST)`);
-      setServerLatencyMs(Math.floor(Math.random() * 8 + 21));
-    }, 60000);
 
     return () => {
       if (subHandle && subHandle.unsubscribe) subHandle.unsubscribe();
-      clearInterval(sweepInterval);
     };
-  }, []);
+  }, [mapLiveCellToDashboard]);
 
   // -------------------------------------------------------------
   // LEAFLET MAP INITIALIZATION & CANVAS RENDERING
@@ -660,52 +705,33 @@ export default function OfficerDashboard() {
     // 1. LAYER: Radar Reflectivity (dBZ)
     if (layerVisibility.radarDbz) {
       cells.forEach((cell) => {
-        const radiusM = (cell.radarDbz / 65) * 8500 + 3500;
         const tierMeta = TIER_COLORS[cell.tier] || TIER_COLORS.INFO;
+        if (cell.trackGeometry) {
+          const trackPolygon = L.geoJSON(cell.trackGeometry, {
+            style: {
+              color: tierMeta.border,
+              weight: 2,
+              fillColor: tierMeta.bg,
+              fillOpacity: 0.22 * layerOpacity.radarDbz,
+            },
+          });
+          trackPolygon.bindTooltip(`${cell.cellName} • ${cell.radarDbz} dBZ`);
+          trackPolygon.on('click', () => {
+            setSelectedCellId(cell.cellId);
+          });
+          radarLayer.addLayer(trackPolygon);
+        }
 
-        // Outer halo
-        const halo = L.circle([cell.lat, cell.lon], {
-          radius: radiusM * 1.35,
-          color: '#F59E0B',
-          weight: 1,
-          dashArray: '4,4',
-          fillColor: '#F59E0B',
-          fillOpacity: 0.12 * layerOpacity.radarDbz,
-        });
-
-        // Core Reflectivity Circle
-        const core = L.circle([cell.lat, cell.lon], {
-          radius: radiusM,
-          color: tierMeta.border,
-          weight: 2,
-          fillColor: cell.radarDbz > 60 ? '#DC2626' : cell.radarDbz > 50 ? '#EA580C' : '#D97706',
-          fillOpacity: 0.45 * layerOpacity.radarDbz,
-        });
-
-        // Cell Center High-dBZ Dot Marker
         const marker = L.circleMarker([cell.lat, cell.lon], {
-          radius: 7,
+          radius: 5,
           color: '#FFFFFF',
-          weight: 2,
-          fillColor: '#DC2626',
+          weight: 1.5,
+          fillColor: tierMeta.bg,
           fillOpacity: 1,
-        });
-
-        const tooltipContent = `
-          <div style="font-family: sans-serif; font-size: 11px; padding: 2px;">
-            <div style="font-weight: bold; color: #0F172A;">${cell.cellName} [${cell.cellId}]</div>
-            <div style="color: #DC2626; font-weight: bold;">Radar Reflectivity: ${cell.radarDbz} dBZ (${cell.tier})</div>
-            <div style="color: #475569;">Rain Rate: ${cell.rainRateMmHr} mm/hr • VIL: ${cell.vilKgM2} kg/m²</div>
-            <div style="color: #64748B;">Echo Top: ${cell.echoTopKm} km • Speed: ${cell.speedKmh} km/h</div>
-          </div>
-        `;
-        core.bindTooltip(tooltipContent, { permanent: false, direction: 'top' });
-        core.on('click', () => {
+        }).bindTooltip(`${cell.cellName} • ${cell.radarDbz} dBZ`);
+        marker.on('click', () => {
           setSelectedCellId(cell.cellId);
         });
-
-        radarLayer.addLayer(halo);
-        radarLayer.addLayer(core);
         radarLayer.addLayer(marker);
       });
     }
@@ -713,54 +739,22 @@ export default function OfficerDashboard() {
     // 2. LAYER: INSAT Cloud Tops (Infrared Glaciation CTT)
     if (layerVisibility.insatCloudTop) {
       cells.forEach((cell) => {
-        // Cold cloud top anvil contours
-        const anvilRadius = 16000;
-        const cttCircle = L.circle([cell.lat, cell.lon], {
-          radius: anvilRadius,
-          color: '#6366F1',
-          weight: 1.5,
-          fillColor: '#4338CA',
-          fillOpacity: (Math.abs(cell.cttCelsius) / 80) * 0.28 * layerOpacity.insatCloudTop,
-        });
-
         const cttLabel = L.divIcon({
           className: 'ctt-label',
           html: `<div style="background: rgba(30, 27, 75, 0.85); color: #C7D2FE; font-size: 10px; font-family: monospace; font-weight: bold; padding: 2px 6px; border-radius: 4px; border: 1px solid #6366F1; white-space: nowrap;">
-            INSAT IR: ${cell.cttCelsius}°C
+            CTT: ${cell.cttCelsius == null ? 'Unavailable' : `${cell.cttCelsius}°C`}
           </div>`,
           iconSize: [85, 20],
           iconAnchor: [42, -10],
         });
-        const cttMarker = L.marker([cell.lat + 0.04, cell.lon], { icon: cttLabel });
-
-        cloudTopLayer.addLayer(cttCircle);
-        cloudTopLayer.addLayer(cttMarker);
+        cloudTopLayer.addLayer(L.marker([cell.lat, cell.lon], { icon: cttLabel }));
       });
     }
 
     // 3. LAYER: Lightning Strike Heatmap (GLD360 / Ground Network)
     if (layerVisibility.lightningHeatmap) {
       cells.forEach((cell) => {
-        // Scatter pseudo lightning strikes around cell core
-        const strikeCount = Math.min(25, Math.round(cell.lightningRate / 2.5));
-        for (let i = 0; i < strikeCount; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const dist = Math.random() * 0.06;
-          const strikeLat = cell.lat + Math.sin(angle) * dist;
-          const strikeLon = cell.lon + Math.cos(angle) * dist;
-
-          const strikeDot = L.circleMarker([strikeLat, strikeLon], {
-            radius: 3.5,
-            color: '#FEF08A',
-            weight: 1,
-            fillColor: '#FBBF24',
-            fillOpacity: 0.9,
-          });
-          lightningLayer.addLayer(strikeDot);
-        }
-
-        // Lightning Flash Surge Cluster Label
-        if (cell.lightningRate > 20) {
+        if (cell.lightningRate != null) {
           const lightningBadge = L.divIcon({
             className: 'lightning-badge',
             html: `<div style="background: #D97706; color: #FFFFFF; font-size: 9px; font-family: monospace; font-weight: bold; padding: 1px 5px; border-radius: 9999px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 3px;">
@@ -988,7 +982,7 @@ export default function OfficerDashboard() {
     setIsDrawingMode(false);
   };
 
-  const handleCommitPolygonAsDraft = () => {
+  const handleCommitPolygonAsDraft = async () => {
     if (!completedDrawnPolygon) return;
     const capPolyString = convertGeoJsonToCapPolygon(completedDrawnPolygon);
     const newDraftId = `DRAFT-MANUAL-${Date.now().toString().slice(-4)}`;
@@ -1018,40 +1012,57 @@ export default function OfficerDashboard() {
       instruction: 'Move immediately to higher ground and secure exposed assets.',
     };
 
-    setAlerts((prev) => [newAlert, ...prev]);
+    const { data, error } = await submitDraftAlert(newAlert);
+    if (error) {
+      setDatabaseError(`Draft alert was not saved: ${error.message}`);
+      return;
+    }
+
+    setDatabaseError('');
+    setAlerts((prev) => [{
+      ...newAlert,
+      ...data,
+      cellId: data.cell_uid,
+      status: data.status,
+      createdTimestamp: data.created_at,
+      polygon: capPolyString,
+    }, ...prev]);
     setShowPolygonAlertModal(false);
     setCompletedDrawnPolygon(null);
     setDrawnPoints([]);
-
-    // Submit to Supabase / spatial backend
-    submitDraftAlert(newAlert).catch((e) => console.warn('Draft sync:', e));
   };
 
   // -------------------------------------------------------------
   // QUICK ACTIONS: INSPECT XAI, APPROVE, REJECT, EXPORT CAP XML
   // -------------------------------------------------------------
   const handleOpenXaiInspection = (alert) => {
-    const targetCell = cells.find((c) => c.cellId === alert.cellId) || cells[0];
+    const targetCell = cells.find((cell) => cell.cellId === alert.cellId);
+    if (!targetCell) {
+      setLiveCellsError('This alert has no matching live convective cell to inspect.');
+      return;
+    }
+    setSelectedCellId(targetCell.cellId);
     setXaiTargetCell(targetCell);
     setIsXaiModalOpen(true);
   };
 
   const handleApproveAlert = async (alert) => {
-    const officerId = officerBadge;
-    try {
-      await approveAlert(alert.id, officerId);
-    } catch (err) {
-      console.warn('Approve alert warning:', err);
+    const { data, error } = await approveAlert(alert.id);
+    if (error) {
+      setDatabaseError(`Alert approval failed: ${error.message}`);
+      return;
     }
+    setDatabaseError('');
 
     setAlerts((prev) =>
       prev.map((a) =>
         a.id === alert.id
           ? {
               ...a,
+              ...(data || {}),
               status: 'APPROVED',
               reviewedBy: dutyOfficer,
-              reviewedAt: new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST',
+              reviewedAt: data?.approved_at || new Date().toISOString(),
             }
           : a
       )
@@ -1062,7 +1073,7 @@ export default function OfficerDashboard() {
       alertId: alert.id,
       headline: alert.headline_en || `${alert.tier} ${alert.hazardType}`,
       location: alert.location,
-      recipients: '142,000 PUSHED (4 Cell Towers & SDRF Sirens)',
+      recipients: 'Approved alert is available to subscribed citizen clients.',
       timestamp: new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST',
     });
   };
@@ -1073,9 +1084,15 @@ export default function OfficerDashboard() {
     setRejectionError('');
   };
 
-  const handleConfirmRejectAlert = () => {
+  const handleConfirmRejectAlert = async () => {
     if (!rejectionRationale.trim() || rejectionRationale.trim().length < 15) {
       setRejectionError('Mandatory SOP Rule: Duty Forecaster must state meteorological grounds (minimum 15 characters).');
+      return;
+    }
+
+    const { data, error } = await rejectAlert(rejectingAlert.id, rejectionRationale.trim());
+    if (error) {
+      setRejectionError(`Alert rejection failed: ${error.message}`);
       return;
     }
 
@@ -1084,10 +1101,11 @@ export default function OfficerDashboard() {
         a.id === rejectingAlert.id
           ? {
               ...a,
+              ...(data || {}),
               status: 'REJECTED',
               rejectionReason: rejectionRationale.trim(),
               reviewedBy: dutyOfficer,
-              reviewedAt: new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST',
+              reviewedAt: data?.updated_at || new Date().toISOString(),
             }
           : a
       )
@@ -1115,7 +1133,28 @@ export default function OfficerDashboard() {
   };
 
   // Forecaster Override committed inside XAI card
-  const handleXaiOverrideCommitted = (overrideData) => {
+  const handleXaiOverrideCommitted = async (overrideData) => {
+    const cell = cells.find((item) => item.cellId === overrideData.cellId);
+    if (!cell?.databaseId || !profile?.id) {
+      setDatabaseError('Risk override not saved: database cell or authenticated officer identity is unavailable.');
+      return;
+    }
+    try {
+      await recordForecasterAction({
+        actorId: profile.id,
+        action: 'RISK_OVERRIDE',
+        entityType: 'convective_cells',
+        entityId: cell.databaseId,
+        rationale: overrideData.rationale || 'Reset to model assessment',
+        oldValues: { risk_level: overrideData.previousTier },
+        newValues: { risk_level: overrideData.newTier, is_overridden: overrideData.isOverridden },
+      });
+      setDatabaseError('');
+    } catch (error) {
+      setDatabaseError(`Risk override was not saved: ${error.message}`);
+      return;
+    }
+
     // Update active cell tier in state
     setCells((prev) =>
       prev.map((c) => (c.cellId === overrideData.cellId ? { ...c, tier: overrideData.newTier } : c))
@@ -1159,14 +1198,24 @@ export default function OfficerDashboard() {
       {/* ------------------------------------------------------------- */}
       <header className="bg-[#0F172A] border-b border-[#1E293B] text-white px-4 py-2.5 shadow-md">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-[10px] font-mono">
-            {liveCellsError ? (
-              <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-red-700">Backend offline</span>
-            ) : liveCellsLoading ? (
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">Loading live cells…</span>
-            ) : (
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">Live engine connected</span>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
+            <DataStatusBadge
+              status={currentCell ? nwpStatus.mode : liveCellsLoading ? 'LOADING' : 'OFFLINE'}
+              metadata={nwpStatus.metadata}
+              hasCachedData={Boolean(selectedNwp)}
+            />
+            <label className="flex items-center gap-1.5 rounded border border-slate-600 bg-[#1E293B] px-2 py-1 text-[10px] font-semibold text-slate-200">
+              NWP Model
+              <select
+                value={nwpModel}
+                onChange={(event) => setNwpModel(event.target.value)}
+                className="bg-transparent text-white outline-none"
+                aria-label="Open-Meteo NWP model"
+              >
+                <option value="dwd_icon_seamless" className="bg-[#0F172A]">ICON</option>
+                <option value="ncep_gfs_seamless" className="bg-[#0F172A]">GFS</option>
+              </select>
+            </label>
           </div>
 
           {/* Left: Station Identity & Live WebSocket Status */}
@@ -1201,10 +1250,10 @@ export default function OfficerDashboard() {
 
             <span className="text-slate-600 hidden sm:inline">•</span>
 
-            {/* Last Radar Sweep */}
+            {/* Latest database observation */}
             <div className="flex items-center space-x-1 text-slate-300 font-mono text-[11px]">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Sweep #{sweepSweepCount}: <strong className="text-white">{lastSweepTime}</strong></span>
+              <span>DB update #{sweepSweepCount}: <strong className="text-white">{lastSweepTime}</strong></span>
             </div>
           </div>
 
@@ -1213,7 +1262,7 @@ export default function OfficerDashboard() {
             {/* Server Latency Indicator */}
             <div className="flex items-center space-x-1.5 bg-[#1E293B] px-2 py-1 rounded text-slate-300 font-mono text-[11px]">
               <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Latency: <strong className="text-white">{serverLatencyMs} ms</strong></span>
+              <span>Latency: <strong className="text-white">{serverLatencyMs == null ? 'Not measured' : `${serverLatencyMs} ms`}</strong></span>
             </div>
 
             {/* Officer Badge */}
@@ -1258,7 +1307,19 @@ export default function OfficerDashboard() {
 
       {liveCellsError && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700">
-          {liveCellsError} Using the last known local operational snapshot until the backend is reachable again.
+          Offline Database: {liveCellsError} No live cell data is available.
+        </div>
+      )}
+
+      {databaseError && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert">
+          Offline Database: {databaseError} Alert changes are not shown as saved unless Supabase confirms them.
+        </div>
+      )}
+
+      {nwpError && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900" role="alert">
+          {nwpError} {selectedNwp ? 'Showing the last successful sounding for this cell.' : 'Live instability values are unavailable.'}
         </div>
       )}
 
@@ -1466,6 +1527,17 @@ export default function OfficerDashboard() {
                 <div>Rain Rate: <strong className="text-amber-400">{currentCell.rainRateMmHr} mm/h</strong></div>
                 <div>Echo Top: <strong className="text-white">{currentCell.echoTopKm} km</strong></div>
                 <div>VIL: <strong className="text-white">{currentCell.vilKgM2} kg/m²</strong></div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-700 pt-2 text-[10px] font-mono text-slate-300">
+                <div>CAPE: <strong className="text-sky-200">{selectedNwp?.current_cape ?? '—'}{selectedNwp?.current_cape != null ? ' J/kg' : ''}</strong></div>
+                <div>CIN: <strong className="text-sky-200">{selectedNwp?.cin_estimate ?? '—'}{selectedNwp?.cin_estimate != null ? ' J/kg' : ''}</strong></div>
+                <div>Lifted Index: <strong className="text-sky-200">{selectedNwp?.lifted_index ?? '—'}{selectedNwp?.lifted_index != null ? ' °C' : ''}</strong></div>
+                <div>Wind Shear: <strong className="text-sky-200">{selectedNwp?.wind_shear_ms ?? '—'}{selectedNwp?.wind_shear_ms != null ? ' m/s' : ''}</strong></div>
+                <div>PWAT: <strong className="text-sky-200">{selectedNwp?.pwat_mm ?? '—'}{selectedNwp?.pwat_mm != null ? ' mm' : ''}</strong></div>
+                <div>Max Gust: <strong className="text-sky-200">{selectedNwp?.max_gust_kmh ?? '—'}{selectedNwp?.max_gust_kmh != null ? ' km/h' : ''}</strong></div>
+              </div>
+              <div className="text-[9px] text-slate-400 font-mono">
+                {selectedNwp?.timestamp ? `NWP valid ${selectedNwp.timestamp}` : 'NWP values unavailable'}
               </div>
               <button
                 type="button"
@@ -1709,6 +1781,8 @@ export default function OfficerDashboard() {
             </button>
             <SHAPExplainabilityCard
               cellData={xaiTargetCell}
+              nwpData={xaiTargetCell ? nwpByCell[xaiTargetCell.cellId] : selectedNwp}
+              nwpStatus={nwpStatus}
               dutyOfficer={dutyOfficer}
               badgeId={officerBadge}
               onOverride={(overridePayload) => {

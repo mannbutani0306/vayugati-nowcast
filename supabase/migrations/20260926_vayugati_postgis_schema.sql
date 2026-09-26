@@ -137,9 +137,11 @@ RETURNS TABLE (
     headline_en TEXT,
     headline_hi TEXT,
     description_en TEXT,
+    affected_zone_geojson JSONB,
     status TEXT,
     distance_km NUMERIC,
     is_direct_intersection BOOLEAN,
+    eta_minutes INTEGER,
     created_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
@@ -172,11 +174,13 @@ BEGIN
         a.headline_en,
         a.headline_hi,
         a.description_en,
+        ST_AsGeoJSON(a.affected_zone)::JSONB AS affected_zone_geojson,
         a.status,
         -- Calculate geodesic surface distance in kilometers
         ROUND((ST_Distance(a.affected_zone::geography, user_geog) / 1000.0)::NUMERIC, 2) AS distance_km,
         -- Direct intersection check (Point-In-Polygon)
         ST_Intersects(a.affected_zone, user_geom) AS is_direct_intersection,
+        a.eta_minutes,
         a.created_at
     FROM public.cap_alerts a
     WHERE
@@ -263,13 +267,6 @@ CREATE POLICY "Public read access for approved CAP alerts"
     ON public.cap_alerts FOR SELECT
     USING (status = 'APPROVED');
 
--- Authenticated officers can manage all alerts
-CREATE POLICY "Duty forecaster alert management"
-    ON public.cap_alerts FOR ALL
-    TO authenticated
-    USING (true)
-    WITH CHECK (true);
-
 -- ----------------------------------------------------------------------------
 -- 8. SEED DATA (PILOT MONITORING DISTRICTS)
 -- ----------------------------------------------------------------------------
@@ -283,40 +280,5 @@ VALUES
     ('AWS-LNV', 'Lonavala Ghat High-Altitude Station', 'Maharashtra', 'Pune', ST_SetSRID(ST_MakePoint(73.4062, 18.7546), 4326), 624.0)
 ON CONFLICT (station_code) DO NOTHING;
 
--- Seed Convective Cells (Active 63.8 dBZ Hail Core)
-INSERT INTO public.convective_cells (
-    cell_uid, reflectivity_dbz, cloud_top_temp_c, lightning_rate_per_min,
-    cape_value, velocity_vector_deg, speed_kmh, track_polygon, risk_level
-)
-VALUES (
-    'CELL-A1',
-    63.8,
-    -76.4,
-    42,
-    3450.0,
-    65.0,
-    38.0,
-    ST_SetSRID(ST_GeomFromText('POLYGON((78.082 30.345, 78.140 30.380, 78.180 30.320, 78.110 30.290, 78.082 30.345))'), 4326),
-    'SEVERE'
-)
-ON CONFLICT (cell_uid) DO NOTHING;
-
--- Seed Approved CAP v1.2 Alert for Sahastradhara Foothill Flash Flood
-INSERT INTO public.cap_alerts (
-    identifier, sender, event_type, urgency, severity, certainty,
-    headline_en, headline_hi, description_en, affected_zone, status
-)
-VALUES (
-    'IN-IMD-NOWCAST-20260926-001',
-    'dutyforecaster.nowcast@imd.gov.in',
-    'CLOUDBURST',
-    'Immediate',
-    'Extreme',
-    'Observed',
-    'RED ALERT: Imminent Cloudburst & Severe Hail Core Over Sahastradhara',
-    'गंभीर चेतावनी: सहस्त्रधारा व राजपुर तलहटी में तीव्र बादल फटने का खतरा',
-    'Dual-pol C-Band Doppler radar detects 63.8 dBZ precipitation core. Rain rates >110 mm/hr will trigger rapid stream inundation in Rispana/Bindal catchments within 30-45 minutes. Evacuate low banks immediately.',
-    ST_SetSRID(ST_GeomFromText('POLYGON((78.080 30.340, 78.150 30.390, 78.190 30.315, 78.105 30.285, 78.080 30.340))'), 4326),
-    'APPROVED'
-)
-ON CONFLICT (identifier) DO NOTHING;
+-- Radar/cell and alert observations are written by configured ingestion services;
+-- migrations do not create operational alerts or synthetic convective cells.

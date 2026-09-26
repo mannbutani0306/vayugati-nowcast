@@ -25,15 +25,12 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import L from 'leaflet';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { isSupabaseConfigured, supabaseConfigurationError } from '../lib/supabaseClient';
 import {
   fetchNearbyAlerts,
-  getNearbyAlerts,
-  haversineDistance,
-  generateMotionConePolygon,
-  isPointInPolygon,
+  subscribeToApprovedAlerts,
 } from '../lib/spatialQueries';
-import { SEVERITY_TIERS, INITIAL_CONVECTIVE_CELLS } from '../utils/mockDataSeed';
+import { SEVERITY_TIERS } from '../utils/mockDataSeed';
 import {
   MapPin,
   Compass,
@@ -85,8 +82,9 @@ const TRANSLATIONS = {
     syncing: 'Updating...',
     justNow: 'just now',
     minsAgo: 'mins ago',
-    activeConeWarningHeadline: 'IMMINENT DANGER: ACTIVE STORM CONE IMPACT',
-    activeConeWarningSub: 'Your coordinates are directly inside the projected trajectory of an intense convective cloudburst core.',
+    activeConeWarningHeadline: 'APPROVED WEATHER ALERT IN YOUR AREA',
+    activeConeWarningSub: 'An approved alert polygon intersects your current coordinates. Follow the official alert instructions below.',
+    databaseOffline: 'Offline Database: live approved alerts are unavailable.',
     impactCountdownPrefix: 'Impact expected in:',
     minutesUnit: 'Minutes',
     safeZoneHeadline: 'You are currently outside active convective hazard cones',
@@ -109,8 +107,8 @@ const TRANSLATIONS = {
     outdoorWorker: 'Farmer / Outdoor',
     commuter: 'Commuter / Driver',
     schoolParent: 'Schools & Parents',
-    radarViewTitle: 'Institutional Weather Radar & Storm Tracker',
-    radarViewSub: 'Lightweight Doppler radar view showing your position relative to approaching convective cells',
+    radarViewTitle: 'Approved Weather Alert Map',
+    radarViewSub: 'Your location and approved alert polygons returned from PostGIS.',
     radarLegendUser: 'Your Location',
     radarLegendStorm: 'Storm Core (>60 dBZ)',
     radarLegendCone: 'Hazard Cone',
@@ -120,7 +118,7 @@ const TRANSLATIONS = {
     getDirections: 'Get Directions',
     hourlyProgressionTitle: '0–6 Hour Hazard Progression',
     liveBulletinsTitle: 'Official IMD / SDMA Approved Warning Bulletins',
-    noActiveAlerts: 'No critical alerts active for your area. Regular radar scanning in progress.',
+    noActiveAlerts: 'No approved alerts were returned for this search radius.',
     dataCachedNotice: 'Cached on device • Works 100% offline during mobile network failure.',
     testLocations: 'Quick Demo Coordinates:',
     testInsideCone: 'Inside Cone (Sahastradhara)',
@@ -143,8 +141,9 @@ const TRANSLATIONS = {
     syncing: 'अपडेट हो रहा है...',
     justNow: 'अभी-अभी',
     minsAgo: 'मिनट पहले',
-    activeConeWarningHeadline: 'अत्यंत गंभीर चेतावनी: तूफान के सीधे रास्ते में हैं!',
-    activeConeWarningSub: 'आपकी स्थिति तीव्र बादल फटने और ओलावृष्टि वाले तूफान के प्रक्षेपित मार्ग (Cone) के ठीक अंदर है।',
+    activeConeWarningHeadline: 'आपके क्षेत्र के लिए आधिकारिक मौसम चेतावनी',
+    activeConeWarningSub: 'स्वीकृत चेतावनी क्षेत्र आपकी स्थिति को कवर करता है। नीचे दिए गए आधिकारिक निर्देशों का पालन करें।',
+    databaseOffline: 'डेटाबेस ऑफ़लाइन: लाइव स्वीकृत चेतावनियाँ उपलब्ध नहीं हैं।',
     impactCountdownPrefix: 'संभावित प्रभाव समय:',
     minutesUnit: 'मिनट',
     safeZoneHeadline: 'आप वर्तमान में सक्रिय तूफान शंकु (Cone) से बाहर सुरक्षित हैं',
@@ -167,8 +166,8 @@ const TRANSLATIONS = {
     outdoorWorker: 'किसान / श्रमिक',
     commuter: 'यात्री / वाहन चालक',
     schoolParent: 'विद्यालय व अभिभावक',
-    radarViewTitle: 'मौसम रडार एवं तूफान ट्रैकर',
-    radarViewSub: 'आने वाले तीव्र बादलों और वर्षा के सापेक्ष आपका स्थान',
+    radarViewTitle: 'स्वीकृत मौसम चेतावनी मानचित्र',
+    radarViewSub: 'आपका स्थान और PostGIS से प्राप्त स्वीकृत चेतावनी क्षेत्र।',
     radarLegendUser: 'आपका स्थान',
     radarLegendStorm: 'तूफान कोर (>60 dBZ)',
     radarLegendCone: 'खतरा शंकु',
@@ -178,7 +177,7 @@ const TRANSLATIONS = {
     getDirections: 'मार्ग देखें',
     hourlyProgressionTitle: '0–6 घंटे का प्रति घंटा मौसम पूर्वानुमान',
     liveBulletinsTitle: 'आईएमडी / एसडीएमए द्वारा अनुमोदित आधिकारिक बुलेटिन',
-    noActiveAlerts: 'आपके क्षेत्र के लिए कोई गंभीर चेतावनी नहीं। डॉप्लर रडार सामान्य निगरानी कर रहा है।',
+    noActiveAlerts: 'इस खोज त्रिज्या में कोई स्वीकृत चेतावनी नहीं मिली।',
     dataCachedNotice: 'डिवाइस पर संचित • नेटवर्क बंद होने पर भी 100% ऑफ़लाइन उपलब्ध।',
     testLocations: 'त्वरित डेमो परीक्षण स्थान:',
     testInsideCone: 'तूफान शंकु के अंदर (सहस्रधारा)',
@@ -201,8 +200,9 @@ const TRANSLATIONS = {
     syncing: 'अपडेट सुरू आहे...',
     justNow: 'आत्ताच',
     minsAgo: 'मिनिटांपूर्वी',
-    activeConeWarningHeadline: 'अति-गंभीर इशारा: तुम्ही वादळाच्या थेट मार्गात आहात!',
-    activeConeWarningSub: 'तुमचे स्थान तीव्र ढगफुटी व गारपिटीच्या प्रक्षेपित मार्गाच्या (Storm Cone) थेट आत आहे.',
+    activeConeWarningHeadline: 'तुमच्या परिसरासाठी अधिकृत हवामान इशारा',
+    activeConeWarningSub: 'मंजूर इशारा क्षेत्रात तुमचे स्थान येते. खालील अधिकृत सूचनांचे पालन करा.',
+    databaseOffline: 'डेटाबेस ऑफलाइन: थेट मंजूर इशारे उपलब्ध नाहीत.',
     impactCountdownPrefix: 'संभाव्य धोका वेळ:',
     minutesUnit: 'मिनिटे',
     safeZoneHeadline: 'तुम्ही सध्या वादळाच्या प्रभावाबाहेर सुरक्षित क्षेत्रात आहात',
@@ -225,8 +225,8 @@ const TRANSLATIONS = {
     outdoorWorker: 'शेतकरी / कामगार',
     commuter: 'प्रवासी / चालक',
     schoolParent: 'शाळा व पालक',
-    radarViewTitle: 'हवामान रडार आणि वादळ ट्रॅकर',
-    radarViewSub: 'येणाऱ्या वादळाच्या दिशेनुसार तुमचे सुरक्षित स्थान',
+    radarViewTitle: 'मंजूर हवामान इशारा नकाशा',
+    radarViewSub: 'तुमचे स्थान आणि PostGIS मधून मिळालेले मंजूर इशारा क्षेत्र.',
     radarLegendUser: 'तुमचे स्थान',
     radarLegendStorm: 'वादळ केंद्र (>६० dBZ)',
     radarLegendCone: 'धोका क्षेत्र (Cone)',
@@ -236,7 +236,7 @@ const TRANSLATIONS = {
     getDirections: 'रस्ता पाहा',
     hourlyProgressionTitle: '०–६ तासांचा संभाव्य हवामान अंदाज',
     liveBulletinsTitle: 'आयएमडी व एसडीएमए अधिकृत चेतावणी बुलेटिन',
-    noActiveAlerts: 'आपल्या क्षेत्रासाठी कोणतीही गंभीर चेतावणी नाही. नियमित रडार निरीक्षण सुरू आहे.',
+    noActiveAlerts: 'या शोध त्रिज्येत कोणताही मंजूर इशारा मिळाला नाही.',
     dataCachedNotice: 'फोनवर सुरक्षित • नेटवर्क नसतानाही १००% ऑफलाइन कार्यक्षम.',
     testLocations: 'डेमो चाचणी स्थाने:',
     testInsideCone: 'वादळाच्या आत (सहस्रधारा)',
@@ -328,16 +328,6 @@ const PERSONA_DIRECTIVES = {
 };
 
 // 0-6 Hour Hourly Progression Data
-const HOURLY_TIMELINE = [
-  { hourLabel: '+0h (Now)', tier: 'SEVERE', rainRate: '118 mm/h', prob: '94%', icon: CloudRain, phenomenon: 'Cloudburst Core' },
-  { hourLabel: '+1h', tier: 'SEVERE', rainRate: '78 mm/h', prob: '82%', icon: Zap, phenomenon: 'Hail & Squall' },
-  { hourLabel: '+2h', tier: 'WARNING', rainRate: '42 mm/h', prob: '68%', icon: CloudLightning, phenomenon: 'Intense Rain' },
-  { hourLabel: '+3h', tier: 'WATCH', rainRate: '18 mm/h', prob: '45%', icon: CloudRain, phenomenon: 'Stratiform Rain' },
-  { hourLabel: '+4h', tier: 'INFO', rainRate: '6 mm/h', prob: '25%', icon: CloudRain, phenomenon: 'Light Drizzle' },
-  { hourLabel: '+5h', tier: 'INFO', rainRate: '2 mm/h', prob: '12%', icon: CloudRain, phenomenon: 'Overcast Skies' },
-  { hourLabel: '+6h', tier: 'INFO', rainRate: '0 mm/h', prob: '5%', icon: CloudRain, phenomenon: 'Clearing Air' },
-];
-
 export default function CitizenPortal() {
   // 1. Language state: 'en' | 'hi' | 'mr'
   const [lang, setLang] = useState(() => {
@@ -371,9 +361,13 @@ export default function CitizenPortal() {
 
   // 4. Alerts & Spatial Proximity Data
   const [nearbyAlerts, setNearbyAlerts] = useState([]);
-  const [isInsideStormCone, setIsInsideStormCone] = useState(true);
-  const [countdownMinutes, setCountdownMinutes] = useState(28);
+  const [isInsideStormCone, setIsInsideStormCone] = useState(false);
+  const [countdownMinutes, setCountdownMinutes] = useState(0);
   const [countdownSeconds, setCountdownSeconds] = useState(0);
+  const [databaseError, setDatabaseError] = useState('');
+  const [databaseStatus, setDatabaseStatus] = useState(isSupabaseConfigured ? 'CONNECTING' : 'OFFLINE');
+  const [isCachedDataDisplayed, setIsCachedDataDisplayed] = useState(false);
+  const directAlert = useMemo(() => nearbyAlerts.find((alert) => alert.is_direct_intersection), [nearbyAlerts]);
 
   // 5. Persona Guidance Tab
   const [activePersona, setActivePersona] = useState('general');
@@ -391,7 +385,7 @@ export default function CitizenPortal() {
         isInsideCone: inCone,
         timestamp: new Date().toISOString(),
       };
-      localStorage.setItem('vayugati_citizen_cached_alerts', JSON.stringify(cachePayload));
+      localStorage.setItem('vayugati_citizen_cached_alerts_v2', JSON.stringify(cachePayload));
       localStorage.setItem('vayugati_last_sync_timestamp', new Date().toISOString());
       setLastSyncTime(new Date());
     } catch (e) {
@@ -402,12 +396,13 @@ export default function CitizenPortal() {
   // Hydrate from LocalStorage if available
   const loadAlertsFromCache = useCallback(() => {
     try {
-      const raw = localStorage.getItem('vayugati_citizen_cached_alerts');
+      const raw = localStorage.getItem('vayugati_citizen_cached_alerts_v2');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed.alerts && Array.isArray(parsed.alerts)) {
           setNearbyAlerts(parsed.alerts);
           setIsInsideStormCone(Boolean(parsed.isInsideCone));
+          setIsCachedDataDisplayed(true);
           if (parsed.timestamp) {
             setLastSyncTime(new Date(parsed.timestamp));
           }
@@ -424,34 +419,26 @@ export default function CitizenPortal() {
   const executeSpatialAssessment = useCallback(
     async (lat, lon) => {
       setIsSyncing(true);
+      setDatabaseError('');
       try {
+        if (!isSupabaseConfigured) throw new Error(supabaseConfigurationError || 'Supabase is not configured.');
         // Query fetchNearbyAlerts from spatialQueries
         const result = await fetchNearbyAlerts(lat, lon, 35);
+        if (result.error) throw result.error;
         const alertsList = result.data || [];
         setNearbyAlerts(alertsList);
-
-        // Check active convective cells from mockDataSeed to detect if user point lies in any storm cone
-        let insideAnyCone = false;
-        let minEta = 28;
-
-        for (const cell of INITIAL_CONVECTIVE_CELLS) {
-          const cone = generateMotionConePolygon(cell.lat, cell.lon, cell.speedKmh, cell.headingDeg, 45);
-          const contained = isPointInPolygon([lat, lon], cone);
-          const dist = haversineDistance(lat, lon, cell.lat, cell.lon);
-
-          if (contained || dist < 12) {
-            insideAnyCone = true;
-            const eta = Math.max(8, Math.round((dist / (cell.speedKmh || 35)) * 60));
-            if (eta < minEta) minEta = eta;
-          }
-        }
-
+        const insideAnyCone = alertsList.some((alert) => alert.is_direct_intersection);
+        const etaValues = alertsList.map((alert) => Number(alert.eta_minutes)).filter((eta) => Number.isFinite(eta) && eta >= 0);
+        const minEta = etaValues.length ? Math.min(...etaValues) : 0;
         setIsInsideStormCone(insideAnyCone);
         setCountdownMinutes(minEta);
         setCountdownSeconds(0);
+        setIsCachedDataDisplayed(false);
         updateAlertsCache(alertsList, insideAnyCone);
       } catch (err) {
-        console.warn('Spatial assessment error, attempting fallback cache:', err);
+        console.error('PostGIS spatial assessment failed:', err);
+        setDatabaseStatus('OFFLINE');
+        setDatabaseError(err.message || 'Unable to read active alerts from Supabase.');
         loadAlertsFromCache();
       } finally {
         setIsSyncing(false);
@@ -479,29 +466,52 @@ export default function CitizenPortal() {
     };
   }, [currentCoords, executeSpatialAssessment]);
 
-  // Initial load: Attempt cache hydration first, then live assessment
+  // Load the persisted cache only as a clearly labeled offline view, then query PostGIS.
   useEffect(() => {
     loadAlertsFromCache();
     executeSpatialAssessment(currentCoords.lat, currentCoords.lon);
-  }, []);
+  }, [currentCoords.lat, currentCoords.lon, executeSpatialAssessment, loadAlertsFromCache]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setDatabaseStatus('OFFLINE');
+      setDatabaseError(supabaseConfigurationError || 'Supabase is not configured.');
+      return undefined;
+    }
+
+    let subscription;
+    try {
+      subscription = subscribeToApprovedAlerts(
+        () => executeSpatialAssessment(currentCoords.lat, currentCoords.lon),
+        (status) => {
+          setDatabaseStatus(status === 'SUBSCRIBED' ? 'CONNECTED' : status);
+          if (status === 'SUBSCRIBED') setDatabaseError('');
+        }
+      );
+    } catch (error) {
+      setDatabaseStatus('OFFLINE');
+      setDatabaseError(error.message || 'Supabase Realtime is unavailable.');
+    }
+
+    return () => subscription?.unsubscribe();
+  }, [currentCoords.lat, currentCoords.lon, executeSpatialAssessment]);
 
   // Countdown timer effect (ticking down)
   useEffect(() => {
-    if (!isInsideStormCone) return;
+    if (!isInsideStormCone || countdownMinutes <= 0) return;
 
     const interval = setInterval(() => {
       setCountdownSeconds((sec) => {
         if (sec > 0) return sec - 1;
         setCountdownMinutes((min) => {
-          if (min > 1) return min - 1;
-          return 28; // Reset cycle for continuous vigilance
+          return Math.max(0, min - 1);
         });
         return 59;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isInsideStormCone]);
+  }, [isInsideStormCone, countdownMinutes]);
 
   // Auto-GPS request function
   const handleRequestGps = () => {
@@ -617,10 +627,10 @@ export default function CitizenPortal() {
         <div className="max-w-4xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2">
           {/* Online/Offline status */}
           <div className="flex items-center space-x-2">
-            {!isOnline ? (
+            {!isOnline || databaseStatus === 'OFFLINE' ? (
               <span className="flex items-center text-amber-400 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800">
                 <WifiOff className="w-3.5 h-3.5 mr-1 animate-pulse" />
-                {t.offlineMode}
+                {databaseError ? t.databaseOffline : t.offlineMode}
               </span>
             ) : (
               <span className="flex items-center text-emerald-400 font-medium">
@@ -656,6 +666,11 @@ export default function CitizenPortal() {
             </button>
           </div>
         </div>
+        {databaseError && (
+          <div className="max-w-4xl mx-auto px-4 pb-2 text-[11px] text-amber-200" role="status">
+            {databaseError}{isCachedDataDisplayed ? ' Cached approved alerts are shown and labeled as cached.' : ' Live alert data is unavailable.'}
+          </div>
+        )}
       </div>
 
       {/* 2. PWA ACCESSIBLE HEADER WITH MULTI-LINGUAL SELECTOR */}
@@ -792,15 +807,12 @@ export default function CitizenPortal() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-400/40 pb-3">
               <div className="flex items-center space-x-2">
                 <span className="px-2.5 py-1 rounded-md bg-white text-red-700 text-xs font-black uppercase tracking-wider shadow-xs">
-                  CRITICAL SEVERE NOWCAST
-                </span>
-                <span className="text-[11px] font-mono bg-red-950/60 text-red-200 px-2 py-0.5 rounded border border-red-800">
-                  Reflectivity: 63.8 dBZ
+                  {directAlert?.severity || 'APPROVED ALERT'}
                 </span>
               </div>
               <span className="text-xs font-bold text-red-100 flex items-center gap-1 font-mono">
-                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300 animate-bounce" />
-                Lightning Surge Detected
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                Supabase approved alert
               </span>
             </div>
 
@@ -814,10 +826,10 @@ export default function CitizenPortal() {
                   {t.activeConeWarningHeadline}
                 </h2>
                 <p className="text-xs sm:text-sm text-red-100 font-medium leading-relaxed max-w-2xl">
-                  {t.activeConeWarningSub}
+                  {directAlert?.headline_en || t.activeConeWarningSub}
                 </p>
                 <div className="text-[11px] text-red-200 font-mono pt-1">
-                  Active Cell: <strong>Sahastradhara Cloudburst Core</strong> • Speed: 38 km/h • Heading: ENE (65°)
+                  {directAlert?.identifier || directAlert?.event_type || 'Approved alert'}
                 </div>
               </div>
             </div>
@@ -831,9 +843,9 @@ export default function CitizenPortal() {
                 <div className="text-2xl sm:text-3xl font-mono font-black text-amber-300 tracking-tight flex items-center justify-center sm:justify-start gap-2">
                   <Clock className="w-6 h-6 text-amber-300 animate-spin" style={{ animationDuration: '6s' }} />
                   <span>
-                    {countdownMinutes} {t.minutesUnit}{' '}
+                    {countdownMinutes > 0 ? `${countdownMinutes} ${t.minutesUnit}` : 'Impact timing unavailable'}{' '}
                     <span className="text-lg text-white/70 font-mono">
-                      ({String(countdownMinutes).padStart(2, '0')}:{String(countdownSeconds).padStart(2, '0')})
+                      {countdownMinutes > 0 ? `(${String(countdownMinutes).padStart(2, '0')}:${String(countdownSeconds).padStart(2, '0')})` : ''}
                     </span>
                   </span>
                 </div>
@@ -1044,8 +1056,8 @@ export default function CitizenPortal() {
               </h3>
               <p className="text-[11px] text-[#6C7278]">{t.radarViewSub}</p>
             </div>
-            <span className="text-[10px] font-mono text-[#2E7D32] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded self-start sm:self-auto font-bold">
-              DWR Dehradun (Sweep: 4m ago)
+            <span className={`text-[10px] font-mono border px-2 py-0.5 rounded self-start sm:self-auto font-bold ${databaseStatus === 'CONNECTED' ? 'text-[#2E7D32] bg-emerald-50 border-emerald-200' : 'text-amber-800 bg-amber-50 border-amber-200'}`}>
+              Supabase Realtime: {databaseStatus}
             </span>
           </div>
 
@@ -1055,82 +1067,22 @@ export default function CitizenPortal() {
             isLowBandwidth={isLowBandwidthMode}
             t={t}
             isInsideCone={isInsideStormCone}
+            alerts={nearbyAlerts}
           />
 
-          {/* Nearest Shelter Info Bar */}
-          <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-            <div className="flex items-center space-x-2">
-              <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                🏠
-              </span>
-              <div>
-                <span className="text-[#6C7278] text-[11px]">{t.nearestShelterTitle}</span>
-                <div className="font-bold text-[#1A1D20]">
-                  Rajpur Foothill Community Emergency Shelter #2
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 self-end sm:self-center">
-              <span className="font-mono text-emerald-800 font-bold bg-white px-2 py-1 rounded border border-emerald-300">
-                1.2 km {t.shelterDistance}
-              </span>
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${currentCoords.lat + 0.01},${currentCoords.lon - 0.008}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold flex items-center space-x-1"
-              >
-                <span>{t.getDirections}</span>
-                <ChevronRight className="w-3 h-3" />
-              </a>
-            </div>
+          {/* Shelter directory is not wired to a verified database table yet. */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+            Verified shelter locations are not available from the operational database.
           </div>
         </section>
 
         {/* 0–6 HOUR PROGRESSION STRIP */}
         <section className="bg-white rounded-2xl border border-[#E5E0D8] p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-sm text-[#1A1D20] flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-[#DC2626]" />
-              {t.hourlyProgressionTitle}
-            </h3>
-            <span className="text-[10px] font-mono text-[#6C7278]">15m Doppler Temporal Step</span>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
-            {HOURLY_TIMELINE.map((item, idx) => {
-              const tierColor = SEVERITY_TIERS[item.tier]?.color || '#2E7D32';
-              const tierBg = SEVERITY_TIERS[item.tier]?.bgLight || '#E8F5E9';
-              const Icon = item.icon;
-              return (
-                <div
-                  key={idx}
-                  className="min-w-[108px] flex-1 p-2.5 bg-[#FAF7F2] rounded-xl border border-[#E5E0D8] text-center space-y-1 shrink-0"
-                  style={{ borderTopWidth: '3px', borderTopColor: tierColor }}
-                >
-                  <span className="text-[10px] font-mono font-bold text-[#6C7278] block">
-                    {item.hourLabel}
-                  </span>
-                  <div className="my-1">
-                    <Icon className="w-4 h-4 mx-auto" style={{ color: tierColor }} />
-                  </div>
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[9px] font-bold block"
-                    style={{ backgroundColor: tierBg, color: tierColor }}
-                  >
-                    {item.tier}
-                  </span>
-                  <span className="text-[10px] font-bold text-[#1A1D20] block font-mono">
-                    {item.rainRate}
-                  </span>
-                  <span className="text-[9px] text-[#6C7278] font-mono block">
-                    Prob: {item.prob}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <h3 className="font-extrabold text-sm text-[#1A1D20] flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-[#DC2626]" />
+            {t.hourlyProgressionTitle}
+          </h3>
+          <p className="text-xs text-slate-600">No forecast-progression table is connected. This view will not substitute a generated timeline.</p>
         </section>
 
         {/* OFFICIAL IMD / SDMA APPROVED WARNING BULLETINS */}
@@ -1141,17 +1093,19 @@ export default function CitizenPortal() {
                 <Bell className="w-4 h-4 text-[#DC2626]" />
                 {t.liveBulletinsTitle}
               </h3>
-              <p className="text-[11px] text-[#6C7278]">{t.dataCachedNotice}</p>
+              <p className="text-[11px] text-[#6C7278]">
+                {isCachedDataDisplayed ? t.dataCachedNotice : databaseStatus === 'CONNECTED' ? 'Live approved CAP alerts from Supabase PostGIS.' : t.databaseOffline}
+              </p>
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              ● Verified Feed
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${databaseStatus === 'CONNECTED' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-800 bg-amber-50 border-amber-200'}`}>
+              Database: {databaseStatus}
             </span>
           </div>
 
           <div className="space-y-3">
             {nearbyAlerts.length === 0 ? (
               <div className="p-4 bg-[#FAF7F2] rounded-xl text-center text-xs text-[#6C7278]">
-                {t.noActiveAlerts}
+                {databaseError ? t.databaseOffline : t.noActiveAlerts}
               </div>
             ) : (
               nearbyAlerts.slice(0, 3).map((alert, idx) => {
@@ -1183,18 +1137,17 @@ export default function CitizenPortal() {
                         </h4>
                       </div>
                       <span className="text-[10px] font-mono text-[#6C7278]">
-                        ETA: ~{alert.etaMinutes || 25}m ({alert.distanceKm || 12} km)
+                        {alert.etaMinutes != null ? `ETA ${alert.etaMinutes}m` : 'ETA unavailable'}{alert.distanceKm != null ? ` • ${alert.distanceKm} km` : ''}
                       </span>
                     </div>
 
                     <p className="text-xs text-[#1A1D20] leading-relaxed">
-                      {alert.instruction ||
-                        'Dual-pol Doppler radar confirms intense reflectivity core. Move to upper floors and avoid foothill stream banks.'}
+                      {alert.description_en || 'Follow the approved CAP alert instructions issued by your local authority.'}
                     </p>
 
                     <div className="flex items-center justify-between pt-1 border-t border-[#E5E0D8] text-[10px] text-[#6C7278]">
-                      <span>Source: IMD Duty Meteorologist</span>
-                      <span>Target: {alert.affectedGrid || 'Local Basin'}</span>
+                      <span>Approved alert • {alert.identifier}</span>
+                      <span>{alert.isDirectHit ? 'Covers your location' : 'Within search radius'}</span>
                     </div>
                   </div>
                 );
@@ -1263,7 +1216,7 @@ export default function CitizenPortal() {
  * REQUIREMENT 3: Lightweight, Mobile-Optimized Leaflet Weather Radar Map
  * Renders user position, storm core (dBZ contours), trajectory cone, and safe shelter pins.
  */
-function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone }) {
+function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersGroupRef = useRef(null);
@@ -1314,110 +1267,21 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone }) {
       .addTo(layers)
       .bindPopup(`<b>${t.radarLegendUser}</b><br/>${userLocation.name}`);
 
-    // If user enabled 2G Data Saver mode, display simplified markers only
-    if (isLowBandwidth) {
-      // Simple danger icon marker for storm
-      const stormMarker = L.circleMarker([userLocation.lat + 0.03, userLocation.lon + 0.04], {
-        radius: 12,
-        color: '#DC2626',
-        fillColor: '#DC2626',
-        fillOpacity: 0.8,
-        weight: 2,
-      }).addTo(layers);
-      stormMarker.bindPopup('<b>Storm Core (Low Bandwidth Mode)</b><br/>ETA: ~25 mins');
-      return;
-    }
-
-    // 2. Approaching Convective Storm Core (Doppler Reflectivity Gradients > 60 dBZ)
-    const stormLat = userLocation.lat + 0.038;
-    const stormLon = userLocation.lon + 0.048;
-
-    // Outer reflectivity halo (45 dBZ)
-    L.circle([stormLat, stormLon], {
-      radius: 5200,
-      color: '#EA580C',
-      weight: 1.5,
-      fillColor: '#F59E0B',
-      fillOpacity: 0.25,
-    }).addTo(layers);
-
-    // Severe hail/cloudburst core (> 60 dBZ)
-    L.circle([stormLat, stormLon], {
-      radius: 2800,
-      color: '#991B1B',
-      weight: 2,
-      fillColor: '#DC2626',
-      fillOpacity: 0.5,
-    }).addTo(layers).bindPopup(`
-      <div style="font-family: sans-serif; font-size: 11px;">
-        <strong style="color: #DC2626;">⛈️ Sahastradhara Cloudburst Core</strong><br/>
-        <b>Peak Reflectivity:</b> 63.8 dBZ<br/>
-        <b>Rain Intensity:</b> 118 mm/hr<br/>
-        <b>Moving:</b> Toward your location @ 38 km/h<br/>
-        <b>ETA:</b> ~28 mins
-      </div>
-    `);
-
-    // 3. Projected Optical Flow Trajectory Cone Polygon
-    const coneCoords = generateMotionConePolygon(stormLat, stormLon, 38, 240, 45, 22);
-    L.polygon(coneCoords, {
-      color: '#DC2626',
-      weight: 1.5,
-      fillColor: '#EF4444',
-      fillOpacity: 0.2,
-      dashArray: '4, 4',
-    }).addTo(layers);
-
-    // Trajectory dashed vector arrow
-    L.polyline(
-      [
-        [stormLat, stormLon],
-        [userLocation.lat, userLocation.lon],
-      ],
-      { color: '#DC2626', weight: 2.5, dashArray: '6, 6' }
-    ).addTo(layers);
-
-    // 4. Lightning strike cluster marker
-    const lightningHtml = `
-      <div style="background-color: #FBBF24; color: #78350F; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.3); font-size: 11px; font-weight: bold;">
-        ⚡
-      </div>
-    `;
-    const lightningIcon = L.divIcon({
-      className: 'lightning-marker',
-      html: lightningHtml,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
+    (alerts || []).forEach((alert) => {
+      const geometry = alert.affected_zone_geojson;
+      if (!geometry) return;
+      const style = {
+        color: alert.is_direct_intersection ? '#B91C1C' : '#D97706',
+        weight: alert.is_direct_intersection ? 3 : 2,
+        fillColor: alert.is_direct_intersection ? '#EF4444' : '#F59E0B',
+        fillOpacity: isLowBandwidth ? 0.08 : 0.18,
+      };
+      const featureLayer = L.geoJSON(geometry, { style }).addTo(layers);
+      const popup = document.createElement('div');
+      popup.textContent = `${alert.severity || 'Approved'} • ${alert.headline_en || alert.event_type || 'Weather alert'}${alert.distance_km != null ? ` • ${alert.distance_km} km` : ''}`;
+      featureLayer.bindPopup(popup);
     });
-    L.marker([stormLat - 0.015, stormLon - 0.01], { icon: lightningIcon })
-      .addTo(layers)
-      .bindPopup('<b>Lightning Flash Cluster</b><br/>28 Cloud-to-Ground strikes in last 10m');
-
-    // 5. Safe Shelter Marker Pin
-    const shelterLat = userLocation.lat + 0.01;
-    const shelterLon = userLocation.lon - 0.008;
-    const shelterHtml = `
-      <div style="background-color: #15803D; color: white; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); white-space: nowrap; display: flex; align-items: center; gap: 4px;">
-        <span>🏠</span>
-        <span>Safe Shelter (1.2 km)</span>
-      </div>
-    `;
-    const shelterIcon = L.divIcon({
-      className: 'shelter-marker-badge',
-      html: shelterHtml,
-      iconSize: [120, 24],
-      iconAnchor: [60, 12],
-    });
-    L.marker([shelterLat, shelterLon], { icon: shelterIcon })
-      .addTo(layers)
-      .bindPopup(`
-        <div style="font-family: sans-serif; font-size: 11px;">
-          <strong style="color: #15803D;">Rajpur Foothill Community Emergency Shelter #2</strong><br/>
-          Equipped with Medical First-Aid, Clean Drinking Water, Emergency Generator.<br/>
-          <b>Distance:</b> 1.2 km away • <b>Capacity:</b> Open &amp; Staffed
-        </div>
-      `);
-  }, [userLocation, isLowBandwidth, t, isInsideCone]);
+  }, [userLocation, isLowBandwidth, t, isInsideCone, alerts]);
 
   return (
     <div className="relative w-full h-[260px] sm:h-[300px] rounded-xl overflow-hidden border border-[#E5E0D8] bg-[#F1F3F5]">
@@ -1431,18 +1295,14 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone }) {
         </div>
         <div className="flex items-center space-x-1">
           <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] inline-block"></span>
-          <span className="font-semibold">{t.radarLegendStorm}</span>
-        </div>
-        <div className="flex items-center space-x-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#15803D] inline-block"></span>
-          <span className="font-semibold">{t.radarLegendShelter}</span>
+          <span className="font-semibold">Approved alert geometry</span>
         </div>
       </div>
 
       {/* Trajectory ETA chip */}
       {isInsideCone && (
         <div className="absolute bottom-2 left-2 z-[400] bg-red-600 text-white font-mono text-[10px] font-bold px-2 py-1 rounded shadow-md">
-          ⚠️ Projected Convective Impact: ~28m
+          Approved alert polygon intersects your location
         </div>
       )}
     </div>

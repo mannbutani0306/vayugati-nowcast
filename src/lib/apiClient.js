@@ -4,6 +4,8 @@ export const API_BASE_URL = (import.meta.env.VITE_NOWCAST_API_URL || DEFAULT_API
 
 async function apiFetch(path, options = {}) {
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const timeoutSignal = AbortSignal.timeout(10000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
 
   const response = await fetch(url, {
     headers: {
@@ -11,17 +13,23 @@ async function apiFetch(path, options = {}) {
       ...(options.headers || {}),
     },
     ...options,
+    signal,
   });
 
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
+    let metadata;
     try {
       const payload = await response.json();
-      message = payload?.detail || payload?.message || message;
+      const detail = payload?.detail;
+      message = (typeof detail === 'string' ? detail : detail?.message) || payload?.message || message;
+      metadata = detail?.metadata || payload?.metadata;
     } catch (error) {
       // Ignore JSON parse failures and keep the default HTTP status message.
     }
-    throw new Error(message);
+    const requestError = new Error(message);
+    requestError.metadata = metadata;
+    throw requestError;
   }
 
   if (response.status === 204) {
@@ -95,11 +103,11 @@ export function normalizeLiveCellFeature(feature) {
     predictedRisk: Number.isFinite(confidence) ? confidence : 0.5,
     rawFeatures: {
       cape: {
-        value: Number(props.cape_value ?? 0),
+        value: null,
         unit: 'J/kg',
         label: 'Surface-Based CAPE',
         climatology: 1850,
-        sensor: 'Open-Meteo / Operational Model',
+        sensor: 'Open-Meteo NWP pending point sounding',
       },
       cloudTopGlaciation: {
         value: Number(props.cloud_top_temp_c ?? 0),
@@ -119,12 +127,12 @@ export function normalizeLiveCellFeature(feature) {
         sensor: 'Operational Lightning Network',
       },
       dopplerShear: {
-        value: Number(props.speed_kmh ?? 0),
+        value: null,
         unit: 'm/s',
         layer: '0–6 km Bulk Shear',
-        label: 'Doppler Velocity Shear',
+        label: '0–6 km Wind Shear',
         climatology: 14.0,
-        sensor: 'Atmospheric Motion Analysis',
+        sensor: 'Open-Meteo NWP pending point sounding',
       },
     },
     shapAttributions: [],
@@ -157,4 +165,45 @@ export async function fetchLiveFusionGrid(params = {}) {
 
 export async function fetchHealthStatus() {
   return apiFetch('/health');
+}
+
+export async function fetchSatelliteFeed(params = {}, options = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) query.set(key, String(value));
+  });
+  return apiFetch(`/ingestion/satellite${query.size ? `?${query.toString()}` : ''}`, options);
+}
+
+export async function fetchRadarFeed(options = {}) {
+  return apiFetch('/ingestion/radar', options);
+}
+
+export async function fetchLightningFeed(options = {}) {
+  return apiFetch('/ingestion/lightning', options);
+}
+
+/**
+ * @typedef {Object} InstabilityNwpPayload
+ * @property {number | null} current_cape
+ * @property {number | null} cin_estimate
+ * @property {number | null} lifted_index
+ * @property {number | null} max_gust_kmh
+ * @property {number | null} wind_shear_ms
+ * @property {number | null} pwat_mm
+ * @property {number | null} precipitation_mm
+ * @property {number | null} surface_pressure_hpa
+ * @property {string} timestamp
+ * @property {{source: string, mode: 'LIVE' | 'CACHED' | 'PARTIAL' | 'OFFLINE', latency_ms: number, model: string}} metadata
+ */
+
+/** @returns {Promise<InstabilityNwpPayload>} */
+export async function fetchInstabilityIndex({ lat, lon, model = 'ncep_gfs_seamless', signal }) {
+  const query = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    model,
+  });
+
+  return apiFetch(`/instability-index?${query.toString()}`, { signal });
 }

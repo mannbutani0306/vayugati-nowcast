@@ -28,6 +28,7 @@ import os
 import math
 import json
 import time
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Tuple, Union
@@ -35,6 +36,18 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from zoneinfo import ZoneInfo
+
+import httpx
+
+try:
+    from .ingestion.lightning import get_lightning_feed
+    from .ingestion.radar import get_radar_feed
+    from .ingestion.satellite import get_satellite_feed
+except ImportError:
+    from ingestion.lightning import get_lightning_feed
+    from ingestion.radar import get_radar_feed
+    from ingestion.satellite import get_satellite_feed
 
 # Configure structured meteorological logging
 logging.basicConfig(
@@ -145,149 +158,107 @@ KEY_INDIAN_STATIONS = [
 ]
 
 
-_CIRCUIT_BREAKER_ACTIVE = False
-_LAST_NETWORK_ATTEMPT = 0.0
-_CIRCUIT_BREAKER_COOLDOWN_SEC = 60.0
+_INSTABILITY_CACHE: Dict[Tuple[float, float, str], Dict[str, Any]] = {}
+_INSTABILITY_CACHE_TTL_SEC = 300.0
 
 
-def fetch_open_meteo_instability(
+async def fetch_open_meteo_instability(
     lat: float,
     lon: float,
-    timeout_sec: float = 1.0
+    model: str = "ncep_gfs_seamless",
+    timeout_sec: float = 12.0,
 ) -> Dict[str, Any]:
-    """
-    Fetches real-time atmospheric instability metrics from Open-Meteo API.
-    Parameters queried:
-      - cape: Convective Available Potential Energy (J/kg)
-      - convective_inhibition: Convective Inhibition CIN (J/kg)
-      - lifted_index: Lifted Index (°C)
-      - wind_gusts_10m: Peak surface wind gusts (km/h)
-
-    Falls back smoothly to high-fidelity mock sounding generator on network failure or rate limits.
-    """
-    global _CIRCUIT_BREAKER_ACTIVE, _LAST_NETWORK_ATTEMPT
-
-    now = time.time()
-    # Fast bypass if network was recently unreachable (e.g. isolated sandbox or rate limited)
-    if _CIRCUIT_BREAKER_ACTIVE and (now - _LAST_NETWORK_ATTEMPT < _CIRCUIT_BREAKER_COOLDOWN_SEC):
-        return generate_mock_open_meteo_instability(lat, lon)
-
+    """Retrieve actual hourly NWP fields and retain only a labeled last-good cache."""
+    cache_key = (round(lat, 4), round(lon, 4), model)
+    started_at = time.perf_counter()
     params = {
-        "latitude": round(lat, 4),
-        "longitude": round(lon, 4),
-        "hourly": "cape,convective_inhibition,lifted_index,wind_gusts_10m",
+        "latitude": cache_key[0],
+        "longitude": cache_key[1],
+        "hourly": ",".join((
+            "cape", "convective_inhibition", "lifted_index", "wind_gusts_10m",
+            "precipitation", "surface_pressure", "total_column_integrated_water_vapour",
+            "wind_speed_10m", "wind_direction_10m", "wind_speed_500hPa",
+            "wind_direction_500hPa",
+        )),
+        "models": model,
         "forecast_days": 1,
-        "timezone": "Asia/Kolkata"
+        "timezone": "Asia/Kolkata",
     }
-    url = f"{OPEN_METEO_BASE_URL}?{urllib.parse.urlencode(params)}"
 
     try:
-        _LAST_NETWORK_ATTEMPT = now
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "VayuGatiNowcast/1.0 (MoES-IMD-SIH26084)"}
-        )
-        with urllib.request.urlopen(req, timeout=timeout_sec) as response:
-            if response.status == 200:
-                _CIRCUIT_BREAKER_ACTIVE = False
-                data = json.loads(response.read().decode("utf-8"))
-                hourly = data.get("hourly", {})
-                times = hourly.get("time", [])
+        async with httpx.AsyncClient(timeout=timeout_sec) as client:
+            response = await client.get(OPEN_METEO_BASE_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
 
-                # Pick the current hour index or nearest available time step
-                now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00")
-                idx = 0
-                if times:
-                    # Find closest hour
-                    for i, t in enumerate(times):
-                        if t >= now_str:
-                            idx = i
-                            break
-                    else:
-                        idx = len(times) - 1
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+        if not times:
+            raise ValueError("Open-Meteo response did not include hourly timestamps")
 
-                raw_cape = hourly.get("cape", [None])[idx]
-                raw_cin = hourly.get("convective_inhibition", [None])[idx]
-                raw_li = hourly.get("lifted_index", [None])[idx]
-                raw_gusts = hourly.get("wind_gusts_10m", [None])[idx]
+        current_hour = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%dT%H:00")
+        idx = min(range(len(times)), key=lambda index: abs(
+            datetime.fromisoformat(times[index]).replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+            - datetime.fromisoformat(current_hour).replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+        ).total_seconds())
 
-                cape = float(raw_cape) if raw_cape is not None else 1850.0
-                cin = float(raw_cin) if raw_cin is not None else -35.0
-                lifted_index = float(raw_li) if raw_li is not None else -4.2
-                wind_gusts = float(raw_gusts) if raw_gusts is not None else 52.0
+        def value_for(name: str) -> Optional[float]:
+            values = hourly.get(name) or []
+            if idx >= len(values) or values[idx] is None:
+                return None
+            return float(values[idx])
 
-                return {
-                    "source": "OPEN_METEO_REALTIME",
-                    "latitude": lat,
-                    "longitude": lon,
-                    "timestamp": times[idx] if idx < len(times) else datetime.now(timezone.utc).isoformat(),
-                    "cape_j_kg": round(cape, 1),
-                    "cin_j_kg": round(cin, 1),
-                    "lifted_index_c": round(lifted_index, 2),
-                    "wind_gusts_kmh": round(wind_gusts, 1),
-                    "thermodynamic_state": classify_thermodynamic_state(cape, cin, lifted_index)
-                }
+        cape = value_for("cape")
+        cin = value_for("convective_inhibition")
+        lifted_index = value_for("lifted_index")
+        gust = value_for("wind_gusts_10m")
+        lower_speed = value_for("wind_speed_10m")
+        lower_direction = value_for("wind_direction_10m")
+        upper_speed = value_for("wind_speed_500hPa")
+        upper_direction = value_for("wind_direction_500hPa")
+        wind_shear = None
+        if all(item is not None for item in (lower_speed, lower_direction, upper_speed, upper_direction)):
+            lower_u = -(lower_speed / 3.6) * math.sin(math.radians(lower_direction))
+            lower_v = -(lower_speed / 3.6) * math.cos(math.radians(lower_direction))
+            upper_u = -(upper_speed / 3.6) * math.sin(math.radians(upper_direction))
+            upper_v = -(upper_speed / 3.6) * math.cos(math.radians(upper_direction))
+            wind_shear = round(math.hypot(upper_u - lower_u, upper_v - lower_v), 2)
 
+        metadata = {
+            "source": "Open-Meteo NWP",
+            "mode": "LIVE",
+            "latency_ms": round((time.perf_counter() - started_at) * 1000),
+            "model": model,
+        }
+        payload = {
+            "current_cape": round(cape, 1) if cape is not None else None,
+            "cin_estimate": round(cin, 1) if cin is not None else None,
+            "lifted_index": round(lifted_index, 2) if lifted_index is not None else None,
+            "max_gust_kmh": round(gust, 1) if gust is not None else None,
+            "wind_shear_ms": wind_shear,
+            "pwat_mm": value_for("total_column_integrated_water_vapour"),
+            "precipitation_mm": value_for("precipitation"),
+            "surface_pressure_hpa": value_for("surface_pressure"),
+            "timestamp": times[idx],
+            "latitude": cache_key[0],
+            "longitude": cache_key[1],
+            "thermodynamic_state": classify_thermodynamic_state(cape or 0.0, cin or 0.0, lifted_index or 0.0),
+            "metadata": metadata,
+        }
+        _INSTABILITY_CACHE[cache_key] = {"payload": payload, "stored_at": time.time()}
+        return payload
     except Exception as exc:
-        _CIRCUIT_BREAKER_ACTIVE = True
-        logger.warning("Open-Meteo live API call failed (%s). Engaging synthetic thermodynamic model.", str(exc))
-
-    # Graceful fallback to meteorological mock generator
-    return generate_mock_open_meteo_instability(lat, lon)
-
-
-def generate_mock_open_meteo_instability(lat: float, lon: float) -> Dict[str, Any]:
-    """
-    Synthesizes authentic meteorological sounding indices tailored to Indian geographic regimes:
-    - Pre-monsoon / Nor'wester conditions in Eastern India (High CAPE, Low CIN)
-    - Western Ghats orographic instability
-    - Dryline thunderstorm zones in Central India
-    """
-    # Deterministic spatial seed based on coordinates and current hour
-    current_hour = datetime.now(timezone.utc).hour
-    spatial_seed = (int(lat * 100) ^ int(lon * 100) ^ (current_hour * 7)) % 1000
-
-    # Regional climate bias
-    is_eastern_india = (lat >= 20.0 and lat <= 27.0 and lon >= 84.0 and lon <= 92.0)
-    is_western_ghats = (lat >= 13.0 and lat <= 20.0 and lon >= 72.5 and lon <= 75.5)
-    is_northern_plains = (lat >= 26.0 and lat <= 32.0 and lon >= 74.0 and lon <= 82.0)
-
-    if is_eastern_india:
-        # High-energy Kalbaishakhi / Nor'wester environment
-        base_cape = 2800.0 + (spatial_seed % 1400)
-        base_cin = -15.0 - (spatial_seed % 35)
-        base_li = -5.5 - ((spatial_seed % 30) / 10.0)
-        wind_gusts = 65.0 + (spatial_seed % 35)
-    elif is_western_ghats:
-        # Orographic uplift with substantial coastal moisture flux
-        base_cape = 2200.0 + (spatial_seed % 1100)
-        base_cin = -25.0 - (spatial_seed % 40)
-        base_li = -4.0 - ((spatial_seed % 25) / 10.0)
-        wind_gusts = 55.0 + (spatial_seed % 30)
-    elif is_northern_plains:
-        # Deep convective boundary layer with high gust potential
-        base_cape = 1900.0 + (spatial_seed % 1200)
-        base_cin = -45.0 - (spatial_seed % 50)
-        base_li = -3.5 - ((spatial_seed % 25) / 10.0)
-        wind_gusts = 58.0 + (spatial_seed % 40)
-    else:
-        # Baseline tropical continental convection
-        base_cape = 1600.0 + (spatial_seed % 900)
-        base_cin = -30.0 - (spatial_seed % 45)
-        base_li = -3.0 - ((spatial_seed % 20) / 10.0)
-        wind_gusts = 42.0 + (spatial_seed % 25)
-
-    return {
-        "source": "VAYUGATI_SYNOPTIC_MODEL_FALLBACK",
-        "latitude": round(lat, 4),
-        "longitude": round(lon, 4),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "cape_j_kg": round(base_cape, 1),
-        "cin_j_kg": round(base_cin, 1),
-        "lifted_index_c": round(base_li, 2),
-        "wind_gusts_kmh": round(wind_gusts, 1),
-        "thermodynamic_state": classify_thermodynamic_state(base_cape, base_cin, base_li)
-    }
+        logger.warning("Open-Meteo NWP request failed at %.4f, %.4f: %s", lat, lon, exc)
+        cached = _INSTABILITY_CACHE.get(cache_key)
+        if cached and time.time() - cached["stored_at"] <= _INSTABILITY_CACHE_TTL_SEC:
+            cached_payload = dict(cached["payload"])
+            cached_payload["metadata"] = {
+                **cached_payload["metadata"],
+                "mode": "CACHED",
+                "latency_ms": round((time.perf_counter() - started_at) * 1000),
+            }
+            return cached_payload
+        raise
 
 
 def classify_thermodynamic_state(cape: float, cin: float, lifted_index: float) -> str:
@@ -858,6 +829,9 @@ def get_service_root():
         "endpoints": {
             "live_fusion_grid": "/api/v1/live-fusion-grid",
             "instability_index": "/api/v1/instability-index",
+            "satellite_observations": "/api/v1/ingestion/satellite",
+            "radar_overlay": "/api/v1/ingestion/radar",
+            "lightning_strikes": "/api/v1/ingestion/lightning",
             "predict_severity": "/api/v1/predict-severity",
             "optical_flow_track": "/api/v1/optical-flow-track",
             "health": "/health"
@@ -877,6 +851,31 @@ def get_health_status():
         "satellite_feed": "INSAT-3DR_RAPID_SCAN_ACTIVE",
         "open_meteo_link": "CONNECTED"
     }
+
+
+@app.get("/api/v1/ingestion/satellite")
+async def get_satellite_observation(
+    lat: Optional[float] = Query(default=None, description="Target latitude for GeoTIFF sampling"),
+    lon: Optional[float] = Query(default=None, description="Target longitude for GeoTIFF sampling"),
+):
+    """Return public INSAT IR imagery metadata and optionally a configured calibrated raster sample."""
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=422, detail="lat and lon must be provided together")
+    if lat is not None and not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise HTTPException(status_code=422, detail="Coordinates are outside valid WGS84 ranges")
+    return await get_satellite_feed(lat, lon)
+
+
+@app.get("/api/v1/ingestion/radar")
+async def get_radar_observation():
+    """Return IMD radar tile metadata; public station images are never assigned guessed map bounds."""
+    return await get_radar_feed()
+
+
+@app.get("/api/v1/ingestion/lightning")
+async def get_lightning_observation():
+    """Return validated Blitzortung-proxy strikes as an India-clipped GeoJSON FeatureCollection."""
+    return await get_lightning_feed()
 
 
 @app.get("/api/v1/live-fusion-grid")
@@ -984,65 +983,74 @@ def get_live_fusion_grid(
         )
 
 
-_NATIONAL_GRID_CACHE = {"data": None, "timestamp": 0.0}
-
 @app.get("/api/v1/instability-index")
-def get_instability_index(
+async def get_instability_index(
     lat: Optional[float] = Query(default=None, description="Optional target latitude"),
     lon: Optional[float] = Query(default=None, description="Optional target longitude"),
-    bounds: Optional[str] = Query(default=None, description="Optional bounding box 'min_lat,min_lon,max_lat,max_lon'")
+    bounds: Optional[str] = Query(default=None, description="Optional bounding box 'min_lat,min_lon,max_lat,max_lon'"),
+    model: str = Query(default="ncep_gfs_seamless", description="Open-Meteo model: dwd_icon_seamless or ncep_gfs_seamless"),
 ):
     """
     Requirement 4.2:
     Returns gridded CAPE, CIN, Lifted Index, and Wind Gusts across India or for a specific queried point/bbox.
-    Leverages Open-Meteo real-time integration with robust synoptic fallbacks.
+    Returns live Open-Meteo NWP fields; last-good cached values are explicitly marked CACHED.
     """
-    global _NATIONAL_GRID_CACHE
+    started_at = time.perf_counter()
+    if model not in {"dwd_icon_seamless", "ncep_gfs_seamless"}:
+        raise HTTPException(status_code=422, detail="model must be dwd_icon_seamless or ncep_gfs_seamless")
+
     try:
-        now = time.time()
-
-        # Case 1: Specific Point Query
         if lat is not None and lon is not None:
-            point_data = fetch_open_meteo_instability(lat, lon)
+            return await fetch_open_meteo_instability(lat, lon, model=model)
+
+        async def fetch_station(station: Dict[str, Any]) -> Dict[str, Any]:
+            sounding = await fetch_open_meteo_instability(station["lat"], station["lon"], model=model)
             return {
-                "query_mode": "POINT_SOUNDING",
-                "count": 1,
-                "data": [point_data],
-                "retrieved_at": datetime.now(timezone.utc).isoformat()
+                "station_code": station["code"],
+                "station_name": station["name"],
+                "state": station["state"],
+                **sounding,
             }
 
-        # Case 2: Regional / National Grid of Key Stations (with 5-minute in-memory cache)
-        if _NATIONAL_GRID_CACHE["data"] is not None and (now - _NATIONAL_GRID_CACHE["timestamp"] < 300.0):
-            return _NATIONAL_GRID_CACHE["data"]
-
-        # Concurrently fetch stations across India for low latency
-        def _fetch_station(st):
-            s_data = fetch_open_meteo_instability(st["lat"], st["lon"])
-            return {
-                "station_code": st["code"],
-                "station_name": st["name"],
-                "state": st["state"],
-                **s_data
-            }
-
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            results = list(executor.map(_fetch_station, KEY_INDIAN_STATIONS))
+        station_results = await asyncio.gather(
+            *(fetch_station(station) for station in KEY_INDIAN_STATIONS),
+            return_exceptions=True,
+        )
+        results = [result for result in station_results if isinstance(result, dict)]
+        failures = [str(result) for result in station_results if isinstance(result, Exception)]
+        if not results:
+            raise HTTPException(status_code=503, detail="Open-Meteo NWP is unavailable for all stations")
 
         response_payload = {
             "query_mode": "NATIONAL_INSTABILITY_GRID",
             "coverage": "Key Synoptic Corridors of India",
             "station_count": len(results),
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "data": results
+            "data": results,
+            "errors": failures,
+            "metadata": {
+                "source": "Open-Meteo NWP",
+                "mode": "LIVE" if not failures else "PARTIAL",
+                "latency_ms": round((time.perf_counter() - started_at) * 1000),
+                "model": model,
+            },
         }
-        _NATIONAL_GRID_CACHE = {"data": response_payload, "timestamp": now}
         return response_payload
-
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Error retrieving instability index: %s", str(exc), exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve atmospheric instability indices: {str(exc)}"
+            status_code=503,
+            detail={
+                "message": f"Open-Meteo NWP feed unavailable: {str(exc)}",
+                "metadata": {
+                    "source": "Open-Meteo NWP",
+                    "mode": "OFFLINE",
+                    "latency_ms": round((time.perf_counter() - started_at) * 1000),
+                    "model": model,
+                },
+            },
         )
 
 
@@ -1106,8 +1114,8 @@ def post_optical_flow_track(payload: OpticalFlowRequest):
 # ==============================================================================
 def run_verification_suite():
     """
-    Self-contained verification suite validating all 4 user requirements:
-    1. Open-Meteo Integration (Real API call + Fallback generator)
+    Self-contained verification suite validating all 4 engine modules:
+    1. Open-Meteo Integration (real API call; unavailable feed is reported)
     2. Doppler Optical Flow (Lucas-Kanade solver + Track Cone generation)
     3. XGBoost Convective Risk Classifier (Severe, High, Moderate, Low scenarios)
     4. GeoJSON Fusion Grid & Instability Index structure
@@ -1118,10 +1126,10 @@ def run_verification_suite():
 
     # 1. Test Open-Meteo Integration
     print("\n[1/4] Testing Open-Meteo Thermodynamic Fetcher (Pune Lat: 18.5204, Lon: 73.8567)...")
-    sounding = fetch_open_meteo_instability(18.5204, 73.8567)
-    print(f"  Source: {sounding['source']}")
-    print(f"  CAPE: {sounding['cape_j_kg']} J/kg | CIN: {sounding['cin_j_kg']} J/kg")
-    print(f"  Lifted Index: {sounding['lifted_index_c']} °C | Wind Gusts: {sounding['wind_gusts_kmh']} km/h")
+    sounding = asyncio.run(fetch_open_meteo_instability(18.5204, 73.8567))
+    print(f"  Source: {sounding['metadata']['source']} ({sounding['metadata']['mode']})")
+    print(f"  CAPE: {sounding['current_cape']} J/kg | CIN: {sounding['cin_estimate']} J/kg")
+    print(f"  Lifted Index: {sounding['lifted_index']} °C | Wind Gusts: {sounding['max_gust_kmh']} km/h")
     print(f"  Thermodynamic State: {sounding['thermodynamic_state']}")
 
     # 2. Test Optical Flow Lucas-Kanade Simulation
@@ -1168,7 +1176,7 @@ def run_verification_suite():
     print(f"  Sample Feature ID: {first_feat['id']} ({first_feat['properties']['feature_type']})")
     print(f"  Geometry Type: {first_feat['geometry']['type']}, Coordinates count: {len(first_feat['geometry']['coordinates'][0])}")
 
-    instability_grid = get_instability_index()
+    instability_grid = asyncio.run(get_instability_index())
     print(f"  Instability Grid: {instability_grid['station_count']} synoptic stations loaded successfully.")
     print("=" * 70)
     print(" ALL METEOROLOGICAL MODULES VERIFIED SUCCESSFULLY FOR SIH26084.")

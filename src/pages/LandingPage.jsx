@@ -9,15 +9,9 @@
  * - One-click access to Citizen, Officer, and Admin command portals.
  */
 
-import React, { useState } from 'react';
-import {
-  SEVERITY_TIERS,
-  SECTOR_INFO,
-  getDbzColor,
-  generateRadarTimeSeries,
-  generateLightningDensityData,
-  generateHazardTimelineForecast,
-} from '../utils/mockDataSeed';
+import React, { useEffect, useState } from 'react';
+import DataDisclaimerModal from '../components/DataDisclaimerModal';
+import { fetchInstabilityIndex, fetchLightningFeed, fetchRadarFeed, fetchSatelliteFeed } from '../lib/apiClient';
 import {
   ShieldAlert,
   Radio,
@@ -38,12 +32,39 @@ import {
 } from 'lucide-react';
 
 export default function LandingPage({ onOpenLogin }) {
-  const [radarFrames] = useState(() => generateRadarTimeSeries());
-  const [frameIndex, setFrameIndex] = useState(3); // Current frame T0
-  const [lightning] = useState(() => generateLightningDensityData());
-  const [timeline] = useState(() => generateHazardTimelineForecast());
+  const [radarFeed, setRadarFeed] = useState(null);
+  const [satelliteFeed, setSatelliteFeed] = useState(null);
+  const [lightningFeed, setLightningFeed] = useState(null);
+  const [nwpData, setNwpData] = useState(null);
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
 
-  const currentFrame = radarFrames[frameIndex] || radarFrames[3];
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const refreshPublicFeeds = async () => {
+      const results = await Promise.allSettled([
+        fetchRadarFeed({ signal: controller.signal }),
+        fetchSatelliteFeed({}, { signal: controller.signal }),
+        fetchLightningFeed({ signal: controller.signal }),
+        fetchInstabilityIndex({ lat: 30.3165, lon: 78.0322, signal: controller.signal }),
+      ]);
+      if (!active) return;
+      setRadarFeed(results[0].status === 'fulfilled' ? results[0].value : { status: 'OFFLINE' });
+      setSatelliteFeed(results[1].status === 'fulfilled' ? results[1].value : { status: 'OFFLINE' });
+      setLightningFeed(results[2].status === 'fulfilled' ? results[2].value : { type: 'FeatureCollection', features: [], metadata: { status: 'OFFLINE' } });
+      setNwpData(results[3].status === 'fulfilled' ? results[3].value : null);
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') console.warn(`Public observation feed ${index + 1} unavailable:`, result.reason);
+      });
+    };
+    refreshPublicFeeds();
+    const refreshTimer = setInterval(refreshPublicFeeds, 60000);
+    return () => {
+      active = false;
+      controller.abort();
+      clearInterval(refreshTimer);
+    };
+  }, []);
 
   // Public INFO-tier and active advisories
   const publicAdvisories = [
@@ -142,24 +163,24 @@ export default function LandingPage({ onOpenLogin }) {
           {/* Real-Time Monitoring Stations Ticker */}
           <div className="pt-4 border-t border-[#E5E0D8] grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Primary Radar</span>
-              <span className="font-bold text-[#1A1D20] block">DWR Dehradun</span>
-              <span className="text-[10px] text-[#2E7D32] font-semibold">● 120 km Radius Active</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Radar Composite</span>
+              <span className="font-bold text-[#1A1D20] block">IMD DWR</span>
+              <span className="text-[10px] text-[#6C7278] font-semibold">{radarFeed?.status || 'CONNECTING'}{radarFeed?.image_status ? ` • public image ${radarFeed.image_status.toLowerCase()}` : ''}</span>
             </div>
             <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
               <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Satellite Link</span>
-              <span className="font-bold text-[#1A1D20] block">INSAT-3DR Rapid-Scan</span>
-              <span className="text-[10px] text-[#2E7D32] font-semibold">● 15m Cadence</span>
+              <span className="font-bold text-[#1A1D20] block">MOSDAC INSAT TIR1</span>
+              <span className="text-[10px] text-[#6C7278] font-semibold">{satelliteFeed?.status || 'CONNECTING'}</span>
             </div>
             <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Lightning Sensor</span>
-              <span className="font-bold text-[#1A1D20] block">IITM / IMD Total Net</span>
-              <span className="text-[10px] text-[#D9532F] font-semibold">● 14.8 fl/km²/min Peak</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Lightning Proxy</span>
+              <span className="font-bold text-[#1A1D20] block">Blitzortung</span>
+              <span className="text-[10px] text-[#6C7278] font-semibold">{lightningFeed?.metadata?.status || 'CONNECTING'}{lightningFeed?.features ? ` • ${lightningFeed.features.length} points` : ''}</span>
             </div>
             <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
               <span className="text-[10px] uppercase font-bold text-[#6C7278] block">NWP Model Grid</span>
-              <span className="font-bold text-[#1A1D20] block">WRF Convective Assimilation</span>
-              <span className="text-[10px] text-[#6C7278] font-semibold">● 1 km Resolution</span>
+              <span className="font-bold text-[#1A1D20] block">Open-Meteo GFS / ICON</span>
+              <span className="text-[10px] text-[#6C7278] font-semibold">{nwpData?.metadata?.mode || 'OFFLINE'}</span>
             </div>
           </div>
         </div>
@@ -184,6 +205,14 @@ export default function LandingPage({ onOpenLogin }) {
             <span>Open Detailed Forecaster Tools</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+          <button
+            onClick={() => setIsDataModalOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#315966] hover:text-[#173644]"
+            type="button"
+          >
+            <Info className="h-3.5 w-3.5" />
+            Data Sources
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -191,57 +220,29 @@ export default function LandingPage({ onOpenLogin }) {
           <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-5 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#1A1D20]">
-                  Doppler Reflectivity Grid (0–65 dBZ)
-                </h3>
+                <h3 className="font-bold text-sm text-[#1A1D20]">IMD Doppler Weather Radar</h3>
                 <span className="text-xs text-[#6C7278]">
-                  Frame: {currentFrame.leadTimeMinutes === 0 ? 'NOW (Analysis T0)' : `${currentFrame.leadTimeMinutes} min`} • Max Core: {currentFrame.maxReflectivityDbz} dBZ
+                  Feed state: {radarFeed?.status || 'CONNECTING'} • Image state: {radarFeed?.image_status || 'CHECKING'}
                 </span>
               </div>
-              <div className="flex items-center space-x-1.5 text-xs">
-                {radarFrames.map((f, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setFrameIndex(i)}
-                    className={`px-2 py-1 rounded text-[11px] font-mono font-medium transition-all ${
-                      frameIndex === i
-                        ? 'bg-[#D9532F] text-white font-bold'
-                        : 'bg-[#FAF7F2] text-[#6C7278] border border-[#E5E0D8] hover:bg-white'
-                    }`}
-                  >
-                    {f.leadTimeMinutes >= 0 ? `+${f.leadTimeMinutes}m` : `${f.leadTimeMinutes}m`}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {/* Matrix View */}
-            <div className="flex flex-col items-center justify-center p-4 bg-[#FAF7F2] rounded-lg border border-[#E5E0D8]">
-              <div
-                className="grid gap-[2px] w-full max-w-[360px] aspect-square p-2 bg-white rounded border border-[#E5E0D8]"
-                style={{ gridTemplateColumns: `repeat(${currentFrame.gridSize}, minmax(0, 1fr))` }}
-              >
-                {currentFrame.grid.map((row, rIdx) =>
-                  row.map((val, cIdx) => (
-                    <div
-                      key={`${rIdx}-${cIdx}`}
-                      title={`${val} dBZ`}
-                      className="rounded-[1.5px] transition-transform hover:scale-125"
-                      style={{ backgroundColor: getDbzColor(val) }}
-                    />
-                  ))
-                )}
+            {radarFeed?.image_status === 'AVAILABLE' && radarFeed.image_url ? (
+              <a href={radarFeed.image_url} rel="noreferrer" target="_blank" title="Open the public IMD radar image">
+                <img alt="Public IMD radar image; image is not georeferenced for map overlay" className="max-h-[390px] w-full bg-[#F1F5F6] object-contain" loading="lazy" src={radarFeed.image_url} />
+              </a>
+            ) : (
+              <div className="flex min-h-[300px] flex-col items-center justify-center gap-2 border border-dashed border-[#C9D5D8] bg-[#F5F8F8] px-6 text-center">
+                <Radio className="h-7 w-7 text-[#56727A]" />
+                <p className="text-sm font-semibold text-[#29434B]">Radar overlay unavailable</p>
+                <p className="max-w-md text-xs leading-relaxed text-[#64777C]">A georeferenced IMD WMS/TMS layer is not configured. The public station GIF is image-only and will not be placed at guessed map coordinates.</p>
               </div>
-              <div className="flex items-center justify-between w-full max-w-[360px] text-[10px] text-[#6C7278] mt-2 font-mono">
-                <span>0 dBZ (Clear)</span>
-                <span>35 dBZ (Rain)</span>
-                <span className="text-[#DC2626] font-bold">&gt; 60 dBZ (Hail/Burst)</span>
-              </div>
-            </div>
+            )}
 
             <p className="text-xs text-[#6C7278] leading-relaxed">
-              Optical flow vector extrapolation tracks rapid storm movement at 38 km/h towards Rishikesh basin.
-              Hail core formation verified by 63.8 dBZ differential reflectivity spike.
+              {radarFeed?.mode === 'WMS' || radarFeed?.mode === 'XYZ_TMS_TILES'
+                ? 'Configured georeferenced radar layer is available in the map tracker.'
+                : 'Public source: IMD Mausam radar imagery. Reflectivity values are not inferred from this display image.'}
             </p>
           </div>
 
@@ -260,33 +261,33 @@ export default function LandingPage({ onOpenLogin }) {
               <div className="space-y-3">
                 <div className="p-3 bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-[#6C7278]">Lightning Flash Rate</span>
+                    <span className="text-[#6C7278]">Lightning strikes received</span>
                     <span className="font-bold text-[#DC2626] font-mono">
-                      {lightning.densityStrikesKm2Min} fl/km²/min
+                      {lightningFeed?.metadata?.status === 'LIVE' ? lightningFeed.features.length : 'Unavailable'}
                     </span>
                   </div>
-                  <span className="text-[10px] text-red-600 font-semibold mt-0.5 block">
-                    ⚡ 3σ Lightning Jump Detected (Updraft Acceleration)
+                  <span className="text-[10px] text-[#6C7278] mt-0.5 block">
+                    Blitzortung proxy • {lightningFeed?.metadata?.status || 'CONNECTING'}
                   </span>
                 </div>
 
                 <div className="p-3 bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-[#6C7278]">Cloud-Top Brightness (CTT)</span>
-                    <span className="font-bold text-[#DC2626] font-mono">-76.4°C</span>
+                    <span className="font-bold text-[#DC2626] font-mono">Unavailable</span>
                   </div>
                   <span className="text-[10px] text-[#6C7278] mt-0.5 block">
-                    Penetrating overshooting top at 16.4 km altitude
+                    MOSDAC imagery is not a calibrated point temperature without a configured GeoTIFF.
                   </span>
                 </div>
 
                 <div className="p-3 bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-[#6C7278]">CAPE Instability Energy</span>
-                    <span className="font-bold text-[#D9532F] font-mono">2940 J/kg</span>
+                    <span className="font-bold text-[#D9532F] font-mono">{nwpData?.current_cape ?? 'Unavailable'}{nwpData?.current_cape != null ? ' J/kg' : ''}</span>
                   </div>
                   <span className="text-[10px] text-[#6C7278] mt-0.5 block">
-                    Extreme convective potential; CIN cap breached (-24 J/kg)
+                    {nwpData ? `CIN ${nwpData.cin_estimate ?? 'unavailable'} J/kg • Lifted Index ${nwpData.lifted_index ?? 'unavailable'} °C • ${nwpData.metadata?.mode || 'STATUS UNKNOWN'}` : 'Open-Meteo point sounding unavailable.'}
                   </span>
                 </div>
               </div>
@@ -503,6 +504,7 @@ export default function LandingPage({ onOpenLogin }) {
           </div>
         </div>
       </footer>
+      <DataDisclaimerModal open={isDataModalOpen} onClose={() => setIsDataModalOpen(false)} />
     </div>
   );
 }
