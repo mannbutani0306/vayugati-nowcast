@@ -1,25 +1,3 @@
-/**
- * @file SHAPExplainabilityCard.jsx
- * @description Explainable AI attribution card for duty forecasters in the VayuGati Nowcast operational portal.
- *
- * Requirements fulfilled:
- * 1. Input Props: Accepts `cellData` containing raw radar/satellite features and pre-calculated SHAP values.
- * 2. Visual Waterfall Breakdown:
- *    - Interactive SVG Waterfall Chart and styled Tailwind progress bars displaying exact physical contributions:
- *      * Vertical CAPE Spikes (+34% contribution)
- *      * Rapid Cloud-Top Glaciation (-65°C IR cooling rate) (+28% contribution)
- *      * Ground Lightning Jump (>40 strikes/min) (+22% contribution)
- *      * Doppler Velocity Shear (+16% contribution)
- * 3. Forecaster Confidence Metric:
- *    - Displays model confidence score (e.g., "94.2% AI Confidence").
- *    - Explicit disclaimer banner: "Human-in-the-loop validation required under IMD SOP #2024-MET-09".
- * 4. Override Switch:
- *    - Forecaster manual risk level override switch (downgrade or upgrade: SEVERE, WARNING, WATCH, INFO).
- *    - Mandatory text input for meteorological rationale to ensure strict audit logging.
- * 5. Design:
- *    - Government warm cream (#FAF7F2, #F4EFE6, border #E5E0D8) and official navy (#0F172A, #1B2A4A, #1E293B) styling.
- */
-
 import React, { useState } from 'react';
 import DataStatusBadge from './DataStatusBadge';
 import {
@@ -48,10 +26,7 @@ import {
   Check,
 } from 'lucide-react';
 
-/**
- * Default realistic SEVERE convective cell dataset with pre-calculated SHAP attributions
- * aligned with the prompt requirements and Indian synoptic meteorology.
- */
+// Fallback values are illustrative and are used only when no cell data is supplied.
 export const DEFAULT_SEVERE_CELL = {
   cellId: 'CELL-A1',
   cellName: 'Sahastradhara Cloudburst Convective Core',
@@ -505,7 +480,7 @@ export default function SHAPExplainabilityCard({
                 Mathematical Attribution Equation: f(x) = E[f(x)] + ∑ φᵢ
               </span>
               <span className="text-[11px] font-mono text-[#6C7278]">
-                XGBoost Convective Ensemble
+                Gradient Boosting Classifier (scikit-learn)
               </span>
             </div>
 

@@ -402,6 +402,34 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_active_alerts_within_radius(float, float, float) TO anon, authenticated;
 
+-- Recreate the compatibility wrapper removed with CASCADE above.
+CREATE OR REPLACE FUNCTION public.get_alerts_for_location(
+    user_lat float,
+    user_lon float,
+    radius_km float DEFAULT 25.0
+)
+RETURNS TABLE (
+    id uuid,
+    identifier text,
+    event_type text,
+    severity text,
+    urgency text,
+    headline_en text,
+    headline_hi text,
+    description_en text,
+    distance_km numeric,
+    is_direct_hit boolean,
+    created_at timestamptz
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT alert.alert_id, alert.identifier, alert.event_type, alert.severity,
+           alert.urgency, alert.headline_en, alert.headline_hi, alert.description_en,
+           alert.distance_km, alert.is_direct_intersection, alert.created_at
+    FROM public.get_active_alerts_within_radius(user_lat, user_lon, radius_km) AS alert;
+$$;
+
 ALTER TABLE public.cap_alerts REPLICA IDENTITY FULL;
 DO $$
 BEGIN

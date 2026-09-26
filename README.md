@@ -2,11 +2,13 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# VayuGati Nowcast
 
-This contains everything you need to run your app locally.
+## Technology Stack
 
-View your app in AI Studio: https://ai.studio/apps/b42b5422-6d65-4189-af7d-1b2534f121ef
+- Frontend: React, Vite, and Supabase client libraries.
+- Backend: FastAPI with PostGIS-backed spatial queries and weather-feed adapters.
+- Convective severity model: Gradient Boosting Classifier (scikit-learn), trained by `backend/ml/train_model.py` and serialized with joblib.
 
 ## Run Locally
 
@@ -15,8 +17,7 @@ View your app in AI Studio: https://ai.studio/apps/b42b5422-6d65-4189-af7d-1b253
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the app:
    `npm run dev`
 
 ## Optional Observation Feeds

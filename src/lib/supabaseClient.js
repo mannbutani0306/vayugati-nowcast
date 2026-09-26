@@ -1,10 +1,3 @@
-/**
- * @file supabaseClient.js
- * @description Supabase client initialization for VayuGati Nowcast .
- * Handles persistent authentication sessions and real-time database subscriptions
- * with Row Level Security (RLS) enforcement on PostgreSQL.
- */
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();

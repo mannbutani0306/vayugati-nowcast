@@ -1,13 +1,3 @@
-/**
- * @file AccessibilityContext.jsx
- * @description Global Accessibility & GIGW 3.0 Compliance State Provider for VayuGati Nowcast .
- * Capabilities:
- * - Font Resizer: 'sm' (14px), 'md' (16px), 'lg' (18px)
- * - Tri-Mode High Contrast: 'default' (Warm Cream), 'dark' (High-Contrast Dark), 'yellow-navy' (High-Contrast Yellow/Navy)
- * - 12 Scheduled Indian Official Languages Selector with persistence
- * - Web Speech API text-to-speech announcer for emergency bulletins
- */
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export const SUPPORTED_LANGUAGES = [

@@ -1,8 +1,3 @@
-/**
- * @file mockDataSeed.js
- * @description Display constants and explicit unavailable placeholders for provider-backed sensor feeds.
- */
-
 export const SEVERITY_TIERS = {
   INFO: {
     level: 'INFO',

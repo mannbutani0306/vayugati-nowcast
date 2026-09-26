@@ -1,13 +1,3 @@
-/**
- * @file LoginModal.jsx
- * @description Secure authentication and role dispatch modal for the VayuGati Nowcast operational portal.
- * Supports:
- * - 3 distinct roles: Citizen, Duty Officer, Administrator.
- * - Quick role access buttons for standard operational workflows.
- * - Automatic role-based routing (/citizen, /officer, /admin).
- * - Graceful local authentication fallback when external identity services are unavailable.
- */
-
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';

@@ -1,14 +1,3 @@
-/**
- * @file AdminPortal.jsx
- * @description District Administrator & SDMA Command Portal for VayuGati Nowcast .
- * Capabilities:
- * - District-wide Convective Hazard Overview for SDMA/DDMA Executive Officers.
- * - Institutional Alert Dispatches (AAI Airports, Schools & Universities, Railway Operations, Power Grid Utilities).
- * - User Management Table: Approve Duty Forecasters, assign regional jurisdictions, revoke access.
- * - Emergency Pre-positioning Map: Highlighting SEVERE tier sectors requiring immediate SDRF/NDRF deployment.
- * - Export Reports: Download District Nowcast & Audit Log Report (CSV / Formatted Print PDF).
- */
-
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';

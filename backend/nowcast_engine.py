@@ -2,8 +2,8 @@
 ================================================================================
 VayuGati Nowcast (SIH26084) - Convective Scale Meteorological Engine
 ================================================================================
-FastAPI Python service for real-time Doppler radar & satellite data fusion,
-Lucas-Kanade / pySTEPS optical flow cell motion extrapolation, and XGBoost-based
+FastAPI Python service for weather-data integration, Lucas-Kanade / pySTEPS
+optical-flow extrapolation, and Gradient Boosting Classifier (scikit-learn)
 probabilistic convective risk classification (0-60 min nowcasting lead times).
 
 Core Modules:
@@ -12,12 +12,12 @@ Core Modules:
 2. Doppler Radar & Satellite Fusion: Dual-time gridded reflectivity matrix
    advection via Lucas-Kanade optical flow, computing 15, 30, 45, and 60-minute
    projected storm track uncertainty cones.
-3. XGBoost Convective Risk Classifier: Multi-class probabilistic model
+3. Gradient Boosting Classifier (scikit-learn): Multi-class probabilistic model
    predicting cell severity (LOW, MODERATE, HIGH, SEVERE) with feature attribution.
 4. FastAPI Endpoints:
    - GET /api/v1/live-fusion-grid (GeoJSON FeatureCollection)
    - GET /api/v1/instability-index (Gridded CAPE/CIN/LI map data)
-   - POST /api/v1/predict-severity (Interactive XGBoost inference)
+    - POST /api/v1/predict-severity (Interactive Gradient Boosting inference)
    - POST /api/v1/optical-flow-track (Custom cone projection)
    - GET /health (Service health check)
 ================================================================================
@@ -505,7 +505,7 @@ def generate_forecast_track_cones(
 
 
 # ==============================================================================
-# 3. XGBOOST CONVECTIVE RISK CLASSIFIER (PROBABILISTIC MULTI-CLASS)
+# 3. GRADIENT BOOSTING CLASSIFIER (SCIKIT-LEARN, PROBABILISTIC MULTI-CLASS)
 # ==============================================================================
 def predict_cell_severity(
     reflectivity: float,
@@ -678,13 +678,10 @@ def predict_cell_severity(
 # ==============================================================================
 def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
     """
-    Generates authentic active convective cells across India's primary storm zones:
-    1. Pune-Khed Western Ghats Orographic Cluster (Severe Flash Flood Risk)
-    2. Ranchi-Kharagpur Chota Nagpur Squall Line (High Wind / Nor'wester)
-    3. Dehradun-Rishikesh Himalayan Foothills Cloudburst Precursor
-    4. Barak Valley / Silchar Convective Cell (Northeast India)
-    5. Delhi-NCR Pre-monsoon Dust/Thunderstorm Cluster
+    Return illustrative demo fixture cells for India's convective regimes.
     """
+    # These fixed examples stand in for a live radar-derived cell tracker
+    # (TITAN/SCIT-style); authorized DWR feed access is still pending.
     raw_cells = [
         {
             "cell_uid": "CELL-IN-PUN-084",
@@ -775,7 +772,7 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
 
     processed_cells = []
     for c in raw_cells:
-        # Run XGBoost probabilistic prediction
+        # Run Gradient Boosting Classifier (scikit-learn) probabilistic prediction.
         risk_output = predict_cell_severity(
             reflectivity=c["reflectivity_dbz"],
             cape=c["cape"],
@@ -805,6 +802,7 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
 
         processed_cells.append({
             **c,
+            "data_mode": "DEMO_FIXTURE",
             "risk_assessment": risk_output,
             "track_cones": track_cones,
             "current_polygon_geojson": {
@@ -853,7 +851,7 @@ def get_service_root():
         "capabilities": [
             "Open-Meteo Real-time Thermodynamic Ingestion",
             "Lucas-Kanade & pySTEPS Optical Flow Cell Advection",
-            "XGBoost Multi-Class Convective Risk Classifier (0-60 min lead time)",
+            "Gradient Boosting Classifier (scikit-learn) for multi-class convective risk (0-60 min lead time)",
             "GeoJSON Convective Fusion Grid with Expanding Forecast Cones"
         ],
         "endpoints": {
@@ -917,7 +915,7 @@ def get_live_fusion_grid(
 ):
     """
     Requirement 4.1:
-    Returns GeoJSON FeatureCollection of live convective cells + 15, 30, 45, and 60-minute forecasted track cones.
+    Returns GeoJSON FeatureCollection of illustrative demo fixture cells + 15, 30, 45, and 60-minute projected track cones.
     Conforms to standard GeoJSON RFC 7946 specifications for direct Leaflet / MapLibre visualization.
     """
     try:
@@ -940,6 +938,7 @@ def get_live_fusion_grid(
                 "geometry": cell["current_polygon_geojson"],
                 "properties": {
                     "feature_type": "CURRENT_CONVECTIVE_CELL",
+                    "data_mode": cell["data_mode"],
                     "cell_uid": cell["cell_uid"],
                     "name": cell["name"],
                     "state": cell["state"],
@@ -971,6 +970,7 @@ def get_live_fusion_grid(
                     "geometry": cone["polygon_geojson"],
                     "properties": {
                         "feature_type": "FORECAST_TRACK_CONE",
+                        "data_mode": cell["data_mode"],
                         "parent_cell_uid": cell["cell_uid"],
                         "name": f"{cell['name']} (+{lead_min}m Forecast Cone)",
                         "lead_time_minutes": lead_min,
@@ -995,11 +995,13 @@ def get_live_fusion_grid(
             },
             "metadata": {
                 "system": "VayuGati Nowcast (SIH26084)",
+                "data_mode": "DEMO_FIXTURE",
                 "total_active_cells": len(active_cells),
                 "features_returned": len(features),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "lead_times_included": [0, 15, 30, 45, 60]
             },
+            "data_mode": "DEMO_FIXTURE",
             "features": features
         }
 
@@ -1209,7 +1211,7 @@ def run_verification_suite():
     Self-contained verification suite validating all 4 engine modules:
     1. Open-Meteo Integration (real API call; unavailable feed is reported)
     2. Doppler Optical Flow (Lucas-Kanade solver + Track Cone generation)
-    3. XGBoost Convective Risk Classifier (Severe, High, Moderate, Low scenarios)
+    3. Gradient Boosting Classifier (scikit-learn) across convective risk scenarios
     4. GeoJSON Fusion Grid & Instability Index structure
     """
     print("\n" + "=" * 70)
@@ -1244,8 +1246,8 @@ def run_verification_suite():
     for cone in cones:
         print(f"    +{cone['lead_time_minutes']} min: Centroid = {cone['forecast_centroid']}, Dist = {cone['advection_distance_km']} km, Radius = {cone['uncertainty_radius_km']} km")
 
-    # 3. Test XGBoost Convective Risk Classifier across 4 meteorological archetypes
-    print("\n[3/4] Testing XGBoost Convective Risk Classifier...")
+    # 3. Test the Gradient Boosting Classifier across 4 meteorological archetypes.
+    print("\n[3/4] Testing Gradient Boosting Classifier (scikit-learn)...")
     test_cases = [
         ("Severe Supercell / Cloudburst Precursor", 58.0, 3200.0, 52.0, -4.2),
         ("High-Risk Squall Line", 47.0, 2400.0, 28.0, -2.1),

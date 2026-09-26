@@ -27,7 +27,13 @@ FEATURE_COLUMNS = [
 class EventCatalogueBuilder:
     @staticmethod
     def build_catalogue() -> list[dict]:
-        # Historical severe weather catalogue for the pilot region over Maharashtra / Dehradun / western Ghats corridor.
+        """Return illustrative synthetic events for demonstration only.
+
+        The hand-crafted cases are calibrated to published post-event IMD and
+        meteorological-literature thresholds; they are not an operational
+        training corpus. The frame/train/predict interfaces can accept a larger
+        real dataset derived from BUFR, HDF5, or NetCDF when one is available.
+        """
         events = [
             {"date": "2024-06-13", "region": "Pune", "reflectivity_dbz": 58.0, "cape_jkg": 3100, "cloud_top_temp_c": -64.0, "lightning_rate_pm": 52, "wind_shear_knots": 32, "pwat_mm": 54, "severity": 3, "ground_truth": "SEVERE"},
             {"date": "2024-06-24", "region": "Mumbai", "reflectivity_dbz": 52.0, "cape_jkg": 2800, "cloud_top_temp_c": -58.0, "lightning_rate_pm": 47, "wind_shear_knots": 29, "pwat_mm": 50, "severity": 3, "ground_truth": "SEVERE"},

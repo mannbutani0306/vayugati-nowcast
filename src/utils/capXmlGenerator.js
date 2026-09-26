@@ -1,16 +1,4 @@
 /**
- * @file capXmlGenerator.js
- * @description Official ITU-T X.1303 / NDMA CAP v1.2 Standard Alert XML Generator
- * for VayuGati Nowcast .
- *
- * Conforms strictly to:
- * - ITU-T Recommendation X.1303 (Common Alerting Protocol v1.2)
- * - OASIS Standard CAP-V1.2 (urn:oasis:names:tc:emergency:cap:1.2)
- * - National Disaster Management Authority (NDMA) SACHET Common Alerting Protocol Guidelines
- * - India Meteorological Department (IMD MoES) Extreme Weather Nowcast Dispatches
- */
-
-/**
  * CAP Protocol Version & Metadata Constants
  */
 export const CAP_SPEC_VERSION = '1.2';

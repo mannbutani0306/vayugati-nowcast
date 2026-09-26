@@ -1,15 +1,3 @@
-/**
- * @file AlertReviewQueue.jsx
- * @description Duty Forecaster Alert Review Engine for VayuGati Nowcast .
- * Human-in-the-Loop Safeguard:
- * Mandates that NO AI-generated WARNING or SEVERE alert reaches the public unreviewed.
- * Every alert begins in 'DRAFT' status and requires human verification:
- * - [Approve & Broadcast]
- * - [Modify Alert]
- * - [Reject Alert] (with mandatory meteorological rationale)
- * - Complete audit log recording on all state transitions.
- */
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -49,7 +37,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
   const [loading, setLoading] = useState(true);
   const [queueError, setQueueError] = useState('');
   const [pendingAlertId, setPendingAlertId] = useState(null);
-  const alertLoadSequenceRef = useRef(0);
+  const loadSeq = useRef(0);
   const [selectedAlertForEdit, setSelectedAlertForEdit] = useState(null);
   const [selectedAlertForReject, setSelectedAlertForReject] = useState(null);
   const [selectedAlertForCapXml, setSelectedAlertForCapXml] = useState(null);
@@ -66,21 +54,21 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
     let mounted = true;
     let subscription;
     const refreshAlerts = () => {
-      const request = ++alertLoadSequenceRef.current;
+      const request = ++loadSeq.current;
       fetchOfficerAlerts()
-        .then((rows) => { if (mounted && request === alertLoadSequenceRef.current) setAlerts(rows); })
+        .then((rows) => { if (mounted && request === loadSeq.current) setAlerts(rows); })
         .catch((error) => {
-          if (mounted && request === alertLoadSequenceRef.current) setQueueError(error.message || 'Unable to refresh CAP alerts.');
+          if (mounted && request === loadSeq.current) setQueueError(error.message || 'Unable to refresh CAP alerts.');
         });
     };
     const refreshAuditLogs = () => fetchCapAlertAuditLogs()
       .then((rows) => { if (mounted) setAuditLogs(rows); })
       .catch((error) => { if (mounted) setQueueError(error.message || 'Unable to load CAP audit history.'); });
-    const initialRequest = ++alertLoadSequenceRef.current;
+    const initialRequest = ++loadSeq.current;
     fetchOfficerAlerts()
-      .then((rows) => { if (mounted && initialRequest === alertLoadSequenceRef.current) setAlerts(rows); })
+      .then((rows) => { if (mounted && initialRequest === loadSeq.current) setAlerts(rows); })
       .catch((error) => {
-        if (mounted && initialRequest === alertLoadSequenceRef.current) setQueueError(error.message || 'Unable to load CAP alerts.');
+        if (mounted && initialRequest === loadSeq.current) setQueueError(error.message || 'Unable to load CAP alerts.');
       })
       .finally(() => { if (mounted) setLoading(false); });
     refreshAuditLogs();
@@ -176,7 +164,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
   /**
    * Action 3: Confirm Reject Alert
    */
-  const handleConfirmReject = (e) => {
+  const handleConfirmReject = async (e) => {
     e.preventDefault();
     if (!selectedAlertForReject) return;
 
@@ -535,7 +523,6 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                     Lead Time Window:
                   </label>
                   <input
-                    type="text"
                     type="number"
                     min="0"
                     max="1440"

@@ -1,10 +1,3 @@
-/**
- * @file AuthContext.jsx
- * @description Authentication context & state provider for the VayuGati Nowcast operational portal.
- * Manages Supabase session lifecycle, user role resolution ('citizen', 'officer', 'admin'),
- * and Row Level Security (RLS) identity propagation.
- */
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 

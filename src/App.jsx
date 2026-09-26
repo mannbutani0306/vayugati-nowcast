@@ -1,14 +1,3 @@
-/**
- * @file App.jsx
- * @description Unified master application controller for the VayuGati Nowcast operational portal.
- * Capabilities:
- * - Full React Router wiring: `/`, `/citizen`, `/officer`, `/admin`.
- * - Role-governed ProtectedRoute wrappers with instant official credential switcher.
- * - Global Toast Notification System for newly approved SEVERE convective alerts.
- * - GIGW (Guidelines for Indian Government Websites) Compliant Footer with Accessibility Statement,
- *   Sitemap, Disclaimer, and Last Updated metadata.
- */
-
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';

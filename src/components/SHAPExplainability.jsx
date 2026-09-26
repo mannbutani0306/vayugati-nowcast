@@ -1,22 +1,3 @@
-/**
- * @file SHAPExplainability.jsx
- * @description Explainable AI (XAI) Inspection Panel for Duty Forecasters in VayuGati Nowcast .
- * Capabilities:
- * - SHAP (SHapley Additive exPlanations) visual breakdown for convective hazard predictions.
- * - Displays exact atmospheric physics parameter weights:
- *   * Surface CAPE (Convective Available Potential Energy)
- *   * Cloud-Top Glaciation & Cooling Rate (INSAT-3DR Rapid-Scan IR)
- *   * Lightning Flash Jump / Acceleration (GLD360 / Ground Network)
- *   * Deep-Layer Vertical Wind Shear (0–6 km Bulk Shear)
- *   * Vertically Integrated Liquid (VIL)
- *   * Convective Inhibition (CIN)
- *   * Mid-Tropospheric Lapse Rate (700–500 hPa)
- *   * Precipitable Water (PWAT)
- * - Waterfall / Force Plot comparison showing Climatology Base Value E[f(x)] to Model Score f(x).
- * - Multi-cell selector allowing Duty Forecasters to audit AI rationale across active convective cells.
- * - JSON Export of SHAP diagnostic weights for IMD post-event audit logs.
- */
-
 import React, { useState } from 'react';
 import {
   BrainCircuit,

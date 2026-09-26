@@ -1,28 +1,3 @@
-/**
- * @file GovernmentHeader.jsx
- * @description Official GIGW 3.0 Compliant Government of India, MoES, IMD & NDMA Navigation Header.
- *
- * Requirements & Capabilities:
- * 1. National Identity Top Strip:
- *    - 4px Indian Tricolour top bar gradient (#FF9933 Saffron, #FFFFFF White, #138808 Green).
- *    - Official State Emblem of India (Ashoka Lion Capital vector SVG).
- *    - Ministry Credentials:
- *      * "भारत सरकार | Government of India"
- *      * "Ministry of Earth Sciences (MoES)"
- *      * "India Meteorological Department (IMD)"
- *      * "National Disaster Management Authority (NDMA)"
- * 2. GIGW Accessibility Bar:
- *    - Font Size Adjuster: `A-` (Small), `A` (Normal), `A+` (Enlarged) affecting document root font scale.
- *    - Tri-Mode High Contrast Switcher: Default Warm Cream, High-Contrast Dark, High-Contrast Yellow/Navy.
- *    - 12 Scheduled Indian Languages Dropdown (English, Hindi, Marathi, Bengali, Tamil, Telugu, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese).
- *    - Screen Reader Quick Link (`href="#main-content"`).
- * 3. Live Emergency Alert Ticker (CAP Marquee):
- *    - Red/Yellow emergency marquee bar displaying active ITU / NDMA Common Alerting Protocol warnings.
- *    - Audio warning icon button triggering Web Speech API to read out the live emergency bulletin.
- * 4. Government Visual Identity:
- *    - Warm cream base (#FAF7F2), deep navy header (#0F172A), and warning terracotta (#D9532F).
- */
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAccessibility, SUPPORTED_LANGUAGES } from '../context/AccessibilityContext';

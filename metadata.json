@@ -1,6 +1,5 @@
 {
   "name": "VayuGati Nowcast",
   "description": "Convective scale nowcasting system for Thunderstorms, Hail & Cloudbursts (0-6 hr lead time, 1-3 km resolution) for SIH26084.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": []
 }

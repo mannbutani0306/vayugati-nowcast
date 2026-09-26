@@ -12,6 +12,22 @@ CREATE TABLE IF NOT EXISTS public.users (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.weather_stations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    station_code text NOT NULL UNIQUE,
+    name text NOT NULL,
+    state text NOT NULL,
+    district text NOT NULL,
+    location geometry(Point, 4326) NOT NULL,
+    elevation_m numeric(7, 2),
+    is_active boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_weather_stations_coords CHECK (
+        ST_X(location) BETWEEN 68.0 AND 98.0
+        AND ST_Y(location) BETWEEN 6.0 AND 38.0
+    )
+);
+
 CREATE TABLE IF NOT EXISTS public.regions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
@@ -127,6 +143,7 @@ WHEN (NEW.status = 'DRAFT')
 EXECUTE FUNCTION public.audit_cap_alert_draft_insert();
 
 CREATE INDEX IF NOT EXISTS idx_regions_boundary_gist ON public.regions USING gist (boundary);
+CREATE INDEX IF NOT EXISTS idx_weather_stations_location_gist ON public.weather_stations USING gist (location);
 CREATE INDEX IF NOT EXISTS idx_cells_track_gist ON public.convective_cells USING gist (track_polygon);
 CREATE INDEX IF NOT EXISTS idx_cells_centroid_gist ON public.convective_cells USING gist (centroid);
 CREATE INDEX IF NOT EXISTS idx_cells_active_updated ON public.convective_cells (active, updated_at DESC);
@@ -227,6 +244,33 @@ BEGIN
     ORDER BY ST_Intersects(a.affected_zone, user_point) DESC,
              ST_Distance(a.affected_zone::geography, user_geography) ASC;
 END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_alerts_for_location(
+    user_lat float,
+    user_lon float,
+    radius_km float DEFAULT 25.0
+)
+RETURNS TABLE (
+    id uuid,
+    identifier text,
+    event_type text,
+    severity text,
+    urgency text,
+    headline_en text,
+    headline_hi text,
+    description_en text,
+    distance_km numeric,
+    is_direct_hit boolean,
+    created_at timestamptz
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT alert.alert_id, alert.identifier, alert.event_type, alert.severity,
+           alert.urgency, alert.headline_en, alert.headline_hi, alert.description_en,
+           alert.distance_km, alert.is_direct_intersection, alert.created_at
+    FROM public.get_active_alerts_within_radius(user_lat, user_lon, radius_km) AS alert;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_active_convective_cells()
@@ -361,6 +405,7 @@ $$;
 
 -- All data access is governed by RLS; remove the earlier broad authenticated FOR ALL policy.
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.weather_stations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.regions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.convective_cells ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cap_alerts ENABLE ROW LEVEL SECURITY;
@@ -375,6 +420,7 @@ DROP POLICY IF EXISTS users_insert_self_citizen ON public.users;
 DROP POLICY IF EXISTS users_update_self_citizen ON public.users;
 DROP POLICY IF EXISTS regions_public_read ON public.regions;
 DROP POLICY IF EXISTS regions_admin_manage ON public.regions;
+DROP POLICY IF EXISTS weather_stations_public_read ON public.weather_stations;
 DROP POLICY IF EXISTS cells_public_read ON public.convective_cells;
 DROP POLICY IF EXISTS cells_officer_insert ON public.convective_cells;
 DROP POLICY IF EXISTS cells_officer_update ON public.convective_cells;
@@ -396,6 +442,8 @@ CREATE POLICY users_update_self_citizen ON public.users FOR UPDATE TO authentica
 CREATE POLICY regions_public_read ON public.regions FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY regions_admin_manage ON public.regions FOR ALL TO authenticated
     USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY weather_stations_public_read ON public.weather_stations FOR SELECT TO anon, authenticated
+    USING (is_active = true);
 
 CREATE POLICY cells_public_read ON public.convective_cells FOR SELECT TO anon, authenticated USING (active = true);
 CREATE POLICY cells_officer_insert ON public.convective_cells FOR INSERT TO authenticated
@@ -416,7 +464,7 @@ CREATE POLICY audit_officer_insert ON public.audit_logs FOR INSERT TO authentica
 CREATE POLICY audit_admin_read ON public.audit_logs FOR SELECT TO authenticated
     USING (public.is_admin());
 
-GRANT SELECT ON public.regions, public.convective_cells, public.cap_alerts TO anon, authenticated;
+GRANT SELECT ON public.weather_stations, public.regions, public.convective_cells, public.cap_alerts TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.convective_cells TO authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.cap_alerts FROM PUBLIC, anon, authenticated;
@@ -457,3 +505,12 @@ $$;
 -- Retire the exact pilot records inserted by the earlier prototype migration.
 DELETE FROM public.cap_alerts WHERE identifier = 'IN-IMD-NOWCAST-20260926-001';
 DELETE FROM public.convective_cells WHERE cell_uid = 'CELL-A1';
+
+INSERT INTO public.weather_stations (station_code, name, state, district, location, elevation_m)
+VALUES
+    ('DWR-DED', 'Dehradun C-Band Doppler Radar', 'Uttarakhand', 'Dehradun', ST_SetSRID(ST_MakePoint(78.0322, 30.3165), 4326), 640.0),
+    ('AWS-SHD', 'Sahastradhara Hydro-Met Station', 'Uttarakhand', 'Dehradun', ST_SetSRID(ST_MakePoint(78.1316, 30.3872), 4326), 790.0),
+    ('AWS-HRD', 'Haridwar Roorkee Canal Observatory', 'Uttarakhand', 'Haridwar', ST_SetSRID(ST_MakePoint(78.1642, 29.9457), 4326), 285.0),
+    ('DWR-PUN', 'Pune S-Band Doppler Radar (IMD Pashan)', 'Maharashtra', 'Pune', ST_SetSRID(ST_MakePoint(73.8567, 18.5204), 4326), 560.0),
+    ('AWS-LNV', 'Lonavala Ghat High-Altitude Station', 'Maharashtra', 'Pune', ST_SetSRID(ST_MakePoint(73.4062, 18.7546), 4326), 624.0)
+ON CONFLICT (station_code) DO NOTHING;

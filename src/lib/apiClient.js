@@ -79,6 +79,7 @@ export function normalizeLiveCellFeature(feature) {
   const confidence = Number(props.confidence ?? 0.5);
 
   return {
+    dataMode: props.data_mode || 'UNKNOWN',
     cellId: props.cell_uid || feature?.id || `CELL-${Math.random().toString(36).slice(2, 8)}`,
     cellName: props.name || 'Live Convective Cell',
     hazardType: props.feature_type || 'CONVECTIVE CELL',
@@ -124,7 +125,7 @@ export function normalizeLiveCellFeature(feature) {
         jumpSigma: '+0.0σ',
         label: 'Ground Lightning Flash Rate',
         climatology: 8.0,
-        sensor: 'Operational Lightning Network',
+        sensor: props.data_mode === 'DEMO_FIXTURE' ? 'Demo fixture' : 'Lightning feed status unavailable',
       },
       dopplerShear: {
         value: null,
@@ -137,7 +138,7 @@ export function normalizeLiveCellFeature(feature) {
     },
     shapAttributions: [],
     description: `${props.name || 'Convective cell'} is active with ${tier.toLowerCase()} risk and ${props.confidence ? `${(props.confidence * 100).toFixed(1)}%` : 'moderate'} model confidence.`,
-    growthTrend: 'Live backend feed',
+    growthTrend: props.data_mode === 'DEMO_FIXTURE' ? 'Illustrative demo fixture' : 'Backend cell feed',
     lastUpdated: 'just now',
     impactTargets: [],
   };

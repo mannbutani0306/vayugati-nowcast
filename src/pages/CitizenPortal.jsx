@@ -37,25 +37,6 @@ import {
   Compass,
   AlertTriangle,
   ShieldAlert,
-  Clock,
-  Radio,
-  Volume2,
-  VolumeX,
-  Navigation,
-  Globe,
-  Wifi,
-  WifiOff,
-  Users,
-  Briefcase,
-  Car,
-  GraduationCap,
-  CloudRain,
-  CloudLightning,
-  Zap,
-  CheckCircle2,
-  Bell,
-  RefreshCw,
-  PhoneCall,
   ChevronRight,
   ShieldCheck,
   Eye,
@@ -388,7 +369,7 @@ export default function CitizenPortal() {
   const localizedHeadline = localizedAlertText(activeAlert, 'headline', lang);
   const localizedDescription = localizedAlertText(activeAlert, 'description', lang);
   const alertCopyNeedsFallback = Boolean(activeAlert && lang !== 'en' && (!activeAlert[`headline_${lang}`] || !activeAlert[`description_${lang}`]));
-  const spatialAssessmentSequenceRef = useRef(0);
+  const assessmentSeq = useRef(0);
 
   // 5. Persona Guidance Tab
   const [activePersona, setActivePersona] = useState('general');
@@ -462,14 +443,14 @@ export default function CitizenPortal() {
   // Query nearby alerts and evaluate storm cone containment
   const executeSpatialAssessment = useCallback(
     async (lat, lon) => {
-      const requestId = ++spatialAssessmentSequenceRef.current;
+      const requestId = ++assessmentSeq.current;
       setIsSyncing(true);
       setDatabaseError('');
       try {
         if (!isSupabaseConfigured) throw new Error(supabaseConfigurationError || 'Supabase is not configured.');
         // Query fetchNearbyAlerts from spatialQueries
         const result = await fetchNearbyAlerts(lat, lon, 35);
-        if (requestId !== spatialAssessmentSequenceRef.current) return;
+        if (requestId !== assessmentSeq.current) return;
         if (result.error) throw result.error;
         const alertsList = result.data || [];
         setNearbyAlerts(alertsList);
@@ -483,13 +464,13 @@ export default function CitizenPortal() {
         setIsCachedDataDisplayed(false);
         updateAlertsCache(alertsList, insideAnyCone);
       } catch (err) {
-        if (requestId !== spatialAssessmentSequenceRef.current) return;
+        if (requestId !== assessmentSeq.current) return;
         console.error('PostGIS spatial assessment failed:', err);
         setDatabaseStatus('OFFLINE');
         setDatabaseError(err.message || 'Unable to read active alerts from Supabase.');
         loadAlertsFromCache();
       } finally {
-        if (requestId === spatialAssessmentSequenceRef.current) setIsSyncing(false);
+        if (requestId === assessmentSeq.current) setIsSyncing(false);
       }
     },
     [updateAlertsCache, loadAlertsFromCache]

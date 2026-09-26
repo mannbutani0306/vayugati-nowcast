@@ -1,14 +1,3 @@
-/**
- * @file LandingPage.jsx
- * @description Public landing page for the VayuGati Nowcast operational portal.
- * Problem Statement: Convective-scale nowcasting for thunderstorms, hail, and cloudbursts (0–6 hours, 1–3 km resolution).
- * Features:
- * - Real-Time Ticker showing active radar coverage & monitoring stations.
- * - Public INFO-tier advisories summary cards for citizens & visitors.
- * - Live interactive Doppler Radar & Lightning telemetry preview.
- * - One-click access to Citizen, Officer, and Admin command portals.
- */
-
 import React, { useEffect, useState } from 'react';
 import DataDisclaimerModal from '../components/DataDisclaimerModal';
 import { fetchInstabilityIndex, fetchLightningFeed, fetchRadarFeed, fetchSatelliteFeed } from '../lib/apiClient';
