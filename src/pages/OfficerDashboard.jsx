@@ -33,6 +33,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import SHAPExplainabilityCard, { DEFAULT_SEVERE_CELL } from '../components/SHAPExplainabilityCard';
+import { fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
 import {
   generateMotionConePolygon,
   haversineDistance,
@@ -379,6 +380,42 @@ export default function OfficerDashboard() {
   const dutyOfficer = profile?.full_name || 'Duty Met Officer Dr. Rajesh Swaminathan';
   const officerBadge = profile?.badge_id || 'IMD-NOWCAST-DEL-04';
 
+  const mapLiveCellToDashboard = useCallback((backendCell) => ({
+    ...backendCell,
+    cellId: backendCell.cellId,
+    cellName: backendCell.cellName || 'Active Convective Cell',
+    hazardType: backendCell.hazardType || 'CONVECTIVE CELL',
+    sector: backendCell.sector || 'Operational Sector',
+    tier: backendCell.tier || 'INFO',
+    lat: backendCell.lat ?? 0,
+    lon: backendCell.lon ?? 0,
+    speedKmh: backendCell.speedKmh ?? 30,
+    headingDeg: backendCell.headingDeg ?? 45,
+    radarDbz: backendCell.radarDbz ?? 35,
+    echoTopKm: backendCell.echoTopKm ?? 8,
+    vilKgM2: backendCell.vilKgM2 ?? 24,
+    cttCelsius: backendCell.cttCelsius ?? -40,
+    lightningRate: backendCell.lightningRate ?? 10,
+    rainRateMmHr: backendCell.rainRateMmHr ?? 12,
+    windGustKmh: backendCell.windGustKmh ?? 40,
+    etaMinutes: backendCell.etaMinutes ?? 15,
+    etaClock: backendCell.etaClock || `${backendCell.etaMinutes ?? 15} min`,
+    confidenceScore: backendCell.confidenceScore ?? 0.72,
+    baseRisk: backendCell.baseRisk ?? 0.12,
+    predictedRisk: backendCell.predictedRisk ?? backendCell.confidenceScore ?? 0.72,
+    rawFeatures: backendCell.rawFeatures || {
+      cape: { value: backendCell.cape ?? 2000, unit: 'J/kg', label: 'Surface-Based CAPE', climatology: 1850, sensor: 'Operational Model' },
+      cloudTopGlaciation: { value: backendCell.cttCelsius ?? -40, unit: '°C', coolingRate: '0 °C / 15min', label: 'Cloud-Top Glaciation (IR)', climatology: -42.0, sensor: 'Operational Infrared Retrieval' },
+      lightningRate: { value: backendCell.lightningRate ?? 10, unit: 'strikes/min', threshold: '>0 strikes/min', jumpSigma: '+0.0σ', label: 'Ground Lightning Flash Rate', climatology: 8.0, sensor: 'Operational Lightning Network' },
+      dopplerShear: { value: backendCell.speedKmh ?? 30, unit: 'm/s', layer: '0–6 km Bulk Shear', label: 'Doppler Velocity Shear', climatology: 14.0, sensor: 'Atmospheric Motion Analysis' },
+    },
+    shapAttributions: backendCell.shapAttributions || [],
+    description: backendCell.description || `${backendCell.cellName || 'Convective cell'} remains active with ongoing risk surface development.`,
+    growthTrend: backendCell.growthTrend || 'Live backend feed',
+    lastUpdated: backendCell.lastUpdated || 'just now',
+    impactTargets: backendCell.impactTargets || [],
+  }), []);
+
   // Selected Radar Station
   const [selectedStation, setSelectedStation] = useState(RADAR_STATIONS[0]);
 
@@ -393,6 +430,8 @@ export default function OfficerDashboard() {
   const [alerts, setAlerts] = useState(INITIAL_DRAFT_ALERTS);
   const [selectedCellId, setSelectedCellId] = useState('CELL-A1');
   const [queueFilter, setQueueFilter] = useState('ALL'); // 'ALL' | 'DRAFT' | 'SEVERE' | 'WARNING' | 'APPROVED'
+  const [liveCellsLoading, setLiveCellsLoading] = useState(true);
+  const [liveCellsError, setLiveCellsError] = useState('');
 
   // GIS Layer Visibility Switches
   const [layerVisibility, setLayerVisibility] = useState({
@@ -457,6 +496,47 @@ export default function OfficerDashboard() {
   // -------------------------------------------------------------
   // REALTIME WEBSOCKET SUBSCRIPTION
   // -------------------------------------------------------------
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLiveCells = async () => {
+      setLiveCellsLoading(true);
+      setLiveCellsError('');
+
+      try {
+        const payload = await fetchLiveFusionGrid({
+          min_lat: 6.0,
+          min_lon: 68.0,
+          max_lat: 38.0,
+          max_lon: 98.0,
+        });
+
+        const liveCells = normalizeLiveCells(payload).map(mapLiveCellToDashboard);
+
+        if (!isMounted) return;
+
+        if (liveCells.length > 0) {
+          setCells(liveCells);
+          setSelectedCellId((prev) => (liveCells.some((cell) => cell.cellId === prev) ? prev : liveCells[0].cellId));
+        } else {
+          setCells(INITIAL_CONVECTIVE_CELLS);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setLiveCellsError(error.message || 'Unable to reach the nowcast engine.');
+        setCells(INITIAL_CONVECTIVE_CELLS);
+      } finally {
+        if (isMounted) setLiveCellsLoading(false);
+      }
+    };
+
+    loadLiveCells();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mapLiveCellToDashboard]);
+
   useEffect(() => {
     let subHandle = null;
     try {
@@ -1079,6 +1159,16 @@ export default function OfficerDashboard() {
       {/* ------------------------------------------------------------- */}
       <header className="bg-[#0F172A] border-b border-[#1E293B] text-white px-4 py-2.5 shadow-md">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-[10px] font-mono">
+            {liveCellsError ? (
+              <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-red-700">Backend offline</span>
+            ) : liveCellsLoading ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">Loading live cells…</span>
+            ) : (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">Live engine connected</span>
+            )}
+          </div>
+
           {/* Left: Station Identity & Live WebSocket Status */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center space-x-2">
@@ -1163,6 +1253,12 @@ export default function OfficerDashboard() {
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {liveCellsError && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700">
+          {liveCellsError} Using the last known local operational snapshot until the backend is reachable again.
         </div>
       )}
 
