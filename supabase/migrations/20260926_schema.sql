@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS public.regions (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.regions
+    ADD COLUMN IF NOT EXISTS boundary geometry(Polygon, 4326);
+
 CREATE TABLE IF NOT EXISTS public.convective_cells (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     cell_uid text NOT NULL UNIQUE,
