@@ -72,7 +72,16 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   };
 
   const handleRoleSelect = (roleKey) => {
-    handleAutoFill(roleKey);
+      if (!isConfigured) {
+        handleAutoFill(roleKey);
+        return;
+      }
+
+      setActiveTab(roleKey);
+      setEmail(DEMO_PRESETS[roleKey].email);
+      setPassword('');
+      setErrorMessage('');
+      setSuccessMessage('');
   };
 
   /**
@@ -172,7 +181,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-            {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Role buttons fill sample credentials; real Supabase Auth accounts must be provisioned.</p>}
+              {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Choose an account email, then enter its password. Accounts are verified by Supabase.</p>}
           </div>
 
           {/* Standard Form Submission */}

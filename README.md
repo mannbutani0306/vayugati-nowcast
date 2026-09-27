@@ -31,6 +31,8 @@ Install the backend requirements and start the API in a separate terminal:
 .\.venv\Scripts\python.exe -m uvicorn backend.nowcast_engine:app --host 0.0.0.0 --port 8000
 ```
 
+To provision the sample Citizen, Officer, and Admin Supabase accounts, add the project's service-role key as `SUPABASE_SERVICE_ROLE_KEY` in the root `.env` file, then run `npm run provision:demo-users`. The script generates unique passwords and prints them once after successful provisioning. Never commit or deploy the service-role key.
+
 VayuGati Saarthi uses Google's Gemini API through the backend. Add `GEMINI_API_KEY` to the root `.env` file (or backend hosting environment); do not use a `VITE_` prefix because the key must never be exposed to browsers. `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`.
 
 The frontend defaults to `http://localhost:8000/api/v1`. For a hosted deployment, set `VITE_NOWCAST_API_URL` to the HTTPS URL of a deployed API service and configure its CORS policy for the site origin.
