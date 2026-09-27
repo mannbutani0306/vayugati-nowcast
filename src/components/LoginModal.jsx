@@ -54,6 +54,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [autoFillMessage, setAutoFillMessage] = useState('');
   const passwordInputRef = useRef(null);
 
   if (!isOpen) return null;
@@ -61,12 +62,35 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   /**
    * Handle role-based credential preset selection.
    */
-  const handleAutoFill = (roleKey) => {
-    setActiveTab(roleKey);
-    setEmail(DEMO_PRESETS[roleKey].email);
-    setPassword('');
+  const handleAutoFill = async () => {
+    const roleKey = activeTab;
+    const roleEmail = DEMO_PRESETS[roleKey].email;
+    setEmail(roleEmail);
+    setPassword(isConfigured ? '' : 'demo');
     setErrorMessage('');
     setSuccessMessage('');
+    setAutoFillMessage('');
+
+    if (!isConfigured) {
+      setAutoFillMessage('Demo credentials filled. Demo mode does not require a real password.');
+      return;
+    }
+
+    if (navigator.credentials?.get) {
+      try {
+        const credential = await navigator.credentials.get({ password: true, mediation: 'optional' });
+        if (credential?.id?.toLowerCase() === roleEmail && credential.password) {
+          setPassword(credential.password);
+          setAutoFillMessage('Saved browser credentials filled.');
+          return;
+        }
+      } catch {
+        // Password-manager access is optional; users can still enter credentials manually.
+      }
+    }
+
+    setAutoFillMessage('Email filled. Enter this account’s authorized password to continue.');
+    passwordInputRef.current?.focus();
   };
 
   const handleRoleSelect = (roleKey) => {
@@ -76,22 +100,8 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
     setPassword('');
     setErrorMessage('');
     setSuccessMessage('');
+    setAutoFillMessage('');
 
-    if (!isConfigured) return;
-
-    if (navigator.credentials?.get) {
-      navigator.credentials.get({ password: true, mediation: 'optional' })
-        .then((credential) => {
-          if (credential?.id?.toLowerCase() === roleEmail && credential.password) {
-            setPassword(credential.password);
-          } else {
-            passwordInputRef.current?.focus();
-          }
-        })
-        .catch(() => passwordInputRef.current?.focus());
-    } else {
-      passwordInputRef.current?.focus();
-    }
   };
 
   /**
@@ -205,7 +215,21 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-              {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Choose a role to autofill its saved browser password, or enter it manually.</p>}
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <p className="text-[11px] text-[#6C7278]">
+                  Autofill for {activeTab === 'citizen' ? 'Citizen' : activeTab === 'officer' ? 'Officer' : 'Admin'}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAutoFill}
+                  className="shrink-0 rounded border border-[#D9532F] px-3 py-1 text-[10px] font-bold text-[#BF4422] hover:bg-[#FFF4EF]"
+                  aria-label={`Auto Fill ${activeTab} credentials`}
+                >
+                  Auto Fill
+                </button>
+              </div>
+              {autoFillMessage && <p className="mt-1.5 text-[11px] text-[#6C7278]" role="status">{autoFillMessage}</p>}
+              {isConfigured && !autoFillMessage && <p className="mt-1.5 text-[11px] text-[#6C7278]">Auto Fill uses a password saved by your browser; otherwise, enter your authorized password.</p>}
           </div>
 
           {/* Standard Form Submission */}

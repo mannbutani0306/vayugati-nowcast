@@ -88,9 +88,15 @@ export default function GovernmentHeader({ onOpenLogin }) {
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined;
 
-    const playNotificationSound = () => {
-      if (!soundEnabled || !audioContextRef.current || audioContextRef.current.state !== 'running') return;
+    const playNotificationSound = async () => {
+      if (!soundEnabled || !audioContextRef.current) return;
       const audioContext = audioContextRef.current;
+      try {
+        if (audioContext.state !== 'running') await audioContext.resume();
+      } catch {
+        return;
+      }
+      if (audioContext.state !== 'running') return;
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
       oscillator.type = 'sine';
@@ -119,7 +125,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
           createdAt: new Date().toISOString(),
         };
         setNotifications((current) => [notification, ...current].slice(0, 20));
-        playNotificationSound();
+        void playNotificationSound();
 
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification(notification.title, { body: notification.body, tag: id });
@@ -161,17 +167,21 @@ export default function GovernmentHeader({ onOpenLogin }) {
     navigate('/');
   };
 
+  const unlockNotificationAudio = () => {
+    if (!audioContextRef.current && (window.AudioContext || window.webkitAudioContext)) {
+      const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+      audioContextRef.current = new AudioContextConstructor();
+    }
+    audioContextRef.current?.resume().catch(() => {});
+  };
+
   const handleNotificationToggle = () => {
     setIsNotificationMenuOpen((open) => !open);
     const viewedAt = new Date().toISOString();
     setLastViewedAt(viewedAt);
     localStorage.setItem(NOTIFICATIONS_VIEWED_KEY, viewedAt);
 
-    if (!audioContextRef.current && (window.AudioContext || window.webkitAudioContext)) {
-      const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
-      audioContextRef.current = new AudioContextConstructor();
-    }
-    audioContextRef.current?.resume().catch(() => {});
+    unlockNotificationAudio();
 
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
@@ -385,7 +395,10 @@ export default function GovernmentHeader({ onOpenLogin }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSoundEnabled((enabled) => !enabled)}
+                      onClick={() => {
+                        unlockNotificationAudio();
+                        setSoundEnabled((enabled) => !enabled);
+                      }}
                       title={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
                       aria-label={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
                       aria-pressed={soundEnabled}

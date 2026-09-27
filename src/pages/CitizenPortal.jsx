@@ -332,6 +332,56 @@ const PERSONA_DIRECTIVES = {
   },
 };
 
+const PERSONA_MAP_FOCUS = {
+  general: {
+    en: 'Check whether your location intersects the approved alert area and follow the listed public safety instructions.',
+    hi: 'देखें कि आपका स्थान स्वीकृत चेतावनी क्षेत्र में है या नहीं, और सार्वजनिक सुरक्षा निर्देशों का पालन करें।',
+    mr: 'तुमचे स्थान मंजूर इशारा क्षेत्रात आहे का ते तपासा आणि सार्वजनिक सुरक्षा सूचनांचे पालन करा.',
+    metrics: ['severity', 'distance_km', 'eta_minutes'],
+  },
+  farmer: {
+    en: 'Use the same official alert footprint to assess exposed fields, livestock, and stored crops.',
+    hi: 'खुले खेतों, पशुओं और भंडारित फसल का आकलन करने के लिए इसी आधिकारिक चेतावनी क्षेत्र को देखें।',
+    mr: 'उघडी शेते, जनावरे आणि साठवलेल्या पिकांचे नियोजन करण्यासाठी हाच अधिकृत इशारा नकाशा वापरा.',
+    metrics: ['rain_rate_mm_hr', 'wind_gust_kmh', 'eta_minutes'],
+  },
+  commuter: {
+    en: 'Use the same official alert footprint to check travel timing and avoid exposed roads or underpasses.',
+    hi: 'यात्रा का समय तय करने और जोखिम वाले रास्तों व अंडरपास से बचने के लिए इसी आधिकारिक क्षेत्र को देखें।',
+    mr: 'प्रवासाची वेळ ठरवण्यासाठी आणि धोकादायक रस्ते किंवा भुयारी मार्ग टाळण्यासाठी हाच अधिकृत क्षेत्र नकाशा वापरा.',
+    metrics: ['rain_rate_mm_hr', 'eta_minutes', 'distance_km'],
+  },
+  school: {
+    en: 'Use the same official alert footprint to review outdoor activities, campus shelter, and school bus plans.',
+    hi: 'बाहरी गतिविधियों, परिसर के सुरक्षित आश्रय और स्कूल बस योजना की समीक्षा के लिए इसी आधिकारिक क्षेत्र को देखें।',
+    mr: 'मैदानी उपक्रम, शाळेतील सुरक्षित आश्रय आणि बस नियोजन तपासण्यासाठी हाच अधिकृत क्षेत्र नकाशा वापरा.',
+    metrics: ['severity', 'eta_minutes', 'rain_rate_mm_hr'],
+  },
+};
+
+const ALERT_METRIC_LABELS = {
+  severity: 'Severity',
+  distance_km: 'Distance',
+  eta_minutes: 'ETA',
+  rain_rate_mm_hr: 'Rain rate',
+  wind_gust_kmh: 'Wind gust',
+};
+
+function formatAlertMetric(alert, key) {
+  const value = alert?.[key];
+  if (value == null || value === '') return null;
+  if (key === 'severity') return String(value);
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const units = {
+    distance_km: ' km',
+    eta_minutes: ' min',
+    rain_rate_mm_hr: ' mm/h',
+    wind_gust_kmh: ' km/h',
+  };
+  return `${number}${units[key] || ''}`;
+}
+
 function persistAlertsToServiceWorker(payload) {
   if (!('serviceWorker' in navigator)) return;
   const send = (registration) => {
@@ -362,6 +412,7 @@ export default function CitizenPortal() {
   const [isLocating, setIsLocating] = useState(false);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [gpsError, setGpsError] = useState(null);
+  const gpsAutoRequestStartedRef = useRef(false);
 
   // 3. Network & Offline State
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -561,7 +612,7 @@ export default function CitizenPortal() {
   }, [countdownMinutes, countdownSeconds > 0]);
 
   // Auto-GPS request function
-  const handleRequestGps = () => {
+  const handleRequestGps = useCallback(() => {
     setGpsError(null);
     if (!navigator.geolocation) {
       setGpsError('Geolocation is not supported by your browser.');
@@ -599,7 +650,13 @@ export default function CitizenPortal() {
       },
       { timeout: 20000, maximumAge: 0, enableHighAccuracy: true }
     );
-  };
+  }, [executeSpatialAssessment]);
+
+  useEffect(() => {
+    if (gpsAutoRequestStartedRef.current) return;
+    gpsAutoRequestStartedRef.current = true;
+    handleRequestGps();
+  }, [handleRequestGps]);
 
   // Quick preset selector
   const handleSelectLocation = (locationId) => {
@@ -1071,10 +1128,14 @@ export default function CitizenPortal() {
           {/* Interactive or Low-Bandwidth Leaflet GIS Canvas */}
           <CitizenRadarMap
             userLocation={currentCoords}
+            isGpsActive={isGpsActive}
+            gpsAccuracy={gpsAccuracy}
             isLowBandwidth={isLowBandwidthMode}
             t={t}
             isInsideCone={isInsideStormCone}
             alerts={nearbyAlerts}
+            activePersona={activePersona}
+            activeAlert={activeAlert}
           />
 
         </section>
@@ -1204,7 +1265,7 @@ export default function CitizenPortal() {
  * REQUIREMENT 3: Lightweight, Mobile-Optimized Leaflet Weather Radar Map
  * Renders user position, storm core (dBZ contours), trajectory cone, and safe shelter pins.
  */
-function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts }) {
+function CitizenRadarMap({ userLocation, isGpsActive, gpsAccuracy, isLowBandwidth, t, isInsideCone, alerts, activePersona, activeAlert }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersGroupRef = useRef(null);
@@ -1236,7 +1297,17 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts
     layers.clearLayers();
 
     // Re-center map
-    map.setView([userLocation.lat, userLocation.lon], 12);
+    map.setView([userLocation.lat, userLocation.lon], isGpsActive ? 14 : 12);
+
+    if (isGpsActive && Number.isFinite(gpsAccuracy)) {
+      L.circle([userLocation.lat, userLocation.lon], {
+        radius: Math.max(gpsAccuracy, 20),
+        color: '#2563EB',
+        weight: 1,
+        fillColor: '#2563EB',
+        fillOpacity: 0.08,
+      }).addTo(layers);
+    }
 
     // 1. User Location Beacon (Pulsing blue marker)
     const userMarkerHtml = `
@@ -1253,7 +1324,7 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts
     });
     L.marker([userLocation.lat, userLocation.lon], { icon: userIcon })
       .addTo(layers)
-      .bindPopup(`<b>${t.radarLegendUser}</b><br/>${userLocation.name}`);
+      .bindPopup(`<b>${isGpsActive ? t.radarLegendUser : 'Demo map location (GPS not confirmed)'}</b><br/>${userLocation.name}${isGpsActive && Number.isFinite(gpsAccuracy) ? `<br/>Accuracy: ±${gpsAccuracy} m` : ''}`);
 
     (alerts || []).forEach((alert) => {
       const geometry = alert.affected_zone_geojson;
@@ -1269,11 +1340,25 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts
       popup.textContent = `${alert.severity || 'Approved'} • ${alert.headline_en || alert.event_type || 'Weather alert'}${alert.distance_km != null ? ` • ${alert.distance_km} km` : ''}`;
       featureLayer.bindPopup(popup);
     });
-  }, [userLocation, isLowBandwidth, t, isInsideCone, alerts]);
+  }, [userLocation, isGpsActive, gpsAccuracy, isLowBandwidth, t, isInsideCone, alerts]);
+
+  const personaFocus = PERSONA_MAP_FOCUS[activePersona] || PERSONA_MAP_FOCUS.general;
+  const availableMetrics = personaFocus.metrics
+    .map((key) => ({ key, value: formatAlertMetric(activeAlert, key) }))
+    .filter((metric) => metric.value);
 
   return (
     <div className="relative isolate z-0 w-full h-[260px] sm:h-[300px] rounded-xl overflow-hidden border border-[#E5E0D8] bg-[#F1F3F5]">
       <div ref={mapContainerRef} className="relative z-0 w-full h-full overflow-hidden" />
+
+      <div className="absolute bottom-2 right-2 z-[400] max-w-[min(24rem,calc(100%-1rem))] border border-[#E5E0D8] bg-white/95 px-3 py-2 text-[10px] text-[#1A1D20] shadow-sm">
+        <strong className="block text-[11px]">{activePersona === 'farmer' ? 'Farmer / Outdoor focus' : activePersona === 'commuter' ? 'Commuter / Driver focus' : activePersona === 'school' ? 'Schools & Parents focus' : 'General Citizen focus'}</strong>
+        <span className="mt-0.5 block leading-relaxed">{personaFocus[lang] || personaFocus.en}</span>
+        {availableMetrics.length > 0 && <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 border-t border-[#E5E0D8] pt-1">
+          {availableMetrics.map(({ key, value }) => <span key={key}><b>{ALERT_METRIC_LABELS[key]}:</b> {value}</span>)}
+        </div>}
+        {!activeAlert && <span className="mt-1 block border-t border-[#E5E0D8] pt-1 text-[#6C7278]">No approved alert metrics are currently available.</span>}
+      </div>
 
       {/* Floating Radar Legend */}
       <div className="absolute top-2 right-2 z-[400] bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-[#E5E0D8] text-[10px] shadow-sm flex flex-wrap items-center gap-3 text-[#1A1D20]">
@@ -1283,7 +1368,7 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts
         </div>
         <div className="flex items-center space-x-1">
           <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] inline-block"></span>
-          <span className="font-semibold">Approved alert geometry</span>
+          <span className="font-semibold">Shared approved alert area</span>
         </div>
       </div>
 
