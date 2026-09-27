@@ -870,14 +870,25 @@ def get_service_root():
 @app.get("/health")
 def get_health_status():
     """
-    Liveness and readiness health check for Kubernetes / container monitoring.
+    Liveness and feed-configuration status for container monitoring.
     """
+    radar_configured = bool(
+        os.getenv("IMD_RADAR_TILE_URL", "").strip()
+        and os.getenv("IMD_RADAR_BOUNDS", "").strip()
+    )
+    satellite_configured = bool(
+        os.getenv("MOSDAC_TIR_GEOTIFF_URL", "").strip()
+        or (
+            os.getenv("MOSDAC_TIR_TILE_URL", "").strip()
+            and os.getenv("MOSDAC_TIR_BOUNDS", "").strip()
+        )
+    )
     return {
         "status": "HEALTHY",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "radar_network": "DWR_ONLINE_28_STATIONS",
-        "satellite_feed": "INSAT-3DR_RAPID_SCAN_ACTIVE",
-        "open_meteo_link": "CONNECTED"
+        "radar_network": "GEOREFERENCED_LAYER_CONFIGURED" if radar_configured else "PUBLIC_IMAGE_ONLY",
+        "satellite_feed": "GEOREFERENCED_FEED_CONFIGURED" if satellite_configured else "PUBLIC_IMAGE_ONLY",
+        "open_meteo_link": "ENDPOINT_CONFIGURED" if OPEN_METEO_BASE_URL else "UNCONFIGURED",
     }
 
 

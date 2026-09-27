@@ -15,63 +15,6 @@ import {
   X,
 } from 'lucide-react';
 
-/**
- * State Emblem of India SVG (Ashoka Lion Capital stylized insignia)
- */
-function NationalEmblemSVG({ className = 'w-9 h-11' }) {
-  return (
-    <svg
-      viewBox="0 0 100 125"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-label="State Emblem of India"
-      role="img"
-    >
-      {/* Three visible lions of the Sarnath capital */}
-      {/* Central Lion Head and Mane */}
-      <path
-        d="M50 12 C44 12, 38 16, 38 23 C38 28, 41 33, 44 36 C42 38, 40 42, 40 46 C40 50, 43 54, 46 56 C44 58, 43 62, 44 66 C46 70, 49 71, 50 71 C51 71, 54 70, 56 66 C57 62, 56 58, 54 56 C57 54, 60 50, 60 46 C60 42, 58 38, 56 36 C59 33, 62 28, 62 23 C62 16, 56 12, 50 12 Z"
-        opacity="0.95"
-      />
-      {/* Left Lion Profile */}
-      <path
-        d="M32 20 C27 20, 22 25, 23 32 C23 37, 26 42, 29 45 C27 47, 25 51, 26 56 C27 61, 30 64, 33 66 C31 69, 31 73, 33 76 C35 79, 39 80, 42 79 C40 75, 38 71, 38 67 C36 65, 35 62, 35 59 C34 54, 36 51, 38 48 C36 45, 34 41, 35 37 C35 33, 37 30, 40 27 C37 23, 35 21, 32 20 Z"
-        opacity="0.85"
-      />
-      {/* Right Lion Profile */}
-      <path
-        d="M68 20 C73 20, 78 25, 77 32 C77 37, 74 42, 71 45 C73 47, 75 51, 74 56 C73 61, 70 64, 67 66 C69 69, 69 73, 67 76 C65 79, 61 80, 58 79 C60 75, 62 71, 62 67 C64 65, 65 62, 65 59 C66 54, 64 51, 62 48 C64 45, 66 41, 65 37 C65 33, 63 30, 60 27 C63 23, 65 21, 68 20 Z"
-        opacity="0.85"
-      />
-      {/* Circular Abacus Base */}
-      <rect x="22" y="80" width="56" height="8" rx="2" opacity="0.9" />
-      {/* Central Ashoka Chakra on Abacus */}
-      <circle cx="50" cy="84" r="3.5" fill="#FAF7F2" stroke="currentColor" strokeWidth="1" />
-      <circle cx="50" cy="84" r="0.8" fill="currentColor" />
-      {/* Galloping Horse (Left) & Humped Bull (Right) symbolic dots */}
-      <circle cx="34" cy="84" r="1.5" opacity="0.75" />
-      <circle cx="66" cy="84" r="1.5" opacity="0.75" />
-      {/* Inverted Lotus Plinth Base */}
-      <path d="M26 89 C32 94, 68 94, 74 89 L76 96 C68 100, 32 100, 24 96 Z" opacity="0.9" />
-      {/* Pedestal Bottom Bar */}
-      <rect x="20" y="97" width="60" height="4" rx="1" opacity="0.95" />
-      {/* Motto "सत्यमेव जयते" (Truth Alone Triumphs) */}
-      <text
-        x="50"
-        y="112"
-        fontSize="8"
-        fontFamily="sans-serif"
-        fontWeight="bold"
-        textAnchor="middle"
-        letterSpacing="0.5"
-      >
-        सत्यमेव जयते
-      </text>
-    </svg>
-  );
-}
-
 export default function GovernmentHeader({ onOpenLogin }) {
   const { profile, role, logout } = useAuth();
   const {
@@ -271,7 +214,11 @@ export default function GovernmentHeader({ onOpenLogin }) {
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
               {/* National Emblem of India Stylized Crest */}
               <div className="w-12 h-14 rounded-lg bg-[#FAF7F2] p-1 flex items-center justify-center text-[#0F172A] shadow-md border border-[#E5E0D8] group-hover:scale-102 transition-transform">
-                <NationalEmblemSVG className="w-8 h-12 text-[#0F172A]" />
+                <img
+                  src="/EMBLEM.jpeg"
+                  alt="State Emblem of India"
+                  className="h-12 w-[70px] object-contain"
+                />
               </div>
 
               <div className="min-w-0">

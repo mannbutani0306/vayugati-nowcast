@@ -41,12 +41,12 @@ const DEMO_PRESETS = {
 };
 
 export default function LoginModal({ isOpen, onClose, embedded = false }) {
-  const { login } = useAuth();
+  const { login, isConfigured } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('citizen');
-  const [email, setEmail] = useState(DEMO_PRESETS.citizen.email);
-  const [password, setPassword] = useState(DEMO_PRESETS.citizen.password);
+  const [email, setEmail] = useState(isConfigured ? '' : DEMO_PRESETS.citizen.email);
+  const [password, setPassword] = useState(isConfigured ? '' : DEMO_PRESETS.citizen.password);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -82,7 +82,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
       }
 
       // Determine user role and route
-      const roleValue = res?.profile?.role || (email.includes('admin') ? 'admin' : email.includes('officer') ? 'officer' : 'citizen');
+      const roleValue = res?.profile?.role || 'citizen';
       const resolvedRole = String(roleValue).trim().toLowerCase().replace(/[- ]/g, '_');
       const presetRole = resolvedRole === 'duty_officer' ? 'officer' : resolvedRole;
       const targetRoute = DEMO_PRESETS[presetRole]?.route || '/citizen';
@@ -95,11 +95,8 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
         navigate(targetRoute);
       }, 500);
     } catch (err) {
-      // In case of unexpected rejection, fall back to current tab's demo profile
-      console.warn('Login execution note:', err);
-      const targetRoute = DEMO_PRESETS[activeTab].route;
-      onClose?.();
-      navigate(targetRoute);
+      setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
+      setIsSubmitting(false);
     }
   };
 
@@ -119,7 +116,11 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
           <div className="flex items-start justify-between pb-3 border-b border-[#E5E0D8]">
             <div>
               <h3 className="text-base font-bold text-[#1A1D20]">Portal sign in</h3>
-              <p className="text-xs text-[#6C7278]">Choose a role and enter its authorized credentials.</p>
+              <p className="text-xs text-[#6C7278]">
+                {isConfigured
+                  ? 'Sign in with your authorized account. Access is based on your assigned role.'
+                  : 'Demo mode: choose a role to preview its portal.'}
+              </p>
             </div>
             {!embedded && <button
               type="button"
@@ -131,7 +132,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
             </button>}
           </div>
 
-          <div className="mt-4">
+          {!isConfigured && <div className="mt-4">
             <label className="block text-xs font-semibold text-[#1A1D20] mb-1.5">Role</label>
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#FAF7F2] rounded-lg border border-[#E5E0D8]">
               {(['citizen', 'officer', 'admin']).map((r) => {
@@ -152,7 +153,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-          </div>
+          </div>}
 
           {/* Standard Form Submission */}
           <form onSubmit={handleSubmit} className="mt-4 space-y-3">

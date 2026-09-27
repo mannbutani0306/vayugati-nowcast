@@ -447,7 +447,7 @@ export default function CitizenPortal() {
     }
 
     try {
-      if (!('serviceWorker' in navigator)) return false;
+      if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return false;
       const response = await fetch('/__offline/active-alerts.json', { cache: 'no-store' });
       if (response.ok) return restore(await response.json());
     } catch (error) {

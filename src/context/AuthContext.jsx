@@ -232,26 +232,15 @@ export const AuthProvider = ({ children }) => {
         password,
       });
 
-      if (signInErr) {
-        // If Supabase authentication fails (e.g. offline, mock project, unconfirmed email)
-        // and user is logging in with one of the standard demo accounts, fall back gracefully
-        if (demoKey) {
-          console.warn('Supabase auth failed; falling back to demo session for evaluation:', signInErr.message);
-          return switchDemoRole(demoKey);
-        }
-        throw signInErr;
-      }
+      if (signInErr) throw signInErr;
 
       setSession(data.session);
       setUser(data.user);
-      if (data.user) {
-        await fetchUserProfile(data.user.id, data.user.email);
-      }
-      return { success: true, data };
+      const authenticatedProfile = data.user
+        ? await fetchUserProfile(data.user.id, data.user.email)
+        : null;
+      return { success: true, data, profile: authenticatedProfile };
     } catch (err) {
-      if (demoKey) {
-        return switchDemoRole(demoKey);
-      }
       setError(err.message || 'Authentication failed');
       return { success: false, error: err.message };
     }
