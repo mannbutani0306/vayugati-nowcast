@@ -98,6 +98,12 @@ export function normalizeLiveCellFeature(feature) {
     lightningRate: Number(props.lightning_rate_per_min ?? props.lightning_rate ?? 0),
     rainRateMmHr: Number(props.rain_rate_mm_hr ?? 0),
     windGustKmh: Number(props.wind_gust_kmh ?? 0),
+    hazardHeads: props.hazard_heads || null,
+    hailProbability: props.hail_probability ?? null,
+    downburstGustKmh: props.downburst_gust_kmh ?? null,
+    cloudburstMmHr: props.cloudburst_mm_hr ?? null,
+    cloudburstSustainedFraction: props.cloudburst_sustained_fraction ?? null,
+    lightningDensity: props.lightning_density ?? null,
     etaMinutes: Number(props.lead_time_minutes ?? 15),
     etaClock: `${Number(props.lead_time_minutes ?? 15)} min`,
     confidenceScore: Number.isFinite(confidence) ? confidence : 0.5,
@@ -163,6 +169,18 @@ export async function fetchLiveFusionGrid(params = {}) {
 
   const queryString = query.toString();
   return apiFetch(`/live-fusion-grid${queryString ? `?${queryString}` : ''}`);
+}
+
+export async function fetchHazardHeads({ lat, lon, ...params }, options = {}) {
+  const query = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+  });
+  return apiFetch(`/hazard-heads?${query.toString()}`, options);
+}
+
+export async function fetchVerificationResults(options = {}) {
+  return apiFetch('/verification', options);
 }
 
 export async function fetchHealthStatus() {

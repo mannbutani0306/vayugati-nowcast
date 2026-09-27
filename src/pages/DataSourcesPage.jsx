@@ -70,6 +70,16 @@ const environment = [
   ['BLITZORTUNG_PROXY_URL', 'Authorized proxy URL returning validated GeoJSON.'],
 ];
 
+const indianSourceRegister = [
+  ['pyiwr', 'IIT Indore open-source IMD DWR reader', 'REGISTER', 'Access and end-to-end decoding have not been verified in this deployment.'],
+  ['MOSDAC INSAT-3D/3DR IMSRA', 'Rainfall plus IR/CTT products', 'REGISTER', 'Provider registration and product authorization required.'],
+  ['NCMRWF NCUM-R', 'Approximately 4 km NWP', 'REQUEST', 'Institutional access and licensing remain a deployment step.'],
+  ['NCMRWF IMDAA', 'Reanalysis', 'REQUEST', 'Institutional access and licensing remain a deployment step.'],
+  ['ISRO Bhuvan', 'Base-map WMS only', 'VERIFIED', 'Suitable for mapping context, not a meteorological observation feed.'],
+  ['IMD API Portal / DWR raw network', 'Official weather and radar services', 'REQUEST', 'Credentials, endpoint terms and operational authorization are not configured here.'],
+  ['IITM Pune Lightning Location Network', 'Lightning location observations', 'REQUEST', 'Institutional access and feed contract are not configured here.'],
+];
+
 export default function DataSourcesPage() {
   return (
     <div lang="en" className="min-h-[70vh] bg-[#FAF7F2] text-[#1A1D20]">
@@ -120,6 +130,17 @@ export default function DataSourcesPage() {
           <p className="mt-3 text-xs leading-5 text-[#59656D]">
             “Live” describes a request path, not guaranteed coverage, provider accuracy, or official warning authority. Check each feed’s returned status and timestamp before operational use.
           </p>
+        </section>
+
+        <section className="mt-9 border-t border-[#D8DDE0] pt-6" aria-labelledby="indian-register-heading">
+          <h2 id="indian-register-heading" className="mb-3 text-lg font-bold">Indian source access register</h2>
+          <div className="overflow-x-auto border border-[#D8DDE0] bg-white">
+            <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+              <thead className="bg-[#102C3A] text-white"><tr><th className="px-4 py-3">Source</th><th className="px-4 py-3">Use</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Evidence note</th></tr></thead>
+              <tbody className="divide-y divide-[#E5E0D8]">{indianSourceRegister.map(([name, use, status, note]) => <tr key={name} className="align-top"><th className="px-4 py-3 font-semibold">{name}</th><td className="px-4 py-3">{use}</td><td className="px-4 py-3 font-bold">{status}</td><td className="px-4 py-3 text-[#48525A]">{note}</td></tr>)}</tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[#59656D]">Native NWP products are coarser than the 1 km display grid. Any finer display is interpolated guidance, not native 1 km forecast skill.</p>
         </section>
 
         <section className="mt-9 border-t border-[#D8DDE0] pt-6" aria-labelledby="roadmap-heading">

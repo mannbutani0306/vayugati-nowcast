@@ -1,0 +1,311 @@
+{
+  "status": "SYNTHETIC_RECONSTRUCTIONS_ONLY",
+  "relative_skill": true,
+  "leads_minutes": [
+    15,
+    30,
+    60,
+    180,
+    360
+  ],
+  "cases": [
+    {
+      "case": "Himachal monsoon cloudburst character",
+      "lead_minutes": 15,
+      "nowcast": {
+        "CSI": 0.3401197604790419,
+        "POD": 0.4773109243697479,
+        "FAR": 0.4580152671755725,
+        "FSS": 0.8962698007153806
+      },
+      "persistence": {
+        "CSI": 0.672645739910314,
+        "POD": 0.7563025210084033,
+        "FAR": 0.14122137404580154
+      }
+    },
+    {
+      "case": "Himachal monsoon cloudburst character",
+      "lead_minutes": 30,
+      "nowcast": {
+        "CSI": 0.3401197604790419,
+        "POD": 0.4773109243697479,
+        "FAR": 0.4580152671755725,
+        "FSS": 0.8962698007153806
+      },
+      "persistence": {
+        "CSI": 0.672645739910314,
+        "POD": 0.7563025210084033,
+        "FAR": 0.14122137404580154
+      }
+    },
+    {
+      "case": "Himachal monsoon cloudburst character",
+      "lead_minutes": 60,
+      "nowcast": {
+        "CSI": 0.37807881773399016,
+        "POD": 0.5159663865546219,
+        "FAR": 0.41412213740458015,
+        "FSS": 0.8826189800359542
+      },
+      "persistence": {
+        "CSI": 0.672645739910314,
+        "POD": 0.7563025210084033,
+        "FAR": 0.14122137404580154
+      }
+    },
+    {
+      "case": "Himachal monsoon cloudburst character",
+      "lead_minutes": 180,
+      "nowcast": {
+        "CSI": 0.3613138686131387,
+        "POD": 0.4991596638655462,
+        "FAR": 0.43320610687022904,
+        "FSS": 0.8655530851528799
+      },
+      "persistence": {
+        "CSI": 0.672645739910314,
+        "POD": 0.7563025210084033,
+        "FAR": 0.14122137404580154
+      }
+    },
+    {
+      "case": "Himachal monsoon cloudburst character",
+      "lead_minutes": 360,
+      "nowcast": {
+        "CSI": 0.3613138686131387,
+        "POD": 0.4991596638655462,
+        "FAR": 0.43320610687022904,
+        "FSS": 0.8806557751193442
+      },
+      "persistence": {
+        "CSI": 0.672645739910314,
+        "POD": 0.7563025210084033,
+        "FAR": 0.14122137404580154
+      }
+    },
+    {
+      "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
+      "lead_minutes": 15,
+      "nowcast": {
+        "CSI": 0.15105162523900573,
+        "POD": 0.21584699453551912,
+        "FAR": 0.6652542372881356,
+        "FSS": 0.6570997669210731
+      },
+      "persistence": {
+        "CSI": 0.43333333333333335,
+        "POD": 0.4972677595628415,
+        "FAR": 0.2288135593220339
+      }
+    },
+    {
+      "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
+      "lead_minutes": 30,
+      "nowcast": {
+        "CSI": 0.15105162523900573,
+        "POD": 0.21584699453551912,
+        "FAR": 0.6652542372881356,
+        "FSS": 0.6570997669210731
+      },
+      "persistence": {
+        "CSI": 0.43333333333333335,
+        "POD": 0.4972677595628415,
+        "FAR": 0.2288135593220339
+      }
+    },
+    {
+      "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
+      "lead_minutes": 60,
+      "nowcast": {
+        "CSI": 0.16893203883495145,
+        "POD": 0.23770491803278687,
+        "FAR": 0.6313559322033898,
+        "FSS": 0.637949091571422
+      },
+      "persistence": {
+        "CSI": 0.43333333333333335,
+        "POD": 0.4972677595628415,
+        "FAR": 0.2288135593220339
+      }
+    },
+    {
+      "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
+      "lead_minutes": 180,
+      "nowcast": {
+        "CSI": 0.1599229287090559,
+        "POD": 0.226775956284153,
+        "FAR": 0.6483050847457628,
+        "FSS": 0.6375377851057982
+      },
+      "persistence": {
+        "CSI": 0.43333333333333335,
+        "POD": 0.4972677595628415,
+        "FAR": 0.2288135593220339
+      }
+    },
+    {
+      "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
+      "lead_minutes": 360,
+      "nowcast": {
+        "CSI": 0.17578125,
+        "POD": 0.2459016393442623,
+        "FAR": 0.6186440677966102,
+        "FSS": 0.6294411631076783
+      },
+      "persistence": {
+        "CSI": 0.43333333333333335,
+        "POD": 0.4972677595628415,
+        "FAR": 0.2288135593220339
+      }
+    },
+    {
+      "case": "Bay-of-Bengal coastal squall-line character",
+      "lead_minutes": 15,
+      "nowcast": {
+        "CSI": 0.07859078590785908,
+        "POD": 0.1039426523297491,
+        "FAR": 0.7563025210084033,
+        "FSS": 0.3535598705501618
+      },
+      "persistence": {
+        "CSI": 0.2797427652733119,
+        "POD": 0.3118279569892473,
+        "FAR": 0.2689075630252101
+      }
+    },
+    {
+      "case": "Bay-of-Bengal coastal squall-line character",
+      "lead_minutes": 30,
+      "nowcast": {
+        "CSI": 0.07859078590785908,
+        "POD": 0.1039426523297491,
+        "FAR": 0.7563025210084033,
+        "FSS": 0.3535598705501618
+      },
+      "persistence": {
+        "CSI": 0.2797427652733119,
+        "POD": 0.3118279569892473,
+        "FAR": 0.2689075630252101
+      }
+    },
+    {
+      "case": "Bay-of-Bengal coastal squall-line character",
+      "lead_minutes": 60,
+      "nowcast": {
+        "CSI": 0.09641873278236915,
+        "POD": 0.12544802867383512,
+        "FAR": 0.7058823529411765,
+        "FSS": 0.33800728057165963
+      },
+      "persistence": {
+        "CSI": 0.2797427652733119,
+        "POD": 0.3118279569892473,
+        "FAR": 0.2689075630252101
+      }
+    },
+    {
+      "case": "Bay-of-Bengal coastal squall-line character",
+      "lead_minutes": 180,
+      "nowcast": {
+        "CSI": 0.07859078590785908,
+        "POD": 0.1039426523297491,
+        "FAR": 0.7563025210084033,
+        "FSS": 0.32875414495499766
+      },
+      "persistence": {
+        "CSI": 0.2797427652733119,
+        "POD": 0.3118279569892473,
+        "FAR": 0.2689075630252101
+      }
+    },
+    {
+      "case": "Bay-of-Bengal coastal squall-line character",
+      "lead_minutes": 360,
+      "nowcast": {
+        "CSI": 0.08152173913043478,
+        "POD": 0.10752688172043011,
+        "FAR": 0.7478991596638656,
+        "FSS": 0.3101683501683502
+      },
+      "persistence": {
+        "CSI": 0.2797427652733119,
+        "POD": 0.3118279569892473,
+        "FAR": 0.2689075630252101
+      }
+    }
+  ],
+  "brier_score": 0.31712100660924597,
+  "reliability": [
+    {
+      "bin_lower": 0.0,
+      "bin_upper": 0.1,
+      "count": 0,
+      "mean_probability": null,
+      "observed_frequency": null
+    },
+    {
+      "bin_lower": 0.1,
+      "bin_upper": 0.2,
+      "count": 10965,
+      "mean_probability": 0.09999999999999996,
+      "observed_frequency": 0.37948016415868674
+    },
+    {
+      "bin_lower": 0.2,
+      "bin_upper": 0.30000000000000004,
+      "count": 0,
+      "mean_probability": null,
+      "observed_frequency": null
+    },
+    {
+      "bin_lower": 0.30000000000000004,
+      "bin_upper": 0.4,
+      "count": 879,
+      "mean_probability": 0.3173476201113222,
+      "observed_frequency": 0.47440273037542663
+    },
+    {
+      "bin_lower": 0.4,
+      "bin_upper": 0.5,
+      "count": 0,
+      "mean_probability": null,
+      "observed_frequency": null
+    },
+    {
+      "bin_lower": 0.5,
+      "bin_upper": 0.6000000000000001,
+      "count": 879,
+      "mean_probability": 0.5042749145557612,
+      "observed_frequency": 0.4653014789533561
+    },
+    {
+      "bin_lower": 0.6000000000000001,
+      "bin_upper": 0.7000000000000001,
+      "count": 0,
+      "mean_probability": null,
+      "observed_frequency": null
+    },
+    {
+      "bin_lower": 0.7000000000000001,
+      "bin_upper": 0.8,
+      "count": 879,
+      "mean_probability": 0.7341005873035538,
+      "observed_frequency": 0.4880546075085324
+    },
+    {
+      "bin_lower": 0.8,
+      "bin_upper": 0.9,
+      "count": 1758,
+      "mean_probability": 0.8332162370242766,
+      "observed_frequency": 0.4459613196814562
+    },
+    {
+      "bin_lower": 0.9,
+      "bin_upper": 1.0,
+      "count": 0,
+      "mean_probability": null,
+      "observed_frequency": null
+    }
+  ]
+}

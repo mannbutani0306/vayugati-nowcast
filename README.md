@@ -37,6 +37,26 @@ VayuGati Saarthi uses Google's Gemini API through the backend. Add `GEMINI_API_K
 
 The frontend defaults to `http://localhost:8000/api/v1`. For a hosted deployment, set `VITE_NOWCAST_API_URL` to the HTTPS URL of a deployed API service and configure its CORS policy for the site origin.
 
+## Docker deployment
+
+The reproducible demo path is:
+
+```powershell
+docker compose up --build
+```
+
+The frontend is served on `http://localhost:3000` and the API on `http://localhost:8000`. Supabase remains external; set the required Vite and backend environment values through the deployment environment. The manual `npm run dev` and `uvicorn` commands above remain supported.
+
+## Verification
+
+Run `python -m verification.run_case_studies` to create `verification/results.json`, `verification/VERIFICATION_REPORT.md`, and a reliability diagram. The harness scores CSI, POD, FAR and FSS at 15, 30, 60, 180 and 360 minute leads against a persistence baseline. Its three cases are deterministic **SYNTHETIC RECONSTRUCTIONS** informed by the character of Indian monsoon, hail/dust-storm and coastal squall events; they are not real radar reanalyses and do not represent operational CSI.
+
+## Reality and roadmap register
+
+- **REAL / live when configured:** Open-Meteo NWP requests, authorized georeferenced radar or MOSDAC raster adapters, authorized lightning proxy responses, Supabase alert workflow, and the existing Gradient Boosting inference artifact.
+- **SIMULATED / labeled:** fusion-grid demo cells, synthetic storm lifecycle fallback, synthetic lightning proxy, hazard-head fixture history, and verification case studies. These payloads carry explicit simulation status.
+- **DOCUMENTED ROADMAP:** institutional pyiwr, MOSDAC, NCUM-R, IMDAA, IMD raw DWR, and IITM Pune lightning access; calibrated hazard validation against an observation archive; and operational dispatch integrations.
+
 ## Supabase Deployment
 
 The officer and citizen portals rely on the database functions defined in `supabase/migrations`. If the citizen portal reports a missing alert RPC, run `20260929_restore_citizen_alert_rpc.sql` in the same Supabase project's SQL Editor. It restores the callable RPC and reloads the PostgREST schema cache. Confirm that `20260926_schema.sql` and `20260927_cap_alert_lifecycle.sql` have already been applied; do not rerun the base schema migration if it has.

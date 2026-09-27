@@ -31,6 +31,7 @@ import {
   fetchNearbyAlerts,
   subscribeToApprovedAlerts,
 } from '../lib/spatialQueries';
+import { fetchHazardHeads } from '../lib/apiClient';
 import { SEVERITY_TIERS } from '../utils/mockDataSeed';
 import {
   MapPin,
@@ -431,11 +432,24 @@ export default function CitizenPortal() {
   const [databaseError, setDatabaseError] = useState('');
   const [databaseStatus, setDatabaseStatus] = useState(isSupabaseConfigured ? 'CONNECTING' : 'OFFLINE');
   const [isCachedDataDisplayed, setIsCachedDataDisplayed] = useState(false);
+  const [hazardHeads, setHazardHeads] = useState(null);
   const directAlert = useMemo(() => nearbyAlerts.find((alert) => alert.is_direct_intersection), [nearbyAlerts]);
   const activeAlert = useMemo(() => directAlert || nearbyAlerts[0] || null, [directAlert, nearbyAlerts]);
   const localizedHeadline = localizedAlertText(activeAlert, 'headline', lang);
   const localizedDescription = localizedAlertText(activeAlert, 'description', lang);
   const alertCopyNeedsFallback = Boolean(activeAlert && lang !== 'en' && (!activeAlert[`headline_${lang}`] || !activeAlert[`description_${lang}`]));
+  const dominantHazard = useMemo(() => {
+    const summary = hazardHeads?.summary;
+    if (!summary) return '';
+    const candidates = [
+      { label: 'Hail risk', value: Number(summary.hail_probability), text: `${(Number(summary.hail_probability) * 100).toFixed(0)}%` },
+      { label: 'Downburst gust', value: Number(summary.downburst_gust_kmh), text: `${Number(summary.downburst_gust_kmh).toFixed(0)} km/h` },
+      { label: 'Cloudburst rain', value: Number(summary.cloudburst_mm_hr), text: `${Number(summary.cloudburst_mm_hr).toFixed(0)} mm/h` },
+      { label: 'Lightning density', value: Number(summary.lightning_density), text: `${Number(summary.lightning_density).toFixed(2)} /km²` },
+    ].filter((candidate) => Number.isFinite(candidate.value));
+    const strongest = candidates.sort((left, right) => right.value - left.value)[0];
+    return strongest ? `${strongest.label}: ${strongest.text}` : '';
+  }, [hazardHeads]);
   const assessmentSeq = useRef(0);
 
   // 5. Persona Guidance Tab
@@ -546,6 +560,14 @@ export default function CitizenPortal() {
     },
     [updateAlertsCache, loadAlertsFromCache]
   );
+
+  useEffect(() => {
+    let active = true;
+    fetchHazardHeads({ lat: currentCoords.lat, lon: currentCoords.lon })
+      .then((payload) => { if (active) setHazardHeads(payload); })
+      .catch(() => { if (active) setHazardHeads(null); });
+    return () => { active = false; };
+  }, [currentCoords.lat, currentCoords.lon]);
 
   // Monitor online/offline events
   useEffect(() => {
@@ -947,6 +969,11 @@ export default function CitizenPortal() {
                 <p className="text-xs sm:text-sm text-red-100 font-medium leading-relaxed max-w-2xl">
                   {localizedDescription || t.activeConeWarningSub}
                 </p>
+                {dominantHazard && (
+                  <p className="text-sm font-black text-amber-200 uppercase tracking-wide">
+                    {dominantHazard}
+                  </p>
+                )}
                 {alertCopyNeedsFallback && <p className="text-[11px] text-red-200">{t.originalTextFallback}</p>}
                 <div className="text-[11px] text-red-200 font-mono pt-1">
                   {activeAlert?.identifier || activeAlert?.event_type || 'Approved alert'}

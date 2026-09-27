@@ -59,8 +59,33 @@ class EventCatalogueBuilder:
         return events
 
 
+def generate_synthetic_training_events(count: int = 800, seed: int = 26084) -> list[dict]:
+    """Generate labeled joint feature samples for development-only training.
+
+    Samples vary by broad Indian season/region regimes and are not observations;
+    they expand coverage while the 20 curated catalogue rows remain a separate
+    textbook sanity-check set in ``EventCatalogueBuilder``.
+    """
+    rng = np.random.default_rng(seed)
+    regions = ["INDO_GANGETIC", "WEST_COAST", "DECCAN", "HIMALAYA", "BAY_OF_BENGAL"]
+    events = []
+    for index in range(count):
+        region = regions[index % len(regions)]
+        season = index % 4
+        reflectivity = float(np.clip(rng.normal(42 + 4 * (season == 2), 10), 18, 70))
+        cape = float(np.clip(rng.lognormal(np.log(1500 + 500 * (season in (1, 2))), 0.45), 100, 5000))
+        lightning = float(np.clip(rng.gamma(2.2, 7.0) + max(0, reflectivity - 45) * 0.8, 0, 100))
+        shear = float(np.clip(rng.normal(22, 9), 5, 50))
+        pwat = float(np.clip(rng.normal(40 + (region == "BAY_OF_BENGAL") * 8, 10), 15, 80))
+        cloud_top = float(np.clip(-25 - reflectivity * 0.65 - rng.normal(0, 4), -80, -15))
+        score = 0.045 * (reflectivity - 30) + 0.00035 * cape + 0.018 * lightning + 0.02 * shear + 0.01 * (pwat - 35)
+        severity = int(np.digitize(score, [2.0, 3.5, 5.0]))
+        events.append({"date": f"synthetic-{index:04d}", "region": region, "reflectivity_dbz": reflectivity, "cape_jkg": cape, "cloud_top_temp_c": cloud_top, "lightning_rate_pm": lightning, "wind_shear_knots": shear, "pwat_mm": pwat, "severity": severity, "ground_truth": "SYNTHETIC"})
+    return events
+
+
 def build_training_frame() -> pd.DataFrame:
-    catalogue = EventCatalogueBuilder.build_catalogue()
+    catalogue = EventCatalogueBuilder.build_catalogue() + generate_synthetic_training_events()
     df = pd.DataFrame(catalogue)
     df = df[FEATURE_COLUMNS + ["severity"]].copy()
     return df

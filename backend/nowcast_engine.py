@@ -44,16 +44,35 @@ import joblib
 import numpy as np
 from dotenv import load_dotenv
 
+try:
+    from .nowcast.optical_flow_dense import dense_farneback_flow
+except ImportError:
+    from nowcast.optical_flow_dense import dense_farneback_flow
+
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 try:
     from .ingestion.lightning import get_lightning_feed
     from .ingestion.radar import get_radar_feed
     from .ingestion.satellite import get_satellite_feed
+    from .hazards import (
+        assess_cloudburst,
+        assess_downburst,
+        assess_hail,
+        assess_lightning_density,
+        synthetic_lightning_points,
+    )
 except ImportError:
     from ingestion.lightning import get_lightning_feed
     from ingestion.radar import get_radar_feed
     from ingestion.satellite import get_satellite_feed
+    from hazards import (
+        assess_cloudburst,
+        assess_downburst,
+        assess_hail,
+        assess_lightning_density,
+        synthetic_lightning_points,
+    )
 
 # Configure structured meteorological logging
 logging.basicConfig(
@@ -173,6 +192,24 @@ class OpticalFlowRequest(BaseModel):
     bearing_deg: float = Field(..., description="Advection bearing in meteorological degrees (0-360)")
     lead_times_min: Optional[List[int]] = Field(default=[15, 30, 45, 60], description="Lead times in minutes")
     base_radius_km: Optional[float] = Field(default=8.0, description="Initial convective core radius in km")
+
+
+class HazardHeadsRequest(BaseModel):
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    reflectivity_dbz: float = Field(default=45.0, ge=0, le=90)
+    cape_jkg: float = Field(default=1800.0, ge=0)
+    lightning_rate_per_min: float = Field(default=0.0, ge=0)
+    flow_u_kmh: Optional[List[List[float]]] = None
+    flow_v_kmh: Optional[List[List[float]]] = None
+    reflectivity_frames_dbz: Optional[List[List[List[float]]]] = None
+
+
+class DenseOpticalFlowRequest(BaseModel):
+    previous_reflectivity: List[List[float]]
+    current_reflectivity: List[List[float]]
+    minutes_between_frames: float = Field(default=10.0, gt=0)
+    km_per_pixel: float = Field(default=1.0, gt=0)
 
 
 class SaarthiChatMessage(BaseModel):
@@ -793,6 +830,15 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
             cloud_top_cooling_rate=c["cloud_top_cooling_rate"]
         )
 
+        hazard_heads = compute_hazard_heads(
+            latitude=c["lat"],
+            longitude=c["lon"],
+            reflectivity_dbz=c["reflectivity_dbz"],
+            cape_jkg=c["cape"],
+            lightning_rate_per_min=c["lightning_rate"],
+            status="SIMULATED_DEMO_FIXTURE",
+        )
+
         # Generate optical flow track cones (15, 30, 45, 60 min lead times)
         track_cones = generate_forecast_track_cones(
             origin_lat=c["lat"],
@@ -817,6 +863,7 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
             **c,
             "data_mode": "DEMO_FIXTURE",
             "risk_assessment": risk_output,
+            "hazard_heads": hazard_heads,
             "track_cones": track_cones,
             "current_polygon_geojson": {
                 "type": "Polygon",
@@ -825,6 +872,63 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
         })
 
     return processed_cells
+
+
+def _demo_reflectivity_grid(reflectivity_dbz: float, size: int = 9) -> np.ndarray:
+    """Build a labeled demo echo grid for scalar fixture cells."""
+    axis = np.linspace(-1.0, 1.0, size)
+    xx, yy = np.meshgrid(axis, axis)
+    return np.maximum(5.0, reflectivity_dbz - 24.0 * np.hypot(xx, yy))
+
+
+def compute_hazard_heads(
+    latitude: float,
+    longitude: float,
+    reflectivity_dbz: float,
+    cape_jkg: float,
+    lightning_rate_per_min: float,
+    *,
+    flow_u_kmh: Optional[Any] = None,
+    flow_v_kmh: Optional[Any] = None,
+    reflectivity_frames_dbz: Optional[List[Any]] = None,
+    lightning_features: Optional[List[Dict[str, Any]]] = None,
+    status: str = "SIMULATED_DEMO_FIXTURE",
+) -> Dict[str, Any]:
+    """Compute all additive hazard heads while preserving source-status honesty."""
+    echo_grid = _demo_reflectivity_grid(reflectivity_dbz)
+    hail = assess_hail(reflectivity_dbz, cape_jkg, status=status)
+    if flow_u_kmh is None or flow_v_kmh is None:
+        flow_u_kmh = np.full_like(echo_grid, 20.0)
+        flow_v_kmh = np.full_like(echo_grid, 10.0)
+    downburst = assess_downburst(echo_grid, flow_u_kmh, flow_v_kmh, status=status)
+    if reflectivity_frames_dbz is None:
+        reflectivity_frames_dbz = [echo_grid - offset for offset in (9.0, 6.0, 3.0, 0.0)]
+    cloudburst = assess_cloudburst(reflectivity_frames_dbz, status=status)
+    if lightning_features is None:
+        lightning_features = synthetic_lightning_points(
+            latitude, longitude, lightning_rate_per_min, representative_points=16
+        )
+    lightning = assess_lightning_density(
+        lightning_features,
+        (latitude - 0.1, longitude - 0.1, latitude + 0.1, longitude + 0.1),
+        status=status,
+        source="synthetic lightning proxy; not an observation" if status.startswith("SIMULATED") else "configured lightning GeoJSON",
+    )
+    return {
+        "hail": hail.to_dict(),
+        "downburst": downburst.to_dict(),
+        "cloudburst": cloudburst.to_dict(),
+        "lightning_density": lightning.to_dict(),
+        "summary": {
+            "hail_probability": float(np.asarray(hail.probability).mean()),
+            "downburst_gust_kmh": float(np.asarray(downburst.field).max()) if downburst.field is not None else None,
+            "cloudburst_mm_hr": float(np.asarray(cloudburst.field).max()) if cloudburst.field is not None else None,
+            "cloudburst_sustained_fraction": float(np.asarray(cloudburst.probability).max()) if cloudburst.probability is not None else None,
+            "lightning_density": float(np.asarray(lightning.field).max()) if lightning.field is not None else None,
+        },
+        "location": {"latitude": latitude, "longitude": longitude},
+        "status": status,
+    }
 
 
 # ==============================================================================
@@ -987,6 +1091,43 @@ async def get_lightning_observation():
     return await get_lightning_feed()
 
 
+@app.get("/api/v1/hazard-heads")
+async def get_hazard_heads(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    reflectivity_dbz: float = Query(default=45.0, ge=0, le=90),
+    cape_jkg: float = Query(default=1800.0, ge=0),
+    lightning_rate_per_min: float = Query(default=0.0, ge=0),
+):
+    """Return all four hazard heads for a selected cell with source metadata."""
+    lightning_feed = await get_lightning_feed()
+    metadata = lightning_feed.get("metadata") or {}
+    feed_features = lightning_feed.get("features") or []
+    live_features = [
+        feature for feature in feed_features
+        if abs(float((feature.get("geometry") or {}).get("coordinates", [999, 999])[1]) - lat) <= 0.1
+        and abs(float((feature.get("geometry") or {}).get("coordinates", [999, 999])[0]) - lon) <= 0.1
+    ]
+    source_status = "LIVE_LIGHTNING_MIXED_SIMULATED" if metadata.get("status") == "LIVE" else "SIMULATED_DEMO_FIXTURE"
+    return compute_hazard_heads(
+        latitude=lat,
+        longitude=lon,
+        reflectivity_dbz=reflectivity_dbz,
+        cape_jkg=cape_jkg,
+        lightning_rate_per_min=lightning_rate_per_min,
+        lightning_features=live_features or None,
+        status=source_status,
+    )
+
+@app.get("/api/v1/verification")
+def get_verification_results():
+    """Serve the local synthetic verification artifact when it has been generated."""
+    results_path = Path(__file__).resolve().parents[1] / "verification" / "results.json"
+    if not results_path.exists():
+        return {"status": "NOT_GENERATED", "message": "Run python -m verification.run_case_studies to generate synthetic verification results."}
+    return json.loads(results_path.read_text(encoding="utf-8"))
+
+
 @app.get("/api/v1/live-fusion-grid")
 def get_live_fusion_grid(
     min_lat: Optional[float] = Query(default=6.0, description="Bounding box southern latitude"),
@@ -1033,6 +1174,12 @@ def get_live_fusion_grid(
                     "cloud_top_temp_c": cell["cloud_top_temp_c"],
                     "cloud_top_cooling_rate": cell["cloud_top_cooling_rate"],
                     "lightning_rate_per_min": cell["lightning_rate"],
+                    "hazard_heads": cell["hazard_heads"],
+                    "hail_probability": cell["hazard_heads"]["summary"]["hail_probability"],
+                    "downburst_gust_kmh": cell["hazard_heads"]["summary"]["downburst_gust_kmh"],
+                    "cloudburst_mm_hr": cell["hazard_heads"]["summary"]["cloudburst_mm_hr"],
+                    "cloudburst_sustained_fraction": cell["hazard_heads"]["summary"]["cloudburst_sustained_fraction"],
+                    "lightning_density": cell["hazard_heads"]["summary"]["lightning_density"],
                     "cape_value": cell["cape"],
                     "cin_value": cell["cin"],
                     "speed_kmh": cell["speed_kmh"],
@@ -1282,6 +1429,25 @@ def post_optical_flow_track(payload: OpticalFlowRequest):
     except Exception as exc:
         logger.error("Optical flow track projection failed: %s", str(exc))
         raise HTTPException(status_code=400, detail=f"Advection calculation error: {str(exc)}")
+
+
+@app.post("/api/v1/optical-flow-dense")
+def post_optical_flow_dense(payload: DenseOpticalFlowRequest):
+    """Compute a masked dense Farneback flow field from two reflectivity grids."""
+    try:
+        return {
+            "status": "SUCCESS",
+            "flow": dense_farneback_flow(
+                payload.previous_reflectivity,
+                payload.current_reflectivity,
+                minutes_between_frames=payload.minutes_between_frames,
+                km_per_pixel=payload.km_per_pixel,
+            ),
+        }
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"Dense optical-flow calculation error: {exc}") from exc
 
 
 # ==============================================================================

@@ -1583,6 +1583,15 @@ export default function OfficerDashboard() {
                 <div>Echo Top: <strong className="text-white">{currentCell.echoTopKm} km</strong></div>
                 <div>VIL: <strong className="text-white">{currentCell.vilKgM2} kg/m²</strong></div>
               </div>
+              <div className="border-t border-slate-700 pt-2">
+                <div className="text-[10px] uppercase tracking-wider text-amber-300 font-bold mb-1">Hazard heads</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono text-slate-300">
+                  <div>Hail: <strong className="text-amber-200">{currentCell.hailProbability != null ? `${(Number(currentCell.hailProbability) * 100).toFixed(0)}%` : '—'}</strong></div>
+                  <div>Downburst: <strong className="text-orange-200">{currentCell.downburstGustKmh != null ? `${Number(currentCell.downburstGustKmh).toFixed(0)} km/h` : '—'}</strong></div>
+                  <div>Cloudburst: <strong className="text-sky-200">{currentCell.cloudburstMmHr != null ? `${Number(currentCell.cloudburstMmHr).toFixed(0)} mm/h` : '—'}</strong></div>
+                  <div>Lightning: <strong className="text-yellow-200">{currentCell.lightningDensity != null ? `${Number(currentCell.lightningDensity).toFixed(2)} /km²` : '—'}</strong></div>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-700 pt-2 text-[10px] font-mono text-slate-300">
                 <div>CAPE: <strong className="text-sky-200">{selectedNwp?.current_cape ?? '—'}{selectedNwp?.current_cape != null ? ' J/kg' : ''}</strong></div>
                 <div>CIN: <strong className="text-sky-200">{selectedNwp?.cin_estimate ?? '—'}{selectedNwp?.cin_estimate != null ? ' J/kg' : ''}</strong></div>
