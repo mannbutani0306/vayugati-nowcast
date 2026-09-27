@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAccessibility, SUPPORTED_LANGUAGES } from '../context/AccessibilityContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { subscribeToApprovedAlerts } from '../lib/spatialQueries';
+import VayuGatiSaarthi from './VayuGatiSaarthi';
 import {
   UserCheck,
   LogOut,
@@ -13,7 +16,24 @@ import {
   ChevronDown,
   ExternalLink,
   X,
+  Bell,
+  MessageCircle,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+
+const NOTIFICATIONS_KEY = 'vayugati_notifications';
+const NOTIFICATIONS_VIEWED_KEY = 'vayugati_notifications_viewed_at';
+const NOTIFICATION_SOUND_KEY = 'vayugati_notification_sound';
+
+function readStoredNotifications() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(NOTIFICATIONS_KEY) || '[]');
+    return Array.isArray(stored) ? stored.slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function GovernmentHeader({ onOpenLogin }) {
   const { profile, role, logout } = useAuth();
@@ -28,6 +48,72 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const [istTime, setIstTime] = useState('');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
+  const [isSaarthiOpen, setIsSaarthiOpen] = useState(false);
+  const [notifications, setNotifications] = useState(readStoredNotifications);
+  const [lastViewedAt, setLastViewedAt] = useState(() => localStorage.getItem(NOTIFICATIONS_VIEWED_KEY) || '');
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem(NOTIFICATION_SOUND_KEY) !== 'false');
+  const audioContextRef = useRef(null);
+  const seenNotificationIds = useRef(null);
+  if (!seenNotificationIds.current) {
+    seenNotificationIds.current = new Set(notifications.map((item) => item.id));
+  }
+  const unreadCount = notifications.filter((item) => item.createdAt > lastViewedAt).length;
+
+  useEffect(() => {
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+  }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem(NOTIFICATION_SOUND_KEY, String(soundEnabled));
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+
+    const playNotificationSound = () => {
+      if (!soundEnabled || !audioContextRef.current || audioContextRef.current.state !== 'running') return;
+      const audioContext = audioContextRef.current;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(660, audioContext.currentTime + 0.13);
+      gain.gain.setValueAtTime(0.12, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.32);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.32);
+    };
+
+    let subscription;
+    try {
+      subscription = subscribeToApprovedAlerts((alert) => {
+        const id = `${alert.id}:${alert.approved_at || alert.updated_at || alert.identifier}`;
+        if (seenNotificationIds.current.has(id)) return;
+        seenNotificationIds.current.add(id);
+
+        const title = alert.headline_en || 'Approved weather alert';
+        const notification = {
+          id,
+          title,
+          body: alert.description_en || `${alert.severity || 'Weather'} alert approved for ${alert.location_label || 'your area'}.`,
+          createdAt: new Date().toISOString(),
+        };
+        setNotifications((current) => [notification, ...current].slice(0, 20));
+        playNotificationSound();
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(notification.title, { body: notification.body, tag: id });
+        }
+      });
+    } catch (error) {
+      console.warn('Approved-alert notifications unavailable:', error);
+    }
+
+    return () => subscription?.unsubscribe();
+  }, [soundEnabled]);
 
   useEffect(() => {
     const updateClock = () => setIstTime(new Intl.DateTimeFormat('en-IN', {
@@ -56,6 +142,23 @@ export default function GovernmentHeader({ onOpenLogin }) {
     await logout();
     setIsSignOutConfirmOpen(false);
     navigate('/');
+  };
+
+  const handleNotificationToggle = () => {
+    setIsNotificationMenuOpen((open) => !open);
+    const viewedAt = new Date().toISOString();
+    setLastViewedAt(viewedAt);
+    localStorage.setItem(NOTIFICATIONS_VIEWED_KEY, viewedAt);
+
+    if (!audioContextRef.current && (window.AudioContext || window.webkitAudioContext)) {
+      const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+      audioContextRef.current = new AudioContextConstructor();
+    }
+    audioContextRef.current?.resume().catch(() => {});
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
   };
 
   return (
@@ -228,12 +331,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   <span>Ministry of Earth Sciences (MoES)</span>
                 </div>
                 <div className="text-sm md:text-base font-bold tracking-tight text-white">
-                  India Meteorological Department (IMD)
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs font-extrabold text-[#FAF7F2] tracking-wide">
-                    VayuGati Nowcast
-                  </span>
+                  VayuGati Nowcast
                 </div>
               </div>
             </Link>
@@ -253,6 +351,68 @@ export default function GovernmentHeader({ onOpenLogin }) {
               <Database aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
               <span>Data sources</span>
             </Link>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleNotificationToggle}
+                title="Notifications"
+                aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                aria-expanded={isNotificationMenuOpen}
+                className="relative inline-flex h-9 w-10 items-center justify-center border border-[#1E3A5F] bg-[#14233D] text-white hover:bg-[#1C3254]"
+              >
+                <Bell aria-hidden="true" className="h-4 w-4 text-[#FF9933]" />
+                {unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-[#D9532F] px-1 text-[9px] font-bold leading-4 text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+              </button>
+              {isNotificationMenuOpen && (
+                <section className="absolute right-0 top-full z-[80] mt-2 w-[min(22rem,calc(100vw-2rem))] border border-[#D4DEE5] bg-white text-[#1A1D20] shadow-2xl" aria-label="Weather notifications">
+                  <div className="flex items-center justify-between border-b border-[#E5E0D8] px-4 py-3">
+                    <div>
+                      <h2 className="text-sm font-bold">Notifications</h2>
+                      <p className="text-[11px] text-[#6C7278]">Approved weather alerts</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSoundEnabled((enabled) => !enabled)}
+                      title={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
+                      aria-label={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
+                      aria-pressed={soundEnabled}
+                      className="inline-flex h-8 w-8 items-center justify-center border border-[#E5E0D8] text-[#315966] hover:bg-[#F1F5F6]"
+                    >
+                      {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {notifications.length ? (
+                    <ul className="max-h-[min(60vh,24rem)] divide-y divide-[#E5E0D8] overflow-y-auto">
+                      {notifications.map((item) => (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => { setIsNotificationMenuOpen(false); navigate('/citizen'); }}
+                            className="w-full px-4 py-3 text-left hover:bg-[#F5F8F8]"
+                          >
+                            <span className="block text-xs font-bold">{item.title}</span>
+                            <span className="mt-1 block text-[11px] leading-relaxed text-[#56636A]">{item.body}</span>
+                            <time className="mt-1 block text-[10px] text-[#6C7278]">{new Date(item.createdAt).toLocaleString()}</time>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-4 py-6 text-center text-xs text-[#6C7278]">No approved alerts yet.</p>
+                  )}
+                </section>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsSaarthiOpen(true)}
+              className="inline-flex h-9 items-center gap-1.5 border border-[#FFB38A] bg-[#D9532F] px-2.5 text-[11px] font-bold text-white shadow-sm hover:bg-[#BF4422] sm:px-3"
+            >
+              <MessageCircle aria-hidden="true" className="h-4 w-4" />
+              <span>VayuGati Saarthi</span>
+            </button>
 
             {/* User Profile / Portal Action */}
             {profile ? (
@@ -304,6 +464,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
           </section>
         </div>
       )}
+      <VayuGatiSaarthi isOpen={isSaarthiOpen} onClose={() => setIsSaarthiOpen(false)} />
     </header>
   );
 }

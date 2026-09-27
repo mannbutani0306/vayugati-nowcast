@@ -31,6 +31,8 @@ Install the backend requirements and start the API in a separate terminal:
 .\.venv\Scripts\python.exe -m uvicorn backend.nowcast_engine:app --host 0.0.0.0 --port 8000
 ```
 
+VayuGati Saarthi uses Google's Gemini API through the backend. Add `GEMINI_API_KEY` to the root `.env` file (or backend hosting environment); do not use a `VITE_` prefix because the key must never be exposed to browsers. `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`.
+
 The frontend defaults to `http://localhost:8000/api/v1`. For a hosted deployment, set `VITE_NOWCAST_API_URL` to the HTTPS URL of a deployed API service and configure its CORS policy for the site origin.
 
 ## Supabase Deployment

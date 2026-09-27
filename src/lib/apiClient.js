@@ -169,6 +169,15 @@ export async function fetchHealthStatus() {
   return apiFetch('/health');
 }
 
+export async function askVayuGatiSaarthi(messages, options = {}) {
+  const response = await apiFetch('/assistant/chat', {
+    method: 'POST',
+    body: JSON.stringify({ messages }),
+    ...options,
+  });
+  return response.text;
+}
+
 export async function fetchSatelliteFeed(params = {}, options = {}) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {

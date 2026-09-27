@@ -32,7 +32,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Literal, Optional, Tuple, Union
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -42,6 +42,9 @@ from zoneinfo import ZoneInfo
 import httpx
 import joblib
 import numpy as np
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 try:
     from .ingestion.lightning import get_lightning_feed
@@ -170,6 +173,15 @@ class OpticalFlowRequest(BaseModel):
     bearing_deg: float = Field(..., description="Advection bearing in meteorological degrees (0-360)")
     lead_times_min: Optional[List[int]] = Field(default=[15, 30, 45, 60], description="Lead times in minutes")
     base_radius_km: Optional[float] = Field(default=8.0, description="Initial convective core radius in km")
+
+
+class SaarthiChatMessage(BaseModel):
+    role: Literal["user", "model"]
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+class SaarthiChatRequest(BaseModel):
+    messages: List[SaarthiChatMessage] = Field(..., min_length=1, max_length=12)
 
 
 # ==============================================================================
@@ -890,6 +902,50 @@ def get_health_status():
         "satellite_feed": "GEOREFERENCED_FEED_CONFIGURED" if satellite_configured else "PUBLIC_IMAGE_ONLY",
         "open_meteo_link": "ENDPOINT_CONFIGURED" if OPEN_METEO_BASE_URL else "UNCONFIGURED",
     }
+
+
+@app.post("/api/v1/assistant/chat")
+async def chat_with_saarthi(request: SaarthiChatRequest):
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="VayuGati Saarthi is not configured. Set GEMINI_API_KEY in the backend environment.")
+
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{urllib.parse.quote(model, safe='')}:generateContent"
+    payload = {
+        "system_instruction": {
+            "parts": [{
+                "text": (
+                    "You are VayuGati Saarthi, a concise assistant for the VayuGati Nowcast web app. "
+                    "Help with the citizen, officer, and admin portals, accessibility controls, alerts, and data sources. "
+                    "You cannot access the user's account, location, live sensor feeds, or current alerts. "
+                    "Never invent a current forecast or warning, and never present demo fixtures as observations. "
+                    "This prototype is not an authorized emergency warning service. For immediate danger, follow "
+                    "official IMD/NDMA guidance and contact local emergency services (112 in India)."
+                )
+            }]
+        },
+        "contents": [
+            {"role": message.role, "parts": [{"text": message.text}]} for message in request.messages
+        ],
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 512},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, headers={"x-goog-api-key": api_key}, json=payload)
+            response.raise_for_status()
+        parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        answer = "\n".join(part["text"] for part in parts if isinstance(part.get("text"), str)).strip()
+        if not answer:
+            raise ValueError("Gemini returned no text response")
+        return {"text": answer}
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Saarthi provider returned HTTP %s", exc.response.status_code)
+        raise HTTPException(status_code=502, detail="Saarthi could not reach its AI provider. Please try again shortly.") from exc
+    except (httpx.RequestError, ValueError, KeyError, IndexError) as exc:
+        logger.warning("Saarthi provider request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Saarthi is temporarily unavailable. Please try again shortly.") from exc
 
 
 @app.get("/api/v1/ingestion/satellite")
