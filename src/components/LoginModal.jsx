@@ -65,13 +65,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   };
 
   const handleRoleSelect = (roleKey) => {
-    setActiveTab(roleKey);
-    if (!isConfigured) {
-      handleAutoFill(roleKey);
-    } else {
-      setErrorMessage('');
-      setSuccessMessage('');
-    }
+    handleAutoFill(roleKey);
   };
 
   /**

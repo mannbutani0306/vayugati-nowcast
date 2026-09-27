@@ -129,7 +129,7 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
 /**
  * GIGW Compliant Government Footer Component
  */
-function GovernmentFooter() {
+function GovernmentFooter({ showDisclaimerStrip = true }) {
   const currentYear = new Date().getFullYear();
   const lastUpdated = '26 Sep 2026, 18:30 IST';
 
@@ -235,7 +235,7 @@ function GovernmentFooter() {
         </div>
 
         {/* Disclaimer & Compliance Strip */}
-        <div className="pt-4 border-t border-[#16436E] text-[10px] text-neutral-400 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {showDisclaimerStrip && <div className="pt-4 border-t border-[#16436E] text-[10px] text-neutral-400 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <p>
               <strong>Disclaimer:</strong> Operational weather monitoring and early warning platform developed for the Ministry of Earth Sciences and India Meteorological Department, Government of India.
@@ -246,7 +246,7 @@ function GovernmentFooter() {
             <span>•</span>
             <span className="text-emerald-400 font-bold">Operational Portal</span>
           </div>
-        </div>
+        </div>}
       </div>
     </footer>
   );
@@ -333,7 +333,7 @@ function MainLayout() {
       />
 
       {/* GIGW Compliant Government Footer */}
-      <GovernmentFooter />
+      <GovernmentFooter showDisclaimerStrip={location.pathname !== '/'} />
     </div>
   );
 }

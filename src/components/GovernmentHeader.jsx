@@ -320,11 +320,11 @@ export default function GovernmentHeader({ onOpenLogin }) {
           <div className="flex min-w-0 items-center space-x-3.5">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
               {/* National Emblem of India Stylized Crest */}
-              <div className="w-12 h-14 rounded-lg bg-[#FAF7F2] p-1 flex items-center justify-center text-[#0F172A] shadow-md border border-[#E5E0D8] group-hover:scale-102 transition-transform">
+              <div className="h-16 w-16 overflow-hidden rounded-lg bg-[#FAF7F2] flex items-center justify-center text-[#0F172A] shadow-md border border-[#E5E0D8] group-hover:scale-102 transition-transform">
                 <img
                   src="/EMBLEM.jpeg"
                   alt="State Emblem of India"
-                  className="h-12 w-[70px] object-contain"
+                  className="h-full w-full object-cover"
                 />
               </div>
 
@@ -413,7 +413,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
             <button
               type="button"
               onClick={() => setIsSaarthiOpen(true)}
-              className="inline-flex h-9 items-center gap-1.5 border border-[#FFB38A] bg-[#D9532F] px-2.5 text-[11px] font-bold text-white shadow-sm hover:bg-[#BF4422] sm:px-3"
+              className="inline-flex h-9 items-center gap-1.5 border border-[#FFF0B0] bg-[#F6E7A8] px-2.5 text-[11px] font-bold text-[#17202A] shadow-sm hover:bg-[#EBD98C] sm:px-3"
             >
               <MessageCircle aria-hidden="true" className="h-4 w-4" />
               <span>VayuGati Saarthi</span>
