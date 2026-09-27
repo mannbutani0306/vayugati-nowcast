@@ -37,13 +37,11 @@ const DEMO_PRESETS = {
   },
 };
 
-const LOCAL_DEMO_PASSWORDS = import.meta.env.DEV
-  ? {
-      citizen: 'citizen@123',
-      officer: 'officer@123',
-      admin: 'admin@123',
-    }
-  : null;
+const AUTOFILL_PASSWORDS = {
+  citizen: 'citizen@123',
+  officer: 'officer@123',
+  admin: 'admin@123',
+};
 
 function getLoginErrorMessage(error) {
   if (/invalid login credentials/i.test(error || '')) {
@@ -70,35 +68,14 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   /**
    * Handle role-based credential preset selection.
    */
-  const handleAutoFill = async () => {
+  const handleAutoFill = () => {
     const roleKey = activeTab;
     const roleEmail = DEMO_PRESETS[roleKey].email;
     setEmail(roleEmail);
-    setPassword(LOCAL_DEMO_PASSWORDS?.[roleKey] || '');
+    setPassword(AUTOFILL_PASSWORDS[roleKey]);
     setErrorMessage('');
     setSuccessMessage('');
-    setAutoFillMessage('');
-
-    if (!isConfigured) {
-      setAutoFillMessage('Demo credentials filled. Demo mode does not require a real password.');
-      return;
-    }
-
-    if (navigator.credentials?.get) {
-      try {
-        const credential = await navigator.credentials.get({ password: true, mediation: 'optional' });
-        if (credential?.id?.toLowerCase() === roleEmail && credential.password) {
-          setPassword(credential.password);
-          setAutoFillMessage('Saved browser credentials filled.');
-          return;
-        }
-      } catch {
-        // Password-manager access is optional; users can still enter credentials manually.
-      }
-    }
-
-    setAutoFillMessage('Email filled. Enter this account’s authorized password to continue.');
-    passwordInputRef.current?.focus();
+    setAutoFillMessage('Authorized email and password filled. Click Sign In to continue.');
   };
 
   const handleRoleSelect = (roleKey) => {
