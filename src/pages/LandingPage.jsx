@@ -1,15 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import DataDisclaimerModal from '../components/DataDisclaimerModal';
 import LoginModal from '../components/LoginModal';
-import { fetchRadarFeed } from '../lib/apiClient';
+import { fetchCurrentWeather, fetchRadarFeed, PUBLIC_IMD_RADAR_IMAGE_URL } from '../lib/apiClient';
 import {
+  Cloud,
+  CloudRain,
   Radio,
   Info,
   MapPin,
+  Sun,
 } from 'lucide-react';
+
+function weatherDescription(code) {
+  if (code === 0) return 'Clear sky';
+  if ([1, 2].includes(code)) return 'Partly cloudy';
+  if (code === 3) return 'Overcast';
+  if ([45, 48].includes(code)) return 'Fog';
+  if (code >= 51 && code <= 67) return 'Rain showers';
+  if (code >= 71 && code <= 77) return 'Snowfall';
+  if (code >= 80 && code <= 82) return 'Rain showers';
+  if (code >= 95) return 'Thunderstorm';
+  return 'Weather update';
+}
+
+function WeatherIcon({ code }) {
+  if (code === 0) return <Sun aria-hidden="true" className="h-16 w-16 text-yellow-200" strokeWidth={1.5} />;
+  if (code >= 51 && code <= 99) return <CloudRain aria-hidden="true" className="h-16 w-16 text-white" strokeWidth={1.5} />;
+  return <Cloud aria-hidden="true" className="h-16 w-16 text-white" strokeWidth={1.5} />;
+}
 
 export default function LandingPage() {
   const [radarFeed, setRadarFeed] = useState(null);
+  const [weather, setWeather] = useState(null);
+  const [istNow, setIstNow] = useState(() => new Date());
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
 
   useEffect(() => {
@@ -32,6 +55,36 @@ export default function LandingPage() {
       clearInterval(refreshTimer);
     };
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCurrentWeather({ lat: 30.3165, lon: 78.0322, signal: controller.signal })
+      .then(setWeather)
+      .catch((error) => {
+        if (!controller.signal.aborted) console.warn('Current weather unavailable:', error);
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setIstNow(new Date()), 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
+
+  const istTime = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(istNow);
+  const istDate = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(istNow);
+  const currentWeather = weather?.current;
+  const weatherCode = Number(currentWeather?.weather_code);
 
   // Public INFO-tier and active advisories
   const publicAdvisories = [
@@ -73,8 +126,14 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col antialiased">
       {/* 1. HERO SECTION */}
-      <section className="bg-[#FFFFFF] border-b border-[#E5E0D8] px-4 lg:px-8 py-8 lg:py-12">
-        <div className="max-w-7xl mx-auto space-y-5">
+      <section className="relative isolate overflow-hidden border-b border-[#E5E0D8] bg-white px-4 py-8 lg:px-8 lg:py-12">
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
+          <div className="absolute inset-y-0 right-0 w-full bg-gradient-to-br from-sky-50 via-white to-cyan-50 lg:w-1/2" />
+          <div className="absolute bottom-0 right-0 h-2/5 w-full bg-sky-200/50 [clip-path:polygon(0_72%,14%_48%,29%_68%,45%_35%,57%_65%,73%_28%,86%_57%,100%_38%,100%_100%,0_100%)] lg:w-1/2" />
+          <div className="absolute bottom-0 right-0 h-1/4 w-full bg-cyan-700/20 [clip-path:polygon(0_70%,17%_32%,33%_68%,51%_24%,70%_72%,85%_34%,100%_61%,100%_100%,0_100%)] lg:w-1/2" />
+        </div>
+        <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)] lg:gap-12">
+          <div className="space-y-5">
           {/* Top Badge & Mission Indicator */}
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="bg-[#FAF7F2] border border-[#E5E0D8] text-[#1A1D20] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
@@ -102,7 +161,28 @@ export default function LandingPage() {
               View Public Safety Advisories
             </a>
           </div>
+          </div>
 
+          <aside className="relative min-h-[290px] overflow-hidden rounded-xl border border-white/70 bg-gradient-to-b from-sky-400 via-cyan-300 to-sky-600 p-5 text-white shadow-lg sm:min-h-[330px]" aria-label="Current weather in Dehradun">
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-sky-950/35" aria-hidden="true" />
+            <div className="relative flex h-full min-h-[250px] flex-col items-center justify-center text-center sm:min-h-[290px]">
+              <div className="absolute left-0 top-0 flex flex-col items-start text-left text-sm font-medium leading-tight text-white/90">
+                <time dateTime={istNow.toISOString()}>{istTime}</time>
+                <span>{istDate}</span>
+              </div>
+              <span className="absolute right-0 top-0 text-sm font-semibold text-white/90">Dehradun</span>
+              <WeatherIcon code={weatherCode} />
+              <div className="mt-2 text-6xl font-light leading-none tabular-nums sm:text-7xl">
+                {Number.isFinite(currentWeather?.temperature_2m) ? `${Math.round(currentWeather.temperature_2m)}°` : '--°'}
+              </div>
+              <p className="mt-2 text-base font-medium text-white/90">{Number.isFinite(weatherCode) ? weatherDescription(weatherCode) : 'Current conditions'}</p>
+              <p className="mt-1 text-xs text-white/80">
+                {weather?.daily?.temperature_2m_min?.[0] != null && weather?.daily?.temperature_2m_max?.[0] != null
+                  ? `Today ${Math.round(weather.daily.temperature_2m_min[0])}° / ${Math.round(weather.daily.temperature_2m_max[0])}°`
+                  : 'Live weather from Open-Meteo'}
+              </p>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -137,9 +217,9 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {radarFeed?.image_status === 'AVAILABLE' && radarFeed.image_url ? (
-              <a href={radarFeed.image_url} rel="noreferrer" target="_blank" title="Open the public IMD radar image">
-                <img alt="Public IMD radar image; image is not georeferenced for map overlay" className="max-h-[390px] w-full bg-[#F1F5F6] object-contain" loading="lazy" src={radarFeed.image_url} />
+            {radarFeed?.mode !== 'WMS' && radarFeed?.mode !== 'XYZ_TMS_TILES' ? (
+              <a href={radarFeed?.image_url || PUBLIC_IMD_RADAR_IMAGE_URL} rel="noreferrer" target="_blank" title="Open the public IMD radar image">
+                <img alt="Public IMD radar image; image is not georeferenced for map overlay" className="max-h-[390px] min-h-[300px] w-full bg-[#F1F5F6] object-contain" decoding="async" fetchPriority="high" loading="eager" src={radarFeed?.image_url || PUBLIC_IMD_RADAR_IMAGE_URL} />
               </a>
             ) : (
               <div className="flex min-h-[300px] flex-col items-center justify-center gap-2 border border-dashed border-[#C9D5D8] bg-[#F5F8F8] px-6 text-center">

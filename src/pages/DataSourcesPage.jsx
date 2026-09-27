@@ -1,5 +1,6 @@
 import React from 'react';
-import { ArrowUpRight, Database, ExternalLink, Radio, Satellite, ShieldCheck, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, ArrowUpRight, Database, ExternalLink, Radio, Satellite, ShieldCheck, Zap } from 'lucide-react';
 
 const sources = [
   {
@@ -154,6 +155,13 @@ export default function DataSourcesPage() {
         <div className="mt-8 flex items-start gap-3 border-l-4 border-[#0B7084] bg-[#EAF3F4] px-4 py-3 text-sm leading-6 text-[#173943]" role="note">
           <ArrowUpRight aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" />
           <p>VayuGati is a project prototype, not an official government warning service. For emergency decisions, follow alerts issued by authorized IMD, NDMA and State Disaster Management authorities.</p>
+        </div>
+
+        <div className="mt-6">
+          <Link to="/" className="inline-flex items-center gap-2 rounded border border-[#D8DDE0] bg-white px-4 py-2.5 text-sm font-semibold text-[#172A33] hover:bg-[#EEF4F5]">
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            Go back to home screen
+          </Link>
         </div>
       </div>
     </div>

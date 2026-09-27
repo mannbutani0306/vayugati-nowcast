@@ -180,6 +180,22 @@ export async function fetchRadarFeed(options = {}) {
   return apiFetch('/ingestion/radar', options);
 }
 
+export const PUBLIC_IMD_RADAR_IMAGE_URL = 'https://mausam.imd.gov.in/Radar/caz_delhi.gif';
+
+export async function fetchCurrentWeather({ lat, lon, signal }) {
+  const query = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    current: 'temperature_2m,weather_code',
+    daily: 'temperature_2m_max,temperature_2m_min',
+    timezone: 'Asia/Kolkata',
+    forecast_days: '1',
+  });
+  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${query}`, { signal });
+  if (!response.ok) throw new Error(`Current weather request failed (${response.status}).`);
+  return response.json();
+}
+
 export async function fetchLightningFeed(options = {}) {
   return apiFetch('/ingestion/lightning', options);
 }

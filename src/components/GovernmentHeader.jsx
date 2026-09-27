@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAccessibility, SUPPORTED_LANGUAGES } from '../context/AccessibilityContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,8 +9,7 @@ import {
   Database,
   Eye,
   Globe,
-  Sun,
-  Moon,
+  Clock,
   ChevronDown,
   ExternalLink,
   X,
@@ -78,15 +77,27 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const {
     fontScale,
     setFontScale,
-    contrastMode,
-    cycleContrastMode,
     language,
     changeLanguage,
   } = useAccessibility();
 
   const navigate = useNavigate();
+  const [istTime, setIstTime] = useState('');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    const updateClock = () => setIstTime(new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date()));
+    updateClock();
+    const timerId = window.setInterval(updateClock, 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   const handleDashboardRedirect = () => {
     const normalizedRole = String(role || '').toLowerCase().replace(/[- ]/g, '_');
@@ -205,37 +216,6 @@ export default function GovernmentHeader({ onOpenLogin }) {
             </button>
           </div>
 
-          {/* High Contrast Mode Toggle: Default Cream -> Dark -> Yellow/Navy */}
-          <button
-            type="button"
-            onClick={cycleContrastMode}
-            title={`Active Mode: ${contrastMode.toUpperCase()} (Click to Cycle Contrast)`}
-            aria-label={`Cycle High Contrast Mode. Current: ${contrastMode}`}
-            aria-pressed={contrastMode !== 'default'}
-            className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center space-x-1.5 border transition-all cursor-pointer ${
-              contrastMode === 'yellow-navy'
-                ? 'bg-[#001F3F] text-[#FFD700] border-[#FFD700] shadow-2xs font-extrabold'
-                : contrastMode === 'dark'
-                ? 'bg-neutral-900 text-white border-neutral-400 font-bold'
-                : 'bg-[#14233D] text-neutral-300 border-[#1E3A5F] hover:text-white'
-            }`}
-          >
-            {contrastMode === 'yellow-navy' ? (
-              <Sun className="w-3 h-3 text-[#FFD700]" />
-            ) : contrastMode === 'dark' ? (
-              <Moon className="w-3 h-3 text-neutral-200" />
-            ) : (
-              <Eye className="w-3 h-3 text-[#FF9933]" />
-            )}
-            <span>
-              {contrastMode === 'yellow-navy'
-                ? 'Yellow/Navy'
-                : contrastMode === 'dark'
-                ? 'High Dark'
-                : 'Contrast'}
-            </span>
-          </button>
-
           {/* 12 Scheduled Indian Languages Dropdown */}
           <div className="relative">
             <button
@@ -314,6 +294,10 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
           {/* Quick Header Controls: Live Clock, System Status & Official Login */}
           <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 border border-[#1E293B] bg-[#09101F] px-2.5 py-1.5 font-mono text-xs text-white" aria-label={`Current time ${istTime} India Standard Time`}>
+              <Clock aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
+              <time dateTime={new Date().toISOString()}>{istTime || '--:--:--'} IST</time>
+            </div>
             <Link
               to="/data-sources"
               aria-label="Data sources and attribution"
