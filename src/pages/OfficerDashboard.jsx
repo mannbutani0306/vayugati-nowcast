@@ -3,7 +3,7 @@ import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import SHAPExplainabilityCard from '../components/SHAPExplainabilityCard';
 import DataStatusBadge from '../components/DataStatusBadge';
-import { fetchInstabilityIndex } from '../lib/apiClient';
+import { fetchInstabilityIndex, fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
 import {
   generateMotionConePolygon,
   haversineDistance,
@@ -399,6 +399,8 @@ export default function OfficerDashboard() {
     impactTargets: backendCell.impactTargets || [],
   }), []);
 
+  const [isScenarioMode, setIsScenarioMode] = useState(false);
+
   // Selected Radar Station
   const [selectedStation, setSelectedStation] = useState(RADAR_STATIONS[0]);
 
@@ -518,13 +520,41 @@ export default function OfficerDashboard() {
       const [cellResult, alertResult] = await Promise.allSettled([fetchActiveConvectiveCells(), fetchOfficerAlerts()]);
       if (!isMounted) return;
 
+      let databaseCellsLoaded = false;
       if (cellResult.status === 'fulfilled') {
         const databaseCells = cellResult.value.map(mapLiveCellToDashboard);
-        setCells(databaseCells);
-        setSelectedCellId((previous) => databaseCells.some((cell) => cell.cellId === previous) ? previous : databaseCells[0]?.cellId || null);
-      } else {
-        setCells([]);
-        setLiveCellsError(getOperationalDataError(cellResult.reason, 'Unable to load convective cells from Supabase.'));
+        if (databaseCells.length > 0) {
+          databaseCellsLoaded = true;
+          setCells(databaseCells);
+          setIsScenarioMode(false);
+          setSelectedCellId((previous) => databaseCells.some((cell) => cell.cellId === previous) ? previous : databaseCells[0]?.cellId || null);
+          setLiveCellsError('');
+        }
+      }
+
+      if (!databaseCellsLoaded) {
+        try {
+          const scenarioGrid = await fetchLiveFusionGrid();
+          const scenarioCells = normalizeLiveCells(scenarioGrid).map(mapLiveCellToDashboard);
+          if (scenarioCells.length > 0) {
+            setCells(scenarioCells);
+            setIsScenarioMode(scenarioGrid.data_mode === 'DEMO_FIXTURE');
+            setSelectedCellId((previous) => scenarioCells.some((cell) => cell.cellId === previous) ? previous : scenarioCells[0]?.cellId || null);
+            setLiveCellsError('');
+          } else {
+            setCells([]);
+            setIsScenarioMode(false);
+            setLiveCellsError(cellResult.status === 'rejected'
+              ? getOperationalDataError(cellResult.reason, 'No active cells are available from Supabase or the scenario service.')
+              : 'No active cells are available from Supabase or the scenario service.');
+          }
+        } catch (error) {
+          setCells([]);
+          setIsScenarioMode(false);
+          setLiveCellsError(cellResult.status === 'rejected'
+            ? getOperationalDataError(cellResult.reason, error.message || 'No active cells are available from Supabase or the scenario service.')
+            : error.message || 'No active cells are available from Supabase or the scenario service.');
+        }
       }
 
       if (alertResult.status === 'fulfilled' && alertRequest === loadSeq.current) {
@@ -599,7 +629,13 @@ export default function OfficerDashboard() {
       subHandle = subscribeToLiveCells((event) => {
         if (event.cell) {
           fetchActiveConvectiveCells()
-            .then((rows) => setCells(rows.map(mapLiveCellToDashboard)))
+            .then((rows) => {
+              const databaseCells = rows.map(mapLiveCellToDashboard);
+              if (databaseCells.length > 0) {
+                setCells(databaseCells);
+                setIsScenarioMode(false);
+              }
+            })
             .catch((error) => setLiveCellsError(getOperationalDataError(error, 'Unable to refresh convective cells.')));
           setLastSweepTime(event.cell.updated_at || 'Database update received');
           setSweepSweepCount((count) => count + 1);
@@ -1337,6 +1373,12 @@ export default function OfficerDashboard() {
       {missingRpcSchema && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900" role="status" aria-label="Supabase database setup required">
           {RPC_SCHEMA_ERROR} Live cell and alert data remain unavailable until Supabase confirms the functions are installed.
+        </div>
+      )}
+
+      {isScenarioMode && (
+        <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900" role="status">
+          Scenario preview only: cell locations and radar values are illustrative, not live observations or approved warnings. Selected-cell NWP guidance is fetched separately.
         </div>
       )}
 

@@ -20,6 +20,19 @@
 2. Run the app:
    `npm run dev`
 
+## Run the Nowcast API
+
+The officer console prefers active cells from Supabase. If none are available, it can display the backend's clearly labeled `DEMO_FIXTURE` scenarios while fetching live NWP guidance for the selected location. These scenario cells are illustrative and are not radar observations or approved warnings.
+
+Install the backend requirements and start the API in a separate terminal:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn backend.nowcast_engine:app --host 0.0.0.0 --port 8000
+```
+
+The frontend defaults to `http://localhost:8000/api/v1`. For a hosted deployment, set `VITE_NOWCAST_API_URL` to the HTTPS URL of a deployed API service and configure its CORS policy for the site origin.
+
 ## Supabase Deployment
 
 The officer and citizen portals rely on the database functions defined in `supabase/migrations`. If the citizen portal reports a missing alert RPC, run `20260929_restore_citizen_alert_rpc.sql` in the same Supabase project's SQL Editor. It restores the callable RPC and reloads the PostgREST schema cache. Confirm that `20260926_schema.sql` and `20260927_cap_alert_lifecycle.sql` have already been applied; do not rerun the base schema migration if it has.

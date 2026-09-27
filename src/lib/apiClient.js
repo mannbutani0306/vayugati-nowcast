@@ -80,6 +80,7 @@ export function normalizeLiveCellFeature(feature) {
 
   return {
     dataMode: props.data_mode || 'UNKNOWN',
+    trackGeometry: feature?.geometry || null,
     cellId: props.cell_uid || feature?.id || `CELL-${Math.random().toString(36).slice(2, 8)}`,
     cellName: props.name || 'Live Convective Cell',
     hazardType: props.feature_type || 'CONVECTIVE CELL',
