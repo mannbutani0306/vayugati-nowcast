@@ -258,12 +258,12 @@ function MainLayout() {
   const location = useLocation();
 
   const handleOpenLogin = () => {
-    if (location.pathname === '/') {
-      document.getElementById('portal-login')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
     setIsLoginModalOpen(true);
   };
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // Global Severe Alert Toast Notification State
   const [activeToast, setActiveToast] = useState(null);

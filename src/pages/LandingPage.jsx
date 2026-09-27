@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import DataDisclaimerModal from '../components/DataDisclaimerModal';
 import LoginModal from '../components/LoginModal';
-import { fetchCurrentWeather, fetchRadarFeed, PUBLIC_IMD_RADAR_IMAGE_URL } from '../lib/apiClient';
+import { fetchCurrentPlace, fetchCurrentWeather, fetchRadarFeed, PUBLIC_IMD_RADAR_IMAGE_URL } from '../lib/apiClient';
 import {
   Cloud,
   CloudRain,
   Radio,
   Info,
   MapPin,
+  LocateFixed,
   Sun,
 } from 'lucide-react';
 
@@ -32,6 +33,9 @@ function WeatherIcon({ code }) {
 export default function LandingPage() {
   const [radarFeed, setRadarFeed] = useState(null);
   const [weather, setWeather] = useState(null);
+  const [locationName, setLocationName] = useState('Finding your location...');
+  const [locationStatus, setLocationStatus] = useState('locating');
+  const [locationRequestVersion, setLocationRequestVersion] = useState(0);
   const [istNow, setIstNow] = useState(() => new Date());
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
 
@@ -57,14 +61,40 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchCurrentWeather({ lat: 30.3165, lon: 78.0322, signal: controller.signal })
-      .then(setWeather)
-      .catch((error) => {
-        if (!controller.signal.aborted) console.warn('Current weather unavailable:', error);
-      });
-    return () => controller.abort();
-  }, []);
+    let active = true;
+    if (!navigator.geolocation) {
+      setLocationStatus('unavailable');
+      setLocationName('Location unavailable');
+      return () => { active = false; };
+    }
+
+    setLocationStatus('locating');
+    setLocationName('Finding your location...');
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      if (!active) return;
+      const controller = new AbortController();
+      try {
+        const [weatherResult, placeResult] = await Promise.allSettled([
+          fetchCurrentWeather({ lat: coords.latitude, lon: coords.longitude, signal: controller.signal }),
+          fetchCurrentPlace({ lat: coords.latitude, lon: coords.longitude, signal: controller.signal }),
+        ]);
+        if (!active) return;
+        if (weatherResult.status === 'fulfilled') setWeather(weatherResult.value);
+        else console.warn('Current local weather unavailable:', weatherResult.reason);
+        if (placeResult.status === 'fulfilled') setLocationName(placeResult.value);
+        else setLocationName('Your location');
+        setLocationStatus('located');
+      } finally {
+        controller.abort();
+      }
+    }, () => {
+      if (!active) return;
+      setLocationStatus('unavailable');
+      setLocationName('Location unavailable');
+    }, { enableHighAccuracy: false, maximumAge: 60000, timeout: 12000 });
+
+    return () => { active = false; };
+  }, [locationRequestVersion]);
 
   useEffect(() => {
     const timerId = window.setInterval(() => setIstNow(new Date()), 1000);
@@ -163,14 +193,23 @@ export default function LandingPage() {
           </div>
           </div>
 
-          <aside className="relative min-h-[290px] overflow-hidden rounded-xl border border-white/70 bg-gradient-to-b from-sky-400 via-cyan-300 to-sky-600 p-5 text-white shadow-lg sm:min-h-[330px]" aria-label="Current weather in Dehradun">
+          <aside className="relative min-h-[290px] overflow-hidden rounded-xl border border-white/70 bg-gradient-to-b from-sky-400 via-cyan-300 to-sky-600 p-5 text-white shadow-lg sm:min-h-[330px]" aria-label={`Current weather in ${locationName}`}>
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-sky-950/35" aria-hidden="true" />
             <div className="relative flex h-full min-h-[250px] flex-col items-center justify-center text-center sm:min-h-[290px]">
               <div className="absolute left-0 top-0 flex flex-col items-start text-left text-sm font-medium leading-tight text-white/90">
                 <time dateTime={istNow.toISOString()}>{istTime}</time>
                 <span>{istDate}</span>
               </div>
-              <span className="absolute right-0 top-0 text-sm font-semibold text-white/90">Dehradun</span>
+              <button
+                type="button"
+                onClick={() => setLocationRequestVersion((version) => version + 1)}
+                title="Use your current location"
+                aria-label="Retry current location"
+                className="absolute right-0 top-0 inline-flex max-w-[45%] items-center gap-1 truncate text-right text-sm font-semibold text-white/95 hover:text-white"
+              >
+                {locationStatus === 'locating' && <LocateFixed aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-pulse" />}
+                <span className="truncate">{locationName}</span>
+              </button>
               <WeatherIcon code={weatherCode} />
               <div className="mt-2 text-6xl font-light leading-none tabular-nums sm:text-7xl">
                 {Number.isFinite(currentWeather?.temperature_2m) ? `${Math.round(currentWeather.temperature_2m)}°` : '--°'}
@@ -179,7 +218,7 @@ export default function LandingPage() {
               <p className="mt-1 text-xs text-white/80">
                 {weather?.daily?.temperature_2m_min?.[0] != null && weather?.daily?.temperature_2m_max?.[0] != null
                   ? `Today ${Math.round(weather.daily.temperature_2m_min[0])}° / ${Math.round(weather.daily.temperature_2m_max[0])}°`
-                  : 'Live weather from Open-Meteo'}
+                  : locationStatus === 'locating' ? 'Finding local weather...' : locationStatus === 'unavailable' ? 'Allow location access to view local weather.' : 'Live weather from Open-Meteo'}
               </p>
             </div>
           </aside>

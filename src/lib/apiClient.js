@@ -206,6 +206,18 @@ export async function fetchCurrentWeather({ lat, lon, signal }) {
   return response.json();
 }
 
+export async function fetchCurrentPlace({ lat, lon, signal }) {
+  const query = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    localityLanguage: 'en',
+  });
+  const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?${query}`, { signal });
+  if (!response.ok) throw new Error(`Location lookup failed (${response.status}).`);
+  const place = await response.json();
+  return place.locality || place.city || place.principalSubdivision || 'Your location';
+}
+
 export async function fetchLightningFeed(options = {}) {
   return apiFetch('/ingestion/lightning', options);
 }

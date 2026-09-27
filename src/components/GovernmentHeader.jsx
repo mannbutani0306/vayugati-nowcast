@@ -10,7 +10,6 @@ import {
   LogOut,
   LogIn,
   Database,
-  Eye,
   Globe,
   Clock,
   ChevronDown,
@@ -54,6 +53,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const [lastViewedAt, setLastViewedAt] = useState(() => localStorage.getItem(NOTIFICATIONS_VIEWED_KEY) || '');
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem(NOTIFICATION_SOUND_KEY) !== 'false');
   const audioContextRef = useRef(null);
+  const notificationMenuRef = useRef(null);
   const seenNotificationIds = useRef(null);
   if (!seenNotificationIds.current) {
     seenNotificationIds.current = new Set(notifications.map((item) => item.id));
@@ -67,6 +67,22 @@ export default function GovernmentHeader({ onOpenLogin }) {
   useEffect(() => {
     localStorage.setItem(NOTIFICATION_SOUND_KEY, String(soundEnabled));
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!isNotificationMenuOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!notificationMenuRef.current?.contains(event.target)) setIsNotificationMenuOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsNotificationMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isNotificationMenuOpen]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return undefined;
@@ -199,18 +215,6 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
         {/* GIGW Accessibility Bar (Top Right) */}
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          {/* Screen Reader Quick Anchor */}
-          <a
-            href="#main-content"
-            title="Screen Reader Access (GIGW 3.0)"
-            className="hidden lg:flex items-center space-x-1 text-neutral-400 hover:text-white transition-colors"
-          >
-            <Eye className="w-3.5 h-3.5 text-[#FF9933]" />
-            <span className="text-[10px]">Screen Reader</span>
-          </a>
-
-          <div className="h-3 w-px bg-neutral-700 hidden lg:block"></div>
-
           {/* Font Size Adjuster Controls: A-, A, A+ */}
           <div
             className="flex items-center space-x-0.5 bg-[#14233D] rounded px-1.5 py-0.5 border border-[#1E3A5F]"
@@ -330,9 +334,10 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   <span>|</span>
                   <span>Ministry of Earth Sciences (MoES)</span>
                 </div>
-                <div className="text-sm md:text-base font-bold tracking-tight text-white">
+                <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
                   VayuGati Nowcast
                 </div>
+                <span aria-hidden="true" className="mt-1 block h-1 w-16 bg-gradient-to-r from-[#FF9933] via-white to-[#138808]" />
               </div>
             </Link>
           </div>
@@ -352,7 +357,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
               <span>Data sources</span>
             </Link>
 
-            <div className="relative">
+            <div className="relative" ref={notificationMenuRef}>
               <button
                 type="button"
                 onClick={handleNotificationToggle}

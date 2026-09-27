@@ -41,7 +41,7 @@ const DEMO_PRESETS = {
 };
 
 export default function LoginModal({ isOpen, onClose, embedded = false }) {
-  const { login, isConfigured } = useAuth();
+  const { login, logout, isConfigured } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('citizen');
@@ -62,6 +62,16 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
     setPassword(DEMO_PRESETS[roleKey].password);
     setErrorMessage('');
     setSuccessMessage('');
+  };
+
+  const handleRoleSelect = (roleKey) => {
+    setActiveTab(roleKey);
+    if (!isConfigured) {
+      handleAutoFill(roleKey);
+    } else {
+      setErrorMessage('');
+      setSuccessMessage('');
+    }
   };
 
   /**
@@ -85,6 +95,12 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
       const roleValue = res?.profile?.role || 'citizen';
       const resolvedRole = String(roleValue).trim().toLowerCase().replace(/[- ]/g, '_');
       const presetRole = resolvedRole === 'duty_officer' ? 'officer' : resolvedRole;
+      if (isConfigured && presetRole !== activeTab) {
+        await logout();
+        setErrorMessage(`This account has ${DEMO_PRESETS[presetRole]?.roleName || 'citizen'} access. Select the matching role and sign in with that account.`);
+        setIsSubmitting(false);
+        return;
+      }
       const targetRoute = DEMO_PRESETS[presetRole]?.route || '/citizen';
 
       setSuccessMessage(`Authentication confirmed. Transferring to ${DEMO_PRESETS[presetRole]?.roleName || 'Portal'}...`);
@@ -92,6 +108,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
       setTimeout(() => {
         setIsSubmitting(false);
         onClose?.();
+        window.scrollTo(0, 0);
         navigate(targetRoute);
       }, 500);
     } catch (err) {
@@ -103,7 +120,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   if (!embedded && !isOpen) return null;
 
   return (
-    <div id={embedded ? 'portal-login' : undefined} className={embedded ? 'w-full' : 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200'}>
+    <div id={embedded ? 'portal-login' : undefined} className={embedded ? 'w-full' : 'fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 pt-8 sm:pt-10 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200'}>
       <div className={`relative w-full ${embedded ? '' : 'max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto'} bg-[#FFFFFF] rounded-xl border border-[#E5E0D8] shadow-2xl`}>
         {!embedded && <div className="h-1.5 w-full grid grid-cols-3">
           <div className="bg-[#FF9933]"></div>
@@ -132,7 +149,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
             </button>}
           </div>
 
-          {!isConfigured && <div className="mt-4">
+          <div className="mt-4">
             <label className="block text-xs font-semibold text-[#1A1D20] mb-1.5">Role</label>
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#FAF7F2] rounded-lg border border-[#E5E0D8]">
               {(['citizen', 'officer', 'admin']).map((r) => {
@@ -141,7 +158,8 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                   <button
                     key={r}
                     type="button"
-                    onClick={() => handleAutoFill(r)}
+                    onClick={() => handleRoleSelect(r)}
+                    aria-pressed={isActive}
                     className={`py-1.5 px-2 rounded text-xs font-medium transition-all ${
                       isActive
                         ? 'bg-white text-[#1A1D20] shadow-xs font-bold border border-[#E5E0D8]'
@@ -153,7 +171,8 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-          </div>}
+            {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Select the role assigned to this account. Access is verified after sign-in.</p>}
+          </div>
 
           {/* Standard Form Submission */}
           <form onSubmit={handleSubmit} className="mt-4 space-y-3">
