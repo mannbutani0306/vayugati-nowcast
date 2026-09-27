@@ -1128,6 +1128,7 @@ export default function CitizenPortal() {
           {/* Interactive or Low-Bandwidth Leaflet GIS Canvas */}
           <CitizenRadarMap
             userLocation={currentCoords}
+            lang={lang}
             isGpsActive={isGpsActive}
             gpsAccuracy={gpsAccuracy}
             isLowBandwidth={isLowBandwidthMode}
@@ -1265,7 +1266,7 @@ export default function CitizenPortal() {
  * REQUIREMENT 3: Lightweight, Mobile-Optimized Leaflet Weather Radar Map
  * Renders user position, storm core (dBZ contours), trajectory cone, and safe shelter pins.
  */
-function CitizenRadarMap({ userLocation, isGpsActive, gpsAccuracy, isLowBandwidth, t, isInsideCone, alerts, activePersona, activeAlert }) {
+function CitizenRadarMap({ userLocation, lang, isGpsActive, gpsAccuracy, isLowBandwidth, t, isInsideCone, alerts, activePersona, activeAlert }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layersGroupRef = useRef(null);
