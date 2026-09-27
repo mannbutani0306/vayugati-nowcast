@@ -27,6 +27,34 @@ body {
   padding: 0;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+}
+
+#root,
+#main-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+main * {
+  min-width: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+label,
+button,
+a {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .leaflet-control-attribution {
+    font-size: 9px;
+  }
 }
 
 html.contrast-dark {

@@ -159,9 +159,9 @@ export default function GovernmentHeader({ onOpenLogin }) {
       ></div>
 
       {/* 3. NATIONAL IDENTITY STRIP & GIGW ACCESSIBILITY TOOLBAR */}
-      <div className="bg-[#0B1528] text-neutral-300 text-[11px] px-4 lg:px-8 py-1.5 border-b border-[#1A2942] flex flex-wrap items-center justify-between gap-2.5">
+      <div className="bg-[#0B1528] text-neutral-300 text-[11px] px-4 lg:px-8 py-1.5 border-b border-[#1A2942] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         {/* National Identity Credentials */}
-        <div className="flex items-center space-x-2 font-medium">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
           <span className="text-[#FF9933] font-bold">भारत सरकार</span>
           <span className="text-neutral-500">|</span>
           <span className="text-white font-semibold">Government of India</span>
@@ -176,7 +176,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
         </div>
 
         {/* GIGW Accessibility Bar (Top Right) */}
-        <div className="flex items-center space-x-2.5">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {/* Screen Reader Quick Anchor */}
           <a
             href="#main-content"
@@ -322,20 +322,20 @@ export default function GovernmentHeader({ onOpenLogin }) {
       <div className="bg-[#0F172A] text-[#FAF7F2] border-b border-[#1E293B] px-4 lg:px-8 py-3">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           {/* Official Emblem & Branding */}
-          <div className="flex items-center space-x-3.5">
-            <Link to="/" className="flex items-center space-x-3 group">
+          <div className="flex min-w-0 items-center space-x-3.5">
+            <Link to="/" className="flex min-w-0 items-center space-x-3 group">
               {/* National Emblem of India Stylized Crest */}
               <div className="w-12 h-14 rounded-lg bg-[#FAF7F2] p-1 flex items-center justify-center text-[#0F172A] shadow-md border border-[#E5E0D8] group-hover:scale-102 transition-transform">
                 <NationalEmblemSVG className="w-8 h-12 text-[#0F172A]" />
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] tracking-wider uppercase font-semibold text-neutral-300 flex flex-wrap items-center gap-1.5">
                   <span className="text-[#FF9933] font-bold">भारत सरकार</span>
                   <span>|</span>
                   <span>Ministry of Earth Sciences (MoES)</span>
                 </div>
-                <div className="text-sm md:text-base font-bold tracking-tight text-white flex items-center gap-2">
+                <div className="text-sm md:text-base font-bold tracking-tight text-white flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span>India Meteorological Department (IMD)</span>
                   <span className="hidden sm:inline text-neutral-400 font-normal">•</span>
                   <span className="hidden sm:inline text-xs text-neutral-300 font-semibold">

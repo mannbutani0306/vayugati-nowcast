@@ -87,10 +87,12 @@ export default function LoginModal({ isOpen, onClose }) {
       }
 
       // Determine user role and route
-      const resolvedRole = res?.profile?.role || (email.includes('admin') ? 'admin' : email.includes('officer') ? 'officer' : 'citizen');
-      const targetRoute = DEMO_PRESETS[resolvedRole]?.route || '/citizen';
+      const roleValue = res?.profile?.role || (email.includes('admin') ? 'admin' : email.includes('officer') ? 'officer' : 'citizen');
+      const resolvedRole = String(roleValue).trim().toLowerCase().replace(/[- ]/g, '_');
+      const presetRole = resolvedRole === 'duty_officer' ? 'officer' : resolvedRole;
+      const targetRoute = DEMO_PRESETS[presetRole]?.route || '/citizen';
 
-      setSuccessMessage(`Authentication confirmed. Transferring to ${DEMO_PRESETS[resolvedRole]?.roleName || 'Portal'}...`);
+      setSuccessMessage(`Authentication confirmed. Transferring to ${DEMO_PRESETS[presetRole]?.roleName || 'Portal'}...`);
 
       setTimeout(() => {
         setIsSubmitting(false);
@@ -130,7 +132,7 @@ export default function LoginModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#FFFFFF] rounded-xl border border-[#E5E0D8] shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto bg-[#FFFFFF] rounded-xl border border-[#E5E0D8] shadow-2xl">
         {/* Modal Top Header with Tricolour accent */}
         <div className="h-1.5 w-full grid grid-cols-3">
           <div className="bg-[#FF9933]"></div>
@@ -172,7 +174,7 @@ export default function LoginModal({ isOpen, onClose }) {
               <span className="text-[10px] text-[#6C7278]">Secure role selection</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => handleInstantDemoLogin('citizen')}

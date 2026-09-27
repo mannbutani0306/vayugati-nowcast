@@ -95,33 +95,24 @@ export default function LandingPage({ onOpenLogin }) {
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col antialiased">
       {/* 1. HERO SECTION */}
-      <section className="bg-[#FFFFFF] border-b border-[#E5E0D8] px-4 lg:px-8 py-10 lg:py-16">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <section className="bg-[#FFFFFF] border-b border-[#E5E0D8] px-4 lg:px-8 py-8 lg:py-12">
+        <div className="max-w-7xl mx-auto space-y-5">
           {/* Top Badge & Mission Indicator */}
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="bg-[#FAF7F2] border border-[#E5E0D8] text-[#1A1D20] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-[#1E3A8A]"></span>
               Ministry of Earth Sciences - IMD
             </span>
-            <span className="bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-              National Severe Weather Early Warning System
-            </span>
-            <span className="bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A] px-3 py-1 rounded-full text-xs font-semibold">
-              0–6 Hour Lead Time
-            </span>
           </div>
 
           {/* Main Headline */}
           <div className="max-w-3xl space-y-3">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1A1D20] leading-tight">
-              Convective-Scale Nowcasting for{' '}
-              <span className="text-[#D9532F]">Thunderstorms, Hail</span> &amp; Cloudbursts
+              Severe weather,{' '}
+              <span className="text-[#D9532F]">seen sooner.</span>
             </h1>
             <p className="text-base sm:text-lg text-[#6C7278] leading-relaxed">
-              India’s next-generation meteorological early-warning engine. Multi-sensor fusion
-              integrating dual-polarization Doppler radar, INSAT-3DR rapid-scan infrared imagery,
-              total lightning flash rates, and convective numerical weather prediction.
+              Convective-scale nowcasts combine Doppler radar, INSAT imagery, lightning observations, and numerical weather guidance to support 0–6 hour warnings.
             </p>
           </div>
 
@@ -140,33 +131,26 @@ export default function LandingPage({ onOpenLogin }) {
             >
               View Public Safety Advisories
             </a>
-            <a
-              href="#live-radar"
-              className="text-xs font-bold text-[#6C7278] hover:text-[#1A1D20] px-3 py-2 flex items-center gap-1"
-            >
-              <span>Inspect Live Radar Feed</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </a>
           </div>
 
           {/* Real-Time Monitoring Stations Ticker */}
-          <div className="pt-4 border-t border-[#E5E0D8] grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
+          <div className="pt-4 border-t border-[#E5E0D8] grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-xs">
+            <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Radar Composite</span>
               <span className="font-bold text-[#1A1D20] block">IMD DWR</span>
               <span className="text-[10px] text-[#6C7278] font-semibold">{radarFeed?.status || 'CONNECTING'}{radarFeed?.image_status ? ` • public image ${radarFeed.image_status.toLowerCase()}` : ''}</span>
             </div>
-            <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
+            <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Satellite Link</span>
               <span className="font-bold text-[#1A1D20] block">MOSDAC INSAT TIR1</span>
               <span className="text-[10px] text-[#6C7278] font-semibold">{satelliteFeed?.status || 'CONNECTING'}</span>
             </div>
-            <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
+            <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Lightning Proxy</span>
               <span className="font-bold text-[#1A1D20] block">Blitzortung</span>
               <span className="text-[10px] text-[#6C7278] font-semibold">{lightningFeed?.metadata?.status || 'CONNECTING'}{lightningFeed?.features ? ` • ${lightningFeed.features.length} points` : ''}</span>
             </div>
-            <div className="p-3 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
+            <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold text-[#6C7278] block">NWP Model Grid</span>
               <span className="font-bold text-[#1A1D20] block">Open-Meteo GFS / ICON</span>
               <span className="text-[10px] text-[#6C7278] font-semibold">{nwpData?.metadata?.mode || 'OFFLINE'}</span>
@@ -401,7 +385,11 @@ export default function LandingPage({ onOpenLogin }) {
         </div>
 
         {/* Role Portal Dispatch Card */}
-        <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-6 lg:p-8 space-y-6">
+        <details className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#1A1D20]">
+            Portal access options
+          </summary>
+          <div className="px-4 pb-4 lg:px-8 lg:pb-8 space-y-6">
           <div className="text-center max-w-xl mx-auto space-y-2">
             <h3 className="text-xl font-bold text-[#1A1D20]">
               Authorized Access to VayuGati Nowcast Command
@@ -470,7 +458,8 @@ export default function LandingPage({ onOpenLogin }) {
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </details>
       </section>
 
       {/* 5. FOOTER */}

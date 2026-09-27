@@ -44,6 +44,21 @@ import {
   Layers,
   ArrowRight,
   Sparkles,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Globe,
+  Volume2,
+  CheckCircle2,
+  Users,
+  Briefcase,
+  Car,
+  GraduationCap,
+  Clock,
+  Bell,
+  Navigation,
+  PhoneCall,
+  VolumeX,
 } from 'lucide-react';
 
 // Comprehensive 3-Language Localization Dictionary (English, Hindi, Marathi)
@@ -1267,14 +1282,14 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts
         center: [userLocation.lat, userLocation.lon],
         zoom: 12,
         zoomControl: false,
-        attributionControl: false,
+        attributionControl: true,
         scrollWheelZoom: false,
       });
 
       // Lightweight clean basemap
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 16,
-        subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
 
       mapInstanceRef.current = map;

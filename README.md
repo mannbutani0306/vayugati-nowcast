@@ -20,6 +20,10 @@
 2. Run the app:
    `npm run dev`
 
+## Supabase Deployment
+
+The officer and citizen portals rely on the database functions defined in `supabase/migrations`. If the dashboard reports a missing RPC function, confirm that `20260926_schema.sql` and `20260927_cap_alert_lifecycle.sql` have been applied to the same Supabase project. Then run `20260928_reload_postgrest_schema.sql` in that project's SQL Editor to refresh the PostgREST schema cache. Do not rerun the base schema migration if it has already been applied.
+
 ## Optional Observation Feeds
 
 The FastAPI service exposes `/api/v1/ingestion/satellite`, `/api/v1/ingestion/radar`, and `/api/v1/ingestion/lightning`. Public IMD satellite imagery and station radar images are not automatically georeferenced map layers. Configure only products your deployment is authorized to access; missing configuration is reported as unavailable.

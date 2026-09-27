@@ -860,12 +860,12 @@ function PrepositioningMap({ assets }) {
         center: [30.33, 78.14],
         zoom: 11,
         zoomControl: false,
-        attributionControl: false,
+        attributionControl: true,
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18,
-        subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
 
       // Severe Cloudburst Hazard Bounding Zone

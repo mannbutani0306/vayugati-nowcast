@@ -62,6 +62,13 @@ import {
   ChevronDown,
 } from 'lucide-react';
 
+const RPC_SCHEMA_ERROR = 'Database setup required: apply the Supabase migrations, then reload the API schema cache.';
+
+function getOperationalDataError(error, fallback) {
+  if (error?.code === 'PGRST202') return RPC_SCHEMA_ERROR;
+  return error?.message || fallback;
+}
+
 // Radar Station Profiles across vulnerable Indian orographic & coastal zones
 const RADAR_STATIONS = [
   {
@@ -446,7 +453,7 @@ export default function OfficerDashboard() {
   const [rejectingAlert, setRejectingAlert] = useState(null);
   const [rejectionRationale, setRejectionRationale] = useState('');
   const [rejectionError, setRejectionError] = useState('');
-  const [pendingId, setPendingAlertActionId] = useState(null);
+  const [pendingAlertActionId, setPendingAlertActionId] = useState(null);
 
   // Emergency Siren Broadcast Banner
   const [broadcastBanner, setBroadcastBanner] = useState(null);
@@ -514,7 +521,7 @@ export default function OfficerDashboard() {
         setSelectedCellId((previous) => databaseCells.some((cell) => cell.cellId === previous) ? previous : databaseCells[0]?.cellId || null);
       } else {
         setCells([]);
-        setLiveCellsError(cellResult.reason?.message || 'Unable to load convective cells from Supabase.');
+        setLiveCellsError(getOperationalDataError(cellResult.reason, 'Unable to load convective cells from Supabase.'));
       }
 
       if (alertResult.status === 'fulfilled' && alertRequest === loadSeq.current) {
@@ -522,7 +529,7 @@ export default function OfficerDashboard() {
         setDatabaseError('');
       } else if (alertResult.status === 'rejected' && alertRequest === loadSeq.current) {
         setAlerts([]);
-        setDatabaseError(alertResult.reason?.message || 'Unable to load alerts from Supabase.');
+        setDatabaseError(getOperationalDataError(alertResult.reason, 'Unable to load alerts from Supabase.'));
       }
       setLiveCellsLoading(false);
     };
@@ -544,7 +551,7 @@ export default function OfficerDashboard() {
         fetchOfficerAlerts()
           .then((rows) => { if (mounted && alertRequest === loadSeq.current) setAlerts(rows); })
           .catch((error) => {
-            if (mounted && alertRequest === loadSeq.current) setDatabaseError(error.message || 'Unable to refresh CAP alerts.');
+            if (mounted && alertRequest === loadSeq.current) setDatabaseError(getOperationalDataError(error, 'Unable to refresh CAP alerts.'));
           });
       });
     } catch (error) {
@@ -590,7 +597,7 @@ export default function OfficerDashboard() {
         if (event.cell) {
           fetchActiveConvectiveCells()
             .then((rows) => setCells(rows.map(mapLiveCellToDashboard)))
-            .catch((error) => setLiveCellsError(error.message));
+            .catch((error) => setLiveCellsError(getOperationalDataError(error, 'Unable to refresh convective cells.')));
           setLastSweepTime(event.cell.updated_at || 'Database update received');
           setSweepSweepCount((count) => count + 1);
         }
@@ -629,11 +636,10 @@ export default function OfficerDashboard() {
     // Add custom styled zoom control in top-right
     L.control.zoom({ position: 'topright' }).addTo(map);
 
-    // High clarity CartoDB Positron base tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    // Public OpenStreetMap tiles do not require an application API key.
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a> | IMD VayuGati',
-      subdomains: 'abcd',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(map);
 
@@ -1043,7 +1049,7 @@ export default function OfficerDashboard() {
   };
 
   const handleApproveAlert = async (alert) => {
-    if (!['DRAFT', 'UNDER_REVIEW'].includes(alert.status) || pendingId) return;
+    if (!['DRAFT', 'UNDER_REVIEW'].includes(alert.status) || pendingAlertActionId) return;
     setPendingAlertActionId(alert.id);
     try {
       let reviewRecord = alert;
@@ -1091,7 +1097,7 @@ export default function OfficerDashboard() {
       return;
     }
 
-    if (pendingId) return;
+    if (pendingAlertActionId) return;
     setPendingAlertActionId(rejectingAlert.id);
     try {
       if (rejectingAlert.status === 'DRAFT') {
@@ -1194,6 +1200,7 @@ export default function OfficerDashboard() {
     if (queueFilter === 'APPROVED') return alert.status === 'APPROVED';
     return true;
   });
+  const missingRpcSchema = liveCellsError === RPC_SCHEMA_ERROR || databaseError === RPC_SCHEMA_ERROR;
 
   return (
     <div className="w-full bg-[#FAF7F2] min-h-[calc(100vh-70px)] text-[#1A1D20] flex flex-col antialiased">
@@ -1310,13 +1317,19 @@ export default function OfficerDashboard() {
         </div>
       )}
 
-      {liveCellsError && (
+      {missingRpcSchema && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900" role="status" aria-label="Supabase database setup required">
+          {RPC_SCHEMA_ERROR} Live cell and alert data remain unavailable until Supabase confirms the functions are installed.
+        </div>
+      )}
+
+      {liveCellsError && !missingRpcSchema && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert" aria-label="Live cell data unavailable">
           Offline Database: {liveCellsError} No live cell data is available.
         </div>
       )}
 
-      {databaseError && (
+      {databaseError && !missingRpcSchema && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert" aria-label="Database operation error">
           Offline Database: {databaseError} Alert changes are not shown as saved unless Supabase confirms them.
         </div>
@@ -1349,11 +1362,11 @@ export default function OfficerDashboard() {
       {/* ------------------------------------------------------------- */}
       {/* 3. MAIN SPLIT COMMAND CENTER: GIS CANVAS + REVIEW QUEUE */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 relative overflow-hidden">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 relative">
         {/* ========================================================= */}
         {/* LEFT / CENTER: INTERACTIVE LEAFLET GIS CANVAS (7 or 8 COLS) */}
         {/* ========================================================= */}
-        <div className="lg:col-span-8 flex flex-col relative h-[560px] lg:h-auto min-h-[500px]">
+        <div className="lg:col-span-8 min-w-0 flex flex-col relative h-[min(70vh,560px)] min-h-[420px] lg:h-auto lg:min-h-[500px]">
           {/* Map Leaflet Container DOM */}
           <div ref={mapContainerRef} className="w-full h-full z-0 bg-[#E2DDD5]" />
 
@@ -1562,7 +1575,7 @@ export default function OfficerDashboard() {
         {/* ========================================================= */}
         {/* RIGHT: ALERT REVIEW QUEUE SIDE-PANEL (4 COLS) */}
         {/* ========================================================= */}
-        <div className="lg:col-span-4 bg-[#FFFFFF] border-t lg:border-t-0 lg:border-l border-[#E5E0D8] flex flex-col h-full max-h-[85vh] lg:max-h-[calc(100vh-115px)] overflow-hidden">
+        <div className="lg:col-span-4 min-w-0 bg-[#FFFFFF] border-t lg:border-t-0 lg:border-l border-[#E5E0D8] flex flex-col min-h-[28rem] lg:h-full lg:max-h-[calc(100vh-115px)] overflow-hidden">
           {/* Panel Header */}
           <div className="p-4 border-b border-[#E5E0D8] bg-[#FAF7F2] space-y-2.5">
             <div className="flex items-center justify-between">
@@ -1728,11 +1741,11 @@ export default function OfficerDashboard() {
                         <button
                           type="button"
                           onClick={() => handleApproveAlert(alert)}
-                          disabled={pendingId === alert.id}
+                          disabled={pendingAlertActionId === alert.id}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" />
-                          <span>{pendingId === alert.id ? 'Processing…' : 'Approve &amp; Broadcast'}</span>
+                          <span>{pendingAlertActionId === alert.id ? 'Processing…' : 'Approve &amp; Broadcast'}</span>
                         </button>
                       )}
 
@@ -1741,7 +1754,7 @@ export default function OfficerDashboard() {
                         <button
                           type="button"
                           onClick={() => handleStartRejectAlert(alert)}
-                          disabled={pendingId === alert.id}
+                          disabled={pendingAlertActionId === alert.id}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-red-50 text-red-600 border border-red-200 flex items-center justify-center space-x-1 transition-colors cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
