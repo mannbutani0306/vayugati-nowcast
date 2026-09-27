@@ -80,6 +80,7 @@ export function normalizeLiveCellFeature(feature) {
 
   return {
     dataMode: props.data_mode || 'UNKNOWN',
+    lifecycleState: props.lifecycle_state || null,
     trackGeometry: feature?.geometry || null,
     cellId: props.cell_uid || feature?.id || `CELL-${Math.random().toString(36).slice(2, 8)}`,
     cellName: props.name || 'Live Convective Cell',
@@ -181,6 +182,10 @@ export async function fetchHazardHeads({ lat, lon, ...params }, options = {}) {
 
 export async function fetchVerificationResults(options = {}) {
   return apiFetch('/verification', options);
+}
+
+export async function fetchSeverityExplanation(payload, options = {}) {
+  return apiFetch('/explain-severity', { method: 'POST', body: JSON.stringify(payload), ...options });
 }
 
 export async function fetchHealthStatus() {

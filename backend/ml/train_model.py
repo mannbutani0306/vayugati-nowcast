@@ -65,6 +65,9 @@ def generate_synthetic_training_events(count: int = 800, seed: int = 26084) -> l
     Samples vary by broad Indian season/region regimes and are not observations;
     they expand coverage while the 20 curated catalogue rows remain a separate
     textbook sanity-check set in ``EventCatalogueBuilder``.
+    The labels come from a documented heuristic formula, not independent
+    observations; this widens demo decision-boundary coverage but is not real
+    training data. Replacing it with IMD DWR/IMDAA labels is the top roadmap item.
     """
     rng = np.random.default_rng(seed)
     regions = ["INDO_GANGETIC", "WEST_COAST", "DECCAN", "HIMALAYA", "BAY_OF_BENGAL"]
@@ -85,7 +88,8 @@ def generate_synthetic_training_events(count: int = 800, seed: int = 26084) -> l
 
 
 def build_training_frame() -> pd.DataFrame:
-    catalogue = EventCatalogueBuilder.build_catalogue() + generate_synthetic_training_events()
+    """Return the clearly labeled synthetic augmentation training frame."""
+    catalogue = generate_synthetic_training_events()
     df = pd.DataFrame(catalogue)
     df = df[FEATURE_COLUMNS + ["severity"]].copy()
     return df
@@ -93,6 +97,7 @@ def build_training_frame() -> pd.DataFrame:
 
 def train_model() -> tuple[GradientBoostingClassifier, dict]:
     df = build_training_frame()
+    curated_df = pd.DataFrame(EventCatalogueBuilder.build_catalogue())[FEATURE_COLUMNS + ["severity"]].copy()
     X = df[FEATURE_COLUMNS]
     y = df["severity"]
 
@@ -112,12 +117,16 @@ def train_model() -> tuple[GradientBoostingClassifier, dict]:
         random_state=42,
     )
     model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+    augmentation_pred = model.predict(X_test)
+    curated_pred = model.predict(curated_df[FEATURE_COLUMNS])
+    report = classification_report(curated_df["severity"], curated_pred, output_dict=True, zero_division=0)
     labels = ["INFO", "WATCH", "WARNING", "SEVERE"]
     metrics = {
-        "accuracy": float(accuracy_score(y_test, y_pred)),
-        "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
+        "augmentation_holdout_accuracy": float(accuracy_score(y_test, augmentation_pred)),
+        "curated_textbook_sanity_accuracy": float(accuracy_score(curated_df["severity"], curated_pred)),
+        "curated_textbook_rows": len(curated_df),
+        "synthetic_augmentation_rows": len(df),
+        "confusion_matrix": confusion_matrix(curated_df["severity"], curated_pred).tolist(),
         "classification_report": {label: report.get(str(i), {}) for i, label in enumerate(labels)},
         "feature_importances": {feature: float(score) for feature, score in zip(FEATURE_COLUMNS, model.feature_importances_)},
     }

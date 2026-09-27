@@ -46,8 +46,10 @@ from dotenv import load_dotenv
 
 try:
     from .nowcast.optical_flow_dense import dense_farneback_flow
+    from .ml.explainability import explain_gradient_boosting
 except ImportError:
     from nowcast.optical_flow_dense import dense_farneback_flow
+    from ml.explainability import explain_gradient_boosting
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
@@ -55,6 +57,7 @@ try:
     from .ingestion.lightning import get_lightning_feed
     from .ingestion.radar import get_radar_feed
     from .ingestion.satellite import get_satellite_feed
+    from .ingestion.synthetic_storm_sim import simulate_storm_cell
     from .hazards import (
         assess_cloudburst,
         assess_downburst,
@@ -62,10 +65,12 @@ try:
         assess_lightning_density,
         synthetic_lightning_points,
     )
+    from .hazards.initiation import detect_initiation
 except ImportError:
     from ingestion.lightning import get_lightning_feed
     from ingestion.radar import get_radar_feed
     from ingestion.satellite import get_satellite_feed
+    from ingestion.synthetic_storm_sim import simulate_storm_cell
     from hazards import (
         assess_cloudburst,
         assess_downburst,
@@ -73,6 +78,7 @@ except ImportError:
         assess_lightning_density,
         synthetic_lightning_points,
     )
+    from hazards.initiation import detect_initiation
 
 # Configure structured meteorological logging
 logging.basicConfig(
@@ -821,7 +827,18 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
     ]
 
     processed_cells = []
-    for c in raw_cells:
+    lifecycle_step = int(time.time() // (15 * 60))
+    for index, c in enumerate(raw_cells):
+        lifecycle = simulate_storm_cell(
+            step=lifecycle_step + index,
+            cape_jkg=c["cape"],
+            cin_jkg=c["cin"],
+            wind_850_kmh=c["speed_kmh"],
+        )
+        # The named fixtures remain stable for the demo narrative, while this
+        # state/intensity overlay makes their simulated lifecycle operational.
+        lifecycle_factor = max(0.72, min(1.12, lifecycle["reflectivity_dbz"] / 48.0))
+        c = {**c, "reflectivity_dbz": round(c["reflectivity_dbz"] * lifecycle_factor, 2), "lifecycle_state": lifecycle["lifecycle"], "simulation": lifecycle}
         # Run Gradient Boosting Classifier (scikit-learn) probabilistic prediction.
         risk_output = predict_cell_severity(
             reflectivity=c["reflectivity_dbz"],
@@ -830,14 +847,32 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
             cloud_top_cooling_rate=c["cloud_top_cooling_rate"]
         )
 
+        current_echo = _demo_reflectivity_grid(c["reflectivity_dbz"])
+        previous_echo = _demo_reflectivity_grid(
+            c["reflectivity_dbz"],
+            offset_km=(
+                -(c["speed_kmh"] * 10.0 / 60.0) * math.sin(math.radians(c["bearing_deg"])),
+                (c["speed_kmh"] * 10.0 / 60.0) * math.cos(math.radians(c["bearing_deg"])),
+            ),
+        )
+        dense_flow = dense_farneback_flow(previous_echo, current_echo, minutes_between_frames=10.0, km_per_pixel=1.0)
         hazard_heads = compute_hazard_heads(
             latitude=c["lat"],
             longitude=c["lon"],
             reflectivity_dbz=c["reflectivity_dbz"],
             cape_jkg=c["cape"],
             lightning_rate_per_min=c["lightning_rate"],
+            flow_u_kmh=dense_flow["u_kmh"],
+            flow_v_kmh=dense_flow["v_kmh"],
+            reflectivity_frames_dbz=[previous_echo, current_echo, current_echo, current_echo],
             status="SIMULATED_DEMO_FIXTURE",
         )
+        if not processed_cells:
+            divergence = hazard_heads["downburst"]["details"]["flow_divergence_per_minute"]
+            logger.info(
+                "Dense demo flow divergence: min=%.6f max=%.6f std=%.6f",
+                float(np.min(divergence)), float(np.max(divergence)), float(np.std(divergence)),
+            )
 
         # Generate optical flow track cones (15, 30, 45, 60 min lead times)
         track_cones = generate_forecast_track_cones(
@@ -874,11 +909,11 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
     return processed_cells
 
 
-def _demo_reflectivity_grid(reflectivity_dbz: float, size: int = 9) -> np.ndarray:
+def _demo_reflectivity_grid(reflectivity_dbz: float, size: int = 32, offset_km: Tuple[float, float] = (0.0, 0.0)) -> np.ndarray:
     """Build a labeled demo echo grid for scalar fixture cells."""
-    axis = np.linspace(-1.0, 1.0, size)
-    xx, yy = np.meshgrid(axis, axis)
-    return np.maximum(5.0, reflectivity_dbz - 24.0 * np.hypot(xx, yy))
+    axis = np.arange(size, dtype=float) - (size - 1) / 2.0
+    xx, yy = np.meshgrid(axis - offset_km[0], axis - offset_km[1])
+    return np.maximum(5.0, reflectivity_dbz - 3.0 * np.hypot(xx, yy))
 
 
 def compute_hazard_heads(
@@ -898,6 +933,17 @@ def compute_hazard_heads(
     echo_grid = _demo_reflectivity_grid(reflectivity_dbz)
     hail = assess_hail(reflectivity_dbz, cape_jkg, status=status)
     if flow_u_kmh is None or flow_v_kmh is None:
+        if reflectivity_frames_dbz and len(reflectivity_frames_dbz) >= 2:
+            dense_flow = dense_farneback_flow(
+                reflectivity_frames_dbz[-2], reflectivity_frames_dbz[-1],
+                minutes_between_frames=10.0, km_per_pixel=1.0,
+            )
+            flow_u_kmh = dense_flow["u_kmh"]
+            flow_v_kmh = dense_flow["v_kmh"]
+        else:
+            # Last-resort only for a brand-new cell with no frame history.
+            flow_u_kmh = np.full_like(echo_grid, 20.0)
+            flow_v_kmh = np.full_like(echo_grid, 10.0)
         flow_u_kmh = np.full_like(echo_grid, 20.0)
         flow_v_kmh = np.full_like(echo_grid, 10.0)
     downburst = assess_downburst(echo_grid, flow_u_kmh, flow_v_kmh, status=status)
@@ -931,12 +977,33 @@ def compute_hazard_heads(
     }
 
 
+def downscale_to_1km_grid(
+    nwp_field: Any,
+    source_resolution_km: float,
+    target_resolution_km: float = 1.0,
+    method: str = "bilinear",
+) -> np.ndarray:
+    """Interpolate a coarse NWP field for display; this does not create 1-km skill."""
+    if method != "bilinear" or source_resolution_km <= 0 or target_resolution_km <= 0:
+        raise ValueError("method must be bilinear and resolutions must be positive")
+    field = np.asarray(nwp_field, dtype=float)
+    if field.ndim != 2 or min(field.shape) < 2:
+        raise ValueError("nwp_field must be a 2-D array at least 2x2")
+    scale = max(1, int(round(source_resolution_km / target_resolution_km)))
+    y_source = np.arange(field.shape[0], dtype=float)
+    x_source = np.arange(field.shape[1], dtype=float)
+    y_target = np.linspace(0, field.shape[0] - 1, (field.shape[0] - 1) * scale + 1)
+    x_target = np.linspace(0, field.shape[1] - 1, (field.shape[1] - 1) * scale + 1)
+    rows = np.vstack([np.interp(x_target, x_source, row) for row in field])
+    return np.vstack([np.interp(y_target, y_source, rows[:, column]) for column in range(rows.shape[1])]).T
+
+
 # ==============================================================================
 # 5. FASTAPI APPLICATION DEFINITION
 # ==============================================================================
 app = FastAPI(
     title="VayuGati Nowcast Convective Engine",
-    description="High-resolution (1-3 km) convective scale meteorological nowcasting service for SIH26084",
+    description="1-3 km DISPLAY grid (interpolated from coarser NWP guidance; native DWR-resolution assimilation is roadmap, see README) for SIH26084",
     version="2.4.0"
 )
 
@@ -1119,6 +1186,18 @@ async def get_hazard_heads(
         status=source_status,
     )
 
+
+@app.get("/api/v1/initiation-alerts")
+def get_initiation_alerts(
+    reflectivity_frames: str = Query(..., description="JSON array of three or more 2-D reflectivity frames"),
+    cloud_top_cooling_rate: float = Query(..., description="Cloud-top cooling in C per 15 minutes"),
+):
+    """Return newly crossed reflectivity cells gated by rapid cooling."""
+    try:
+        return detect_initiation(json.loads(reflectivity_frames), cloud_top_cooling_rate)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Initiation detection error: {exc}") from exc
+
 @app.get("/api/v1/verification")
 def get_verification_results():
     """Serve the local synthetic verification artifact when it has been generated."""
@@ -1161,6 +1240,7 @@ def get_live_fusion_grid(
                 "properties": {
                     "feature_type": "CURRENT_CONVECTIVE_CELL",
                     "data_mode": cell["data_mode"],
+                    "lifecycle_state": cell.get("lifecycle_state"),
                     "cell_uid": cell["cell_uid"],
                     "name": cell["name"],
                     "state": cell["state"],
@@ -1228,6 +1308,11 @@ def get_live_fusion_grid(
                 "features_returned": len(features),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "lead_times_included": [0, 15, 30, 45, 60]
+                ,"resolution_metadata": {
+                    "native_source_resolution_km": "11-25 depending on NWP model",
+                    "display_resolution_km": 1.0,
+                    "note": "Interpolated guidance for display, not native 1-km forecast skill.",
+                }
             },
             "data_mode": "DEMO_FIXTURE",
             "features": features
@@ -1261,7 +1346,13 @@ async def get_instability_index(
 
     try:
         if lat is not None and lon is not None:
-            return await fetch_open_meteo_instability(lat, lon, model=model)
+            point_payload = await fetch_open_meteo_instability(lat, lon, model=model)
+            point_payload["resolution_metadata"] = {
+                "native_source_resolution_km": "11-25 depending on NWP model",
+                "display_resolution_km": 1.0,
+                "note": "Interpolated guidance for display, not native 1-km forecast skill.",
+            }
+            return point_payload
 
         async def fetch_station(station: Dict[str, Any]) -> Dict[str, Any]:
             sounding = await fetch_open_meteo_instability(station["lat"], station["lon"], model=model)
@@ -1287,12 +1378,21 @@ async def get_instability_index(
             "station_count": len(results),
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "data": results,
+            "display_grid_1km": downscale_to_1km_grid(
+                np.resize([float(item.get("current_cape") or 0.0) for item in results], (3, 4)),
+                source_resolution_km=11.0 if model == "ncep_gfs_seamless" else 13.0,
+            ).round(2).tolist(),
             "errors": failures,
             "metadata": {
                 "source": "Open-Meteo NWP",
                 "mode": "LIVE" if not failures else "PARTIAL",
                 "latency_ms": round((time.perf_counter() - started_at) * 1000),
                 "model": model,
+                "resolution_metadata": {
+                    "native_source_resolution_km": "11-25 depending on NWP model",
+                    "display_resolution_km": 1.0,
+                    "note": "Interpolated guidance for display, not native 1-km forecast skill.",
+                },
             },
         }
         return response_payload
@@ -1402,6 +1502,33 @@ def post_predict_cell_severity(payload: CellSeverityRequest):
     except Exception as exc:
         logger.error("Prediction failed: %s", str(exc))
         raise HTTPException(status_code=400, detail=f"Inference error: {str(exc)}")
+
+
+@app.post("/api/v1/explain-severity")
+def post_explain_cell_severity(payload: CellSeverityRequest):
+    """Return the existing prediction plus real TreeExplainer contributions."""
+    try:
+        prediction = predict_cell_severity(
+            reflectivity=payload.reflectivity_dbz,
+            cape=payload.cape_j_kg,
+            lightning_rate=payload.lightning_rate_per_min,
+            cloud_top_cooling_rate=payload.cloud_top_cooling_rate_c_per_15m,
+        )
+        model = _load_ml_model()
+        if model is None:
+            raise RuntimeError("trained GradientBoosting model is unavailable")
+        cloud_top_temp = float(payload.cloud_top_cooling_rate_c_per_15m) * -16.0
+        features = [
+            float(payload.reflectivity_dbz), float(payload.cape_j_kg), cloud_top_temp,
+            float(payload.lightning_rate_per_min), 20.0, 40.0,
+        ]
+        explanation = explain_gradient_boosting(model, MODEL_FEATURES, features)
+        return {"status": "SUCCESS", "prediction": prediction, "explanation": explanation}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("SHAP explanation failed: %s", str(exc))
+        raise HTTPException(status_code=400, detail=f"Explanation error: {str(exc)}") from exc
 
 
 @app.post("/api/v1/optical-flow-track")

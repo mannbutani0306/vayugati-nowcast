@@ -23,7 +23,8 @@ import SHAPExplainabilityCard from './SHAPExplainabilityCard';
 
 export { SHAPExplainabilityCard };
 
-// Convective Cells with Realistic Meteorological SHAP Value Breakdowns
+// These fixture breakdowns are illustrative walkthrough data for the matrix;
+// live selected-cell values come from SHAPExplainabilityCard's backend endpoint.
 export const XAI_CELL_DATA = [
   {
     cellId: 'CELL-A1',
@@ -519,6 +520,9 @@ export default function SHAPExplainability({
           </h3>
           <p className="text-xs text-[#6C7278]">
             Verifies exact thermodynamic and kinematic weights driving the AI convective hazard classifier.
+          </p>
+          <p className="mt-2 text-[11px] font-semibold text-amber-700">
+            Physics Matrix values are illustrative fixture examples; the Forecaster XAI Card requests real backend TreeExplainer values.
           </p>
         </div>
 

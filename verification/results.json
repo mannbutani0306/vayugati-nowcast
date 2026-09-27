@@ -13,229 +13,255 @@
       "case": "Himachal monsoon cloudburst character",
       "lead_minutes": 15,
       "nowcast": {
-        "CSI": 0.3401197604790419,
-        "POD": 0.4773109243697479,
-        "FAR": 0.4580152671755725,
-        "FSS": 0.8962698007153806
+        "CSI": 0.9598654169670752,
+        "POD": 0.9729598051157126,
+        "FAR": 0.013827160493827161,
+        "FSS": 0.9949176275616294
       },
       "persistence": {
-        "CSI": 0.672645739910314,
-        "POD": 0.7563025210084033,
-        "FAR": 0.14122137404580154
+        "CSI": 0.9394155381325731,
+        "POD": 0.9632155907429963,
+        "FAR": 0.025628388368654508
       }
     },
     {
       "case": "Himachal monsoon cloudburst character",
       "lead_minutes": 30,
       "nowcast": {
-        "CSI": 0.3401197604790419,
-        "POD": 0.4773109243697479,
-        "FAR": 0.4580152671755725,
-        "FSS": 0.8962698007153806
+        "CSI": 0.9364107395195478,
+        "POD": 0.9555395337659216,
+        "FAR": 0.02093080522038907,
+        "FSS": 0.9868724794882492
       },
       "persistence": {
-        "CSI": 0.672645739910314,
-        "POD": 0.7563025210084033,
-        "FAR": 0.14122137404580154
+        "CSI": 0.890294388224471,
+        "POD": 0.9303052150925258,
+        "FAR": 0.04608181370133071
       }
     },
     {
       "case": "Himachal monsoon cloudburst character",
       "lead_minutes": 60,
       "nowcast": {
-        "CSI": 0.37807881773399016,
-        "POD": 0.5159663865546219,
-        "FAR": 0.41412213740458015,
-        "FSS": 0.8826189800359542
+        "CSI": 0.8845454545454545,
+        "POD": 0.9185744630634883,
+        "FAR": 0.04019728729963008,
+        "FSS": 0.9616332083241415
       },
       "persistence": {
-        "CSI": 0.672645739910314,
-        "POD": 0.7563025210084033,
-        "FAR": 0.14122137404580154
+        "CSI": 0.7970103986135182,
+        "POD": 0.8683030446070332,
+        "FAR": 0.09339576145884672
       }
     },
     {
       "case": "Himachal monsoon cloudburst character",
       "lead_minutes": 180,
       "nowcast": {
-        "CSI": 0.3613138686131387,
-        "POD": 0.4991596638655462,
-        "FAR": 0.43320610687022904,
-        "FSS": 0.8655530851528799
+        "CSI": 0.6883750530335172,
+        "POD": 0.8307731694828469,
+        "FAR": 0.1993584998766346,
+        "FSS": 0.8385767802223422
       },
       "persistence": {
-        "CSI": 0.672645739910314,
-        "POD": 0.7563025210084033,
-        "FAR": 0.14122137404580154
+        "CSI": 0.4927835051546392,
+        "POD": 0.6730670762928828,
+        "FAR": 0.35214391325776245
       }
     },
     {
       "case": "Himachal monsoon cloudburst character",
       "lead_minutes": 360,
       "nowcast": {
-        "CSI": 0.3613138686131387,
-        "POD": 0.4991596638655462,
-        "FAR": 0.43320610687022904,
-        "FSS": 0.8806557751193442
+        "CSI": 0.5841039189784236,
+        "POD": 0.8422222222222222,
+        "FAR": 0.34412855377008655,
+        "FSS": 0.7589572336910619
       },
       "persistence": {
-        "CSI": 0.672645739910314,
-        "POD": 0.7563025210084033,
-        "FAR": 0.14122137404580154
+        "CSI": 0.25903930131004366,
+        "POD": 0.4707936507936508,
+        "FAR": 0.6345490389354361
       }
     },
     {
       "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
       "lead_minutes": 15,
       "nowcast": {
-        "CSI": 0.15105162523900573,
-        "POD": 0.21584699453551912,
-        "FAR": 0.6652542372881356,
-        "FSS": 0.6570997669210731
+        "CSI": 0.9177101967799642,
+        "POD": 0.9259927797833934,
+        "FAR": 0.009652509652509652,
+        "FSS": 0.9924340571073224
       },
       "persistence": {
-        "CSI": 0.43333333333333335,
-        "POD": 0.4972677595628415,
-        "FAR": 0.2288135593220339
+        "CSI": 0.29759036144578316,
+        "POD": 0.44584837545126355,
+        "FAR": 0.5277246653919694
       }
     },
     {
       "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
       "lead_minutes": 30,
       "nowcast": {
-        "CSI": 0.15105162523900573,
-        "POD": 0.21584699453551912,
-        "FAR": 0.6652542372881356,
-        "FSS": 0.6570997669210731
+        "CSI": 0.8958333333333334,
+        "POD": 0.9052631578947369,
+        "FAR": 0.011494252873563218,
+        "FSS": 0.9866460179237858
       },
       "persistence": {
-        "CSI": 0.43333333333333335,
-        "POD": 0.4972677595628415,
-        "FAR": 0.2288135593220339
+        "CSI": 0.12913223140495866,
+        "POD": 0.21929824561403508,
+        "FAR": 0.7609942638623327
       }
     },
     {
       "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
       "lead_minutes": 60,
       "nowcast": {
-        "CSI": 0.16893203883495145,
-        "POD": 0.23770491803278687,
-        "FAR": 0.6313559322033898,
-        "FSS": 0.637949091571422
+        "CSI": 0.9308176100628931,
+        "POD": 0.9386892177589852,
+        "FAR": 0.008928571428571428,
+        "FSS": 0.9909483523634858
       },
       "persistence": {
-        "CSI": 0.43333333333333335,
-        "POD": 0.4972677595628415,
-        "FAR": 0.2288135593220339
+        "CSI": 0.03319502074688797,
+        "POD": 0.06765327695560254,
+        "FAR": 0.9388145315487572
       }
     },
     {
       "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
       "lead_minutes": 180,
       "nowcast": {
-        "CSI": 0.1599229287090559,
-        "POD": 0.226775956284153,
-        "FAR": 0.6483050847457628,
-        "FSS": 0.6375377851057982
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 0.0,
+        "FSS": 1.0
       },
       "persistence": {
-        "CSI": 0.43333333333333335,
-        "POD": 0.4972677595628415,
-        "FAR": 0.2288135593220339
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 1.0
       }
     },
     {
       "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
       "lead_minutes": 360,
       "nowcast": {
-        "CSI": 0.17578125,
-        "POD": 0.2459016393442623,
-        "FAR": 0.6186440677966102,
-        "FSS": 0.6294411631076783
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 0.0,
+        "FSS": 1.0
       },
       "persistence": {
-        "CSI": 0.43333333333333335,
-        "POD": 0.4972677595628415,
-        "FAR": 0.2288135593220339
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 1.0
       }
     },
     {
-      "case": "Bay-of-Bengal coastal squall-line character",
+      "case": "Chennai coastal squall-line character",
       "lead_minutes": 15,
       "nowcast": {
-        "CSI": 0.07859078590785908,
-        "POD": 0.1039426523297491,
-        "FAR": 0.7563025210084033,
-        "FSS": 0.3535598705501618
+        "CSI": 0.8982456140350877,
+        "POD": 0.9110320284697508,
+        "FAR": 0.015384615384615385,
+        "FSS": 0.990760174046583
       },
       "persistence": {
-        "CSI": 0.2797427652733119,
-        "POD": 0.3118279569892473,
-        "FAR": 0.2689075630252101
+        "CSI": 0.4856361149110807,
+        "POD": 0.6316725978647687,
+        "FAR": 0.32251908396946566
       }
     },
     {
-      "case": "Bay-of-Bengal coastal squall-line character",
+      "case": "Chennai coastal squall-line character",
       "lead_minutes": 30,
       "nowcast": {
-        "CSI": 0.07859078590785908,
-        "POD": 0.1039426523297491,
-        "FAR": 0.7563025210084033,
-        "FSS": 0.3535598705501618
+        "CSI": 0.9078260869565218,
+        "POD": 0.9141856392294221,
+        "FAR": 0.0076045627376425855,
+        "FSS": 0.9905692534939211
       },
       "persistence": {
-        "CSI": 0.2797427652733119,
-        "POD": 0.3118279569892473,
-        "FAR": 0.2689075630252101
+        "CSI": 0.27920560747663553,
+        "POD": 0.4185639229422067,
+        "FAR": 0.5438931297709924
       }
     },
     {
-      "case": "Bay-of-Bengal coastal squall-line character",
+      "case": "Chennai coastal squall-line character",
       "lead_minutes": 60,
       "nowcast": {
-        "CSI": 0.09641873278236915,
-        "POD": 0.12544802867383512,
-        "FAR": 0.7058823529411765,
-        "FSS": 0.33800728057165963
+        "CSI": 0.8836805555555556,
+        "POD": 0.8852173913043478,
+        "FAR": 0.00196078431372549,
+        "FSS": 0.9797108119510605
       },
       "persistence": {
-        "CSI": 0.2797427652733119,
-        "POD": 0.3118279569892473,
-        "FAR": 0.2689075630252101
+        "CSI": 0.04567078972407231,
+        "POD": 0.08347826086956522,
+        "FAR": 0.9083969465648855
       }
     },
     {
-      "case": "Bay-of-Bengal coastal squall-line character",
+      "case": "Chennai coastal squall-line character",
       "lead_minutes": 180,
       "nowcast": {
-        "CSI": 0.07859078590785908,
-        "POD": 0.1039426523297491,
-        "FAR": 0.7563025210084033,
-        "FSS": 0.32875414495499766
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 0.0,
+        "FSS": 1.0
       },
       "persistence": {
-        "CSI": 0.2797427652733119,
-        "POD": 0.3118279569892473,
-        "FAR": 0.2689075630252101
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 1.0
       }
     },
     {
-      "case": "Bay-of-Bengal coastal squall-line character",
+      "case": "Chennai coastal squall-line character",
       "lead_minutes": 360,
       "nowcast": {
-        "CSI": 0.08152173913043478,
-        "POD": 0.10752688172043011,
-        "FAR": 0.7478991596638656,
-        "FSS": 0.3101683501683502
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 0.0,
+        "FSS": 1.0
       },
       "persistence": {
-        "CSI": 0.2797427652733119,
-        "POD": 0.3118279569892473,
-        "FAR": 0.2689075630252101
+        "CSI": 0.0,
+        "POD": 0.0,
+        "FAR": 1.0
       }
     }
   ],
-  "brier_score": 0.31712100660924597,
+  "motion_vectors": [
+    {
+      "case": "Himachal monsoon cloudburst character",
+      "ground_truth_speed_kmh": 6.0,
+      "ground_truth_bearing_deg": 35.0,
+      "estimated_speed_kmh": 2.7745733126338763,
+      "estimated_bearing_deg": 34.72157478967637,
+      "expectation": "near-stationary orographic case; persistence should tie a correct nowcast"
+    },
+    {
+      "case": "Delhi-NCR pre-monsoon hail/dust-storm character",
+      "ground_truth_speed_kmh": 45.0,
+      "ground_truth_bearing_deg": 80.0,
+      "estimated_speed_kmh": 44.492837439250785,
+      "estimated_bearing_deg": 79.9929543607492,
+      "expectation": "fast-moving organized pre-monsoon storm"
+    },
+    {
+      "case": "Chennai coastal squall-line character",
+      "ground_truth_speed_kmh": 30.0,
+      "ground_truth_bearing_deg": 110.0,
+      "estimated_speed_kmh": 29.650824092188152,
+      "estimated_bearing_deg": 110.0348006152077,
+      "expectation": "moderate-fast organized coastal line"
+    }
+  ],
+  "brier_score": 0.043611595503112444,
   "reliability": [
     {
       "bin_lower": 0.0,
@@ -247,9 +273,9 @@
     {
       "bin_lower": 0.1,
       "bin_upper": 0.2,
-      "count": 10965,
-      "mean_probability": 0.09999999999999996,
-      "observed_frequency": 0.37948016415868674
+      "count": 114932,
+      "mean_probability": 0.1,
+      "observed_frequency": 0.01816726412139352
     },
     {
       "bin_lower": 0.2,
@@ -261,9 +287,9 @@
     {
       "bin_lower": 0.30000000000000004,
       "bin_upper": 0.4,
-      "count": 879,
-      "mean_probability": 0.3173476201113222,
-      "observed_frequency": 0.47440273037542663
+      "count": 4045,
+      "mean_probability": 0.3173476201113223,
+      "observed_frequency": 0.6558714462299134
     },
     {
       "bin_lower": 0.4,
@@ -275,9 +301,9 @@
     {
       "bin_lower": 0.5,
       "bin_upper": 0.6000000000000001,
-      "count": 879,
+      "count": 4053,
       "mean_probability": 0.5042749145557612,
-      "observed_frequency": 0.4653014789533561
+      "observed_frequency": 0.8006415001233654
     },
     {
       "bin_lower": 0.6000000000000001,
@@ -289,16 +315,16 @@
     {
       "bin_lower": 0.7000000000000001,
       "bin_upper": 0.8,
-      "count": 879,
+      "count": 5013,
       "mean_probability": 0.7341005873035538,
-      "observed_frequency": 0.4880546075085324
+      "observed_frequency": 0.9664871334530222
     },
     {
       "bin_lower": 0.8,
       "bin_upper": 0.9,
-      "count": 1758,
-      "mean_probability": 0.8332162370242766,
-      "observed_frequency": 0.4459613196814562
+      "count": 10197,
+      "mean_probability": 0.8331722814724671,
+      "observed_frequency": 0.9839168382857704
     },
     {
       "bin_lower": 0.9,

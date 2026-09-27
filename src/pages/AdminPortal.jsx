@@ -28,7 +28,13 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
-import { SECTOR_INFO, SEVERITY_TIERS, getFullNowcastTelemetrySnapshot } from '../utils/mockDataSeed';
+import { SECTOR_INFO, SEVERITY_TIERS, INITIAL_CONVECTIVE_CELLS, getFullNowcastTelemetrySnapshot } from '../utils/mockDataSeed';
+
+function withinCurrentCellRadius(facility, cell) {
+  const latKm = (facility.lat - cell.lat) * 111.32;
+  const lonKm = (facility.lon - cell.lon) * 111.32 * Math.cos((cell.lat * Math.PI) / 180);
+  return Math.hypot(latKm, lonKm) <= 12;
+}
 
 // Institutional Dispatch Configurations
 const INITIAL_INSTITUTIONAL_DISPATCHES = [
@@ -37,6 +43,7 @@ const INITIAL_INSTITUTIONAL_DISPATCHES = [
     agency: 'Civil Aviation (AAI)',
     facility: 'Jolly Grant Airport (DED / VIDN)',
     category: 'aviation',
+    lat: 30.1897, lon: 78.1803,
     status: 'ACTIVE_DISPATCH',
     statusLabel: 'Ground Hold & Diversion Advisory',
     icon: Plane,
@@ -56,6 +63,7 @@ const INITIAL_INSTITUTIONAL_DISPATCHES = [
     agency: 'District Education Office (DEO)',
     facility: 'All Schools & Universities in Foothill Zones (28 Institutions)',
     category: 'education',
+    lat: 30.3165, lon: 78.0322,
     status: 'ACTIVE_DISPATCH',
     statusLabel: 'Immediate Dismissal Hold Order',
     icon: GraduationCap,
@@ -75,6 +83,7 @@ const INITIAL_INSTITUTIONAL_DISPATCHES = [
     agency: 'Northern Railway (NR)',
     facility: 'Haridwar – Dehradun Single Line Track (Km 42 to Km 68)',
     category: 'railways',
+    lat: 30.041, lon: 78.289,
     status: 'CAUTION_DISPATCH',
     statusLabel: 'Track Caution Speed (30 km/h)',
     icon: Train,
@@ -94,6 +103,7 @@ const INITIAL_INSTITUTIONAL_DISPATCHES = [
     agency: 'Power Transmission Corp (PTCUL / UPCL)',
     facility: '220 kV Rishikesh & 132 kV Majra Primary Substations',
     category: 'power',
+    lat: 30.086, lon: 78.267,
     status: 'MONITORING_DISPATCH',
     statusLabel: 'Substation Feeder Isolation Standby',
     icon: Zap,
@@ -186,6 +196,20 @@ export default function AdminPortal() {
 
   // State Management
   const [institutionalDispatches, setInstitutionalDispatches] = useState(INITIAL_INSTITUTIONAL_DISPATCHES);
+
+  useEffect(() => {
+    // Dispatch status is derived from facility/cell geometry at load time;
+    // it is no longer a permanent assertion embedded in fixture status text.
+    setInstitutionalDispatches((previous) => previous.map((facility) => {
+      const intersectingCell = INITIAL_CONVECTIVE_CELLS.find((cell) => withinCurrentCellRadius(facility, cell));
+      return {
+        ...facility,
+        status: intersectingCell ? 'ACTIVE_DISPATCH' : 'MONITORING_DISPATCH',
+        statusLabel: intersectingCell ? `Intersection: ${intersectingCell.name}` : 'No current polygon intersection',
+        geometryMatch: intersectingCell ? intersectingCell.id : null,
+      };
+    }));
+  }, []);
   const [usersList, setUsersList] = useState(INITIAL_USERS);
   const [searchUser, setSearchUser] = useState('');
   const [selectedUserForEdit, setSelectedUserForEdit] = useState(null);

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAccessibility } from '../context/AccessibilityContext';
 import SHAPExplainabilityCard from '../components/SHAPExplainabilityCard';
 import DataStatusBadge from '../components/DataStatusBadge';
-import { fetchInstabilityIndex, fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
+import { fetchInstabilityIndex, fetchLiveFusionGrid, fetchVerificationResults, normalizeLiveCells } from '../lib/apiClient';
 import {
   generateMotionConePolygon,
   haversineDistance,
@@ -420,6 +420,8 @@ export default function OfficerDashboard() {
   const [nwpByCell, setNwpByCell] = useState({});
   const [nwpStatus, setNwpStatus] = useState({ mode: 'LOADING', metadata: null });
   const [nwpError, setNwpError] = useState('');
+  const [verificationData, setVerificationData] = useState(null);
+  const [verificationError, setVerificationError] = useState('');
 
   // GIS Layer Visibility Switches
   const [layerVisibility, setLayerVisibility] = useState({
@@ -502,6 +504,14 @@ export default function OfficerDashboard() {
   const draftCount = alerts.filter((a) => a.status === 'DRAFT').length;
   const severeCount = alerts.filter((a) => a.tier === 'SEVERE' && a.status !== 'REJECTED').length;
   const approvedCount = alerts.filter((a) => a.status === 'APPROVED').length;
+
+  useEffect(() => {
+    let mounted = true;
+    fetchVerificationResults()
+      .then((payload) => { if (mounted) setVerificationData(payload); })
+      .catch((error) => { if (mounted) setVerificationError(error.message || 'Verification results unavailable.'); });
+    return () => { mounted = false; };
+  }, []);
 
   // -------------------------------------------------------------
   // Load the operational source-of-truth rows from Supabase.
@@ -760,16 +770,19 @@ export default function OfficerDashboard() {
         }
 
         const marker = L.circleMarker([cell.lat, cell.lon], {
-          radius: 5,
-          color: '#FFFFFF',
+          radius: cell.lifecycleState === 'INITIATION' ? 9 : 5,
+          color: cell.lifecycleState === 'INITIATION' ? '#FDE047' : '#FFFFFF',
           weight: 1.5,
-          fillColor: tierMeta.bg,
+          fillColor: cell.lifecycleState === 'INITIATION' ? '#F97316' : tierMeta.bg,
           fillOpacity: 1,
         }).bindTooltip(`${cell.cellName} • ${cell.radarDbz} dBZ`);
         marker.on('click', () => {
           setSelectedCellId(cell.cellId);
         });
         radarLayer.addLayer(marker);
+        if (cell.lifecycleState === 'INITIATION') {
+          radarLayer.addLayer(L.marker([cell.lat, cell.lon], { icon: L.divIcon({ className: 'initiation-badge', html: '<div style="background:#F97316;color:white;font:bold 10px monospace;padding:2px 5px;border:1px solid #FDE047;border-radius:9999px;box-shadow:0 0 0 3px rgba(249,115,22,.25);">NEW</div>', iconSize: [30, 18], iconAnchor: [15, 26] }) }));
+        }
       });
     }
 
@@ -1617,6 +1630,30 @@ export default function OfficerDashboard() {
             </div>
           )}
         </div>
+
+        <section className="lg:col-span-8 rounded-xl border border-[#E5E0D8] bg-white p-4 shadow-xs" aria-labelledby="model-skill-heading">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 id="model-skill-heading" className="text-sm font-bold text-[#0F172A]">Model Skill vs Persistence</h3>
+              <p className="text-[11px] text-[#6C7278]">Synthetic reconstruction - relative skill only, not real-world operational CSI</p>
+            </div>
+            {verificationData?.status === 'SYNTHETIC_RECONSTRUCTIONS_ONLY' && <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">SYNTHETIC</span>}
+          </div>
+          {verificationError && <p className="mt-2 text-xs text-red-700">{verificationError}</p>}
+          {verificationData?.status === 'NOT_GENERATED' && <p className="mt-2 text-xs text-slate-600">Run verification harness to populate.</p>}
+          {verificationData?.cases?.length > 0 && (
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              {verificationData.cases.filter((item) => item.lead_minutes === 60).map((item) => (
+                <div key={item.case} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] font-mono text-slate-700">
+                  <div className="mb-1 font-sans text-[11px] font-bold text-slate-900">{item.case}</div>
+                  <div>CSI {item.nowcast.CSI.toFixed(3)} / {item.persistence.CSI.toFixed(3)}</div>
+                  <div>POD {item.nowcast.POD.toFixed(3)} / {item.persistence.POD.toFixed(3)}</div>
+                  <div>FAR {item.nowcast.FAR.toFixed(3)} / {item.persistence.FAR.toFixed(3)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* ========================================================= */}
         {/* RIGHT: ALERT REVIEW QUEUE SIDE-PANEL (4 COLS) */}

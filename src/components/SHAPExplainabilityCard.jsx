@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { fetchSeverityExplanation } from '../lib/apiClient';
 import DataStatusBadge from './DataStatusBadge';
 import {
   BrainCircuit,
@@ -229,6 +230,35 @@ export default function SHAPExplainabilityCard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('waterfall'); // 'waterfall' | 'features' | 'formula'
   const [copiedAudit, setCopiedAudit] = useState(false);
+  const [shapExplanation, setShapExplanation] = useState(null);
+  const [shapError, setShapError] = useState('');
+  const shapReflectivity = Number(cell.radarDbz ?? 45);
+  const shapCape = Number(cell.rawFeatures?.cape?.value ?? liveNwpData?.current_cape ?? 1800);
+  const shapLightning = Number(cell.rawFeatures?.lightningRate?.value ?? 0);
+  const shapCooling = Number(String(cell.rawFeatures?.cloudTopGlaciation?.coolingRate ?? '-1').split(' ')[0]) || -1;
+
+  useEffect(() => {
+    let mounted = true;
+    fetchSeverityExplanation({
+      reflectivity_dbz: shapReflectivity,
+      cape_j_kg: shapCape,
+      lightning_rate_per_min: shapLightning,
+      cloud_top_cooling_rate_c_per_15m: shapCooling,
+    })
+      .then((payload) => { if (mounted) { setShapExplanation(payload.explanation); setShapError(''); } })
+      .catch((error) => { if (mounted) { setShapExplanation(null); setShapError(error.message || 'Real SHAP values unavailable.'); } });
+    return () => { mounted = false; };
+  }, [cell.cellId, shapReflectivity, shapCape, shapLightning, shapCooling]);
+
+  const displayAttributions = shapExplanation?.features?.map((feature) => ({
+    id: feature.name,
+    name: feature.name,
+    shapValue: feature.shap_value,
+    contributionPercent: Math.round(Math.abs(feature.shap_value) * 100),
+    observedValue: String(feature.value),
+    physicsRationale: 'Contribution computed by the backend TreeExplainer response for this selected feature vector.',
+    color: feature.shap_value >= 0 ? '#DC2626' : '#2563EB',
+  })) || [];
 
   // Active Tier Metadata
   const currentTier = committedOverride?.newTier || initialTier;
@@ -576,7 +606,7 @@ export default function SHAPExplainabilityCard({
 
         {/* TAB A: INTERACTIVE SVG WATERFALL BREAKDOWN PLOT */}
         {activeTab === 'waterfall' && (
-          cell.shapAttributions.length === 0 ? (
+          displayAttributions.length === 0 ? (
             <div className="rounded border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
               No feature attribution payload was returned for this selected cell. Live NWP measurements are shown above; no sample attribution chart is substituted.
             </div>
@@ -963,7 +993,7 @@ export default function SHAPExplainabilityCard({
                   </span>
                 </div>
                 <span className="font-mono text-[10px]">
-                  Method: KernelSHAP TreeExplainer • N=10,000 background samples
+                  {shapExplanation?.method || 'Waiting for backend SHAP TreeExplainer response'}
                 </span>
               </div>
             </div>
@@ -977,16 +1007,16 @@ export default function SHAPExplainabilityCard({
               Physical Feature Contribution Rankings (Normalized φ Weights)
             </span>
             <span className="font-mono text-[11px]">
-              {cell.shapAttributions.length ? `${cell.shapAttributions.length} attribution values returned` : 'No attribution payload returned'}
+              {displayAttributions.length ? `${displayAttributions.length} real attribution values returned` : shapError || 'No real attribution payload returned'}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {cell.shapAttributions.length === 0 ? (
+            {displayAttributions.length === 0 ? (
               <div className="md:col-span-2 rounded border border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs text-slate-600">
                 Feature contribution rankings are unavailable for this cell.
               </div>
-            ) : cell.shapAttributions.map((attr) => {
+            ) : displayAttributions.map((attr) => {
               const Icon = attr.icon || Activity;
               return (
                 <div
