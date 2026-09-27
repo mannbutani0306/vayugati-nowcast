@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
+import { useAccessibility } from '../context/AccessibilityContext';
 import {
   ShieldAlert,
   Building2,
@@ -178,6 +179,7 @@ const PREPOSITIONING_ASSETS = [
 
 export default function AdminPortal() {
   const { profile } = useAuth();
+  const { translate } = useAccessibility();
 
   // Navigation tab in Admin Portal
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'institutions', 'users', 'prepositioning', 'reports'
@@ -310,10 +312,10 @@ export default function AdminPortal() {
               State &amp; District Disaster Management Authority (SDMA / DDMA)
             </span>
             <span className="text-[#6C7278]">•</span>
-            <span className="text-xs text-[#6C7278]">Executive Command Node</span>
+            <span className="text-xs text-[#6C7278]">{translate('Executive Command Node')}</span>
           </div>
           <h2 className="text-xl font-bold text-[#1A1D20] mt-1">
-            District Administrator: {profile?.full_name || 'Dr. Kailash S. Murthy'}
+            {translate('District Administrator:')} {profile?.full_name || 'Dr. Kailash S. Murthy'}
           </h2>
           <p className="text-xs text-[#6C7278]">
             {profile?.jurisdiction || 'IMD Doppler Radar Met Center & HQ Nowcasting Unit'} • Authority:{' '}
@@ -329,7 +331,7 @@ export default function AdminPortal() {
             className="bg-[#FAF7F2] hover:bg-[#E5E0D8] border border-[#E5E0D8] text-[#1A1D20] px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center space-x-2 transition-all cursor-pointer shadow-xs"
           >
             <Download className="w-3.5 h-3.5 text-[#D9532F]" />
-            <span>Download DDMA (CSV)</span>
+            <span>{translate('Download DDMA (CSV)')}</span>
           </button>
 
           <button
@@ -338,7 +340,7 @@ export default function AdminPortal() {
             className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center space-x-2 transition-all cursor-pointer shadow-xs"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Print Executive Brief</span>
+            <span>{translate('Print Executive Brief')}</span>
           </button>
         </div>
       </div>
@@ -354,10 +356,10 @@ export default function AdminPortal() {
       {/* 2. TAB NAVIGATION */}
       <div className="flex items-center space-x-2 border-b border-[#E5E0D8] overflow-x-auto pb-1 text-sm font-semibold">
         {[
-          { id: 'overview', label: 'District Hazard Overview', icon: Activity, count: null },
-          { id: 'institutions', label: 'Institutional Alert Dispatches', icon: Building2, count: '4 Active' },
-          { id: 'prepositioning', label: 'Emergency Pre-positioning Map', icon: MapPin, count: '4 Assets' },
-          { id: 'users', label: 'User & Forecaster Access Table', icon: Users, count: `${usersList.length} Accounts` },
+          { id: 'overview', label: translate('District Hazard Overview'), icon: Activity, count: null },
+          { id: 'institutions', label: translate('Institutional Alert Dispatches'), icon: Building2, count: '4 Active' },
+          { id: 'prepositioning', label: translate('Emergency Pre-positioning Map'), icon: MapPin, count: '4 Assets' },
+          { id: 'users', label: translate('User & Forecaster Access Table'), icon: Users, count: `${usersList.length} Accounts` },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -390,25 +392,25 @@ export default function AdminPortal() {
           {/* Key District Metrics Bar */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">Active Red Alert Sector</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Active Red Alert Sector')}</span>
               <div className="text-xl font-black text-[#DC2626] font-mono">Sahastradhara Basin</div>
               <span className="text-[10px] text-[#DC2626] font-semibold">63.8 dBZ Hail &amp; Cloudburst</span>
             </div>
 
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">At-Risk Population</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('At-Risk Population')}</span>
               <div className="text-xl font-black text-[#1A1D20] font-mono">142,000 Persons</div>
-              <span className="text-[10px] text-[#2E7D32] font-semibold">Cell Broadcast Alert Pushed</span>
+              <span className="text-[10px] text-[#2E7D32] font-semibold">{translate('Cell Broadcast Alert Pushed')}</span>
             </div>
 
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">Mobilized SDRF Assets</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Mobilized SDRF Assets')}</span>
               <div className="text-xl font-black text-[#D9532F] font-mono">4 Quick Reaction Teams</div>
               <span className="text-[10px] text-[#6C7278]">99 Personnel Staged at High Ground</span>
             </div>
 
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">Radar Ingestion Health</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Radar Ingestion Health')}</span>
               <div className="text-xl font-black text-[#2E7D32] font-mono">100% (4 Feeds Sync)</div>
               <span className="text-[10px] text-[#6C7278]">DWR Dehradun + INSAT-3DR</span>
             </div>
@@ -420,7 +422,7 @@ export default function AdminPortal() {
               <div>
                 <h3 className="font-bold text-sm text-[#1A1D20] flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-[#D9532F]" />
-                  District Key Infrastructure &amp; Utility Directives
+                  {translate('District Key Infrastructure & Utility Directives')}
                 </h3>
                 <p className="text-xs text-[#6C7278]">
                   Automated trigger dispatches dispatched to strategic sectors in Dehradun &amp; Haridwar.
@@ -431,7 +433,7 @@ export default function AdminPortal() {
                 onClick={() => setActiveTab('institutions')}
                 className="text-xs font-bold text-[#D9532F] hover:text-[#BF4422] flex items-center gap-1"
               >
-                <span>View Full Institutional Control Console</span>
+                <span>{translate('View Full Institutional Control Console')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -620,7 +622,7 @@ export default function AdminPortal() {
             <div>
               <h3 className="font-bold text-base text-[#1A1D20] flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#D9532F]" />
-                Authorized User &amp; Duty Forecaster Directory
+                {translate('Authorized User & Duty Forecaster Directory')}
               </h3>
               <p className="text-xs text-[#6C7278]">
                 Grant regional jurisdictions, authorize pending responder accounts, and audit permissions on public.users.
@@ -692,7 +694,7 @@ export default function AdminPortal() {
                             onClick={() => handleApproveUser(u.id)}
                             className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold uppercase transition-colors"
                           >
-                            Approve
+                            {translate('Approve')}
                           </button>
                         )}
                         <button
@@ -700,7 +702,7 @@ export default function AdminPortal() {
                           onClick={() => setSelectedUserForEdit({ ...u })}
                           className="px-2 py-1 bg-[#FAF7F2] hover:bg-[#E5E0D8] border border-[#E5E0D8] text-[#1A1D20] rounded text-[11px] font-semibold transition-colors"
                         >
-                          Edit
+                          {translate('Edit')}
                         </button>
                         <button
                           type="button"
@@ -711,7 +713,7 @@ export default function AdminPortal() {
                               : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                           }`}
                         >
-                          {isActive ? 'Revoke' : 'Reactivate'}
+                          {translate(isActive ? 'Revoke' : 'Reactivate')}
                         </button>
                       </td>
                     </tr>
@@ -793,13 +795,13 @@ export default function AdminPortal() {
                   onClick={() => setSelectedUserForEdit(null)}
                   className="px-4 py-2 rounded-lg border border-[#E5E0D8] bg-[#FAF7F2] text-[#1A1D20]"
                 >
-                  Cancel
+                  {translate('Cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 rounded-lg bg-[#D9532F] hover:bg-[#BF4422] text-white font-bold"
                 >
-                  Save User Changes
+                  {translate('Save User Changes')}
                 </button>
               </div>
             </form>

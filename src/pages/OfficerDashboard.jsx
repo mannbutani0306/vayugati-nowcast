@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
+import { useAccessibility } from '../context/AccessibilityContext';
 import SHAPExplainabilityCard from '../components/SHAPExplainabilityCard';
 import DataStatusBadge from '../components/DataStatusBadge';
 import { fetchInstabilityIndex, fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
@@ -355,6 +356,7 @@ const TIER_COLORS = {
 
 export default function OfficerDashboard() {
   const { profile, session, isConfigured } = useAuth();
+  const { translate } = useAccessibility();
   const dutyOfficer = profile?.full_name || 'Duty Met Officer Dr. Rajesh Swaminathan';
   const officerBadge = profile?.badge_id || 'IMD-NOWCAST-DEL-04';
 
@@ -1254,7 +1256,7 @@ export default function OfficerDashboard() {
               hasCachedData={Boolean(selectedNwp)}
             />
             <label className="flex items-center gap-1.5 rounded border border-slate-600 bg-[#1E293B] px-2 py-1 text-[10px] font-semibold text-slate-200">
-              NWP Model
+              {translate('NWP Model')}
               <select
                 value={nwpModel}
                 onChange={(event) => setNwpModel(event.target.value)}
@@ -1302,7 +1304,7 @@ export default function OfficerDashboard() {
             {/* Latest database observation */}
             <div className="flex items-center space-x-1 text-slate-300 font-mono text-[11px]">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>DB update #{sweepSweepCount}: <strong className="text-white">{lastSweepTime}</strong></span>
+              <span>{translate('DB update #')}{sweepSweepCount}: <strong className="text-white">{lastSweepTime}</strong></span>
             </div>
           </div>
 
@@ -1311,7 +1313,7 @@ export default function OfficerDashboard() {
             {/* Server Latency Indicator */}
             <div className="flex items-center space-x-1.5 bg-[#1E293B] px-2 py-1 rounded text-slate-300 font-mono text-[11px]">
               <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Latency: <strong className="text-white">{serverLatencyMs == null ? 'Not measured' : `${serverLatencyMs} ms`}</strong></span>
+              <span>{translate('Latency:')} <strong className="text-white">{serverLatencyMs == null ? translate('Not measured') : `${serverLatencyMs} ms`}</strong></span>
             </div>
 
             {/* Officer Badge */}
@@ -1326,7 +1328,7 @@ export default function OfficerDashboard() {
                 {severeCount} SEVERE
               </span>
               <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-700 text-amber-300 font-bold font-mono text-[11px]">
-                {draftCount} DRAFTS PENDING
+                {draftCount} {translate('DRAFTS PENDING')}
               </span>
             </div>
           </div>
@@ -1419,7 +1421,7 @@ export default function OfficerDashboard() {
                 }`}
               >
                 <PenTool className="w-3.5 h-3.5" />
-                <span>{isDrawingMode ? 'Drawing Active (Click Map)' : 'Draw Hazard Zone'}</span>
+                <span>{translate(isDrawingMode ? 'Drawing Active (Click Map)' : 'Draw Hazard Zone')}</span>
               </button>
 
               {isDrawingMode && (
@@ -1431,7 +1433,7 @@ export default function OfficerDashboard() {
                     className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white flex items-center space-x-1 cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>Close Ring ({drawnPoints.length})</span>
+                    <span>{translate('Close Ring')} ({drawnPoints.length})</span>
                   </button>
                   <button
                     type="button"
@@ -1456,7 +1458,7 @@ export default function OfficerDashboard() {
               className="bg-white/95 backdrop-blur-md border border-[#E5E0D8] px-3 py-2 rounded-xl text-xs font-bold text-[#0F172A] hover:bg-[#FAF7F2] shadow-md flex items-center space-x-1.5 cursor-pointer"
             >
               <Compass className="w-3.5 h-3.5 text-[#D9532F]" />
-              <span>Center {selectedStation.id}</span>
+              <span>{translate('Center')} {selectedStation.id}</span>
             </button>
           </div>
 
@@ -1465,9 +1467,9 @@ export default function OfficerDashboard() {
             <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-1.5">
               <span className="font-bold text-[11px] uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-[#D9532F]" />
-                GIS Raster &amp; Vector Layers
+                {translate('GIS Raster & Vector Layers')}
               </span>
-              <span className="text-[10px] font-mono text-[#6C7278]">5-Layer Fusion</span>
+              <span className="text-[10px] font-mono text-[#6C7278]">{translate('5-Layer Fusion')}</span>
             </div>
 
             <div className="space-y-1.5">
@@ -1475,7 +1477,7 @@ export default function OfficerDashboard() {
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]"></span>
-                  <span className="font-medium text-[#1A1D20]">Radar Reflectivity (dBZ)</span>
+                  <span className="font-medium text-[#1A1D20]">{translate('Radar Reflectivity (dBZ)')}</span>
                 </span>
                 <input
                   type="checkbox"
@@ -1491,7 +1493,7 @@ export default function OfficerDashboard() {
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#6366F1]"></span>
-                  <span className="font-medium text-[#1A1D20]">INSAT Cloud Tops (IR CTT)</span>
+                  <span className="font-medium text-[#1A1D20]">{translate('INSAT Cloud Tops (IR CTT)')}</span>
                 </span>
                 <input
                   type="checkbox"
@@ -1507,7 +1509,7 @@ export default function OfficerDashboard() {
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>
-                  <span className="font-medium text-[#1A1D20]">Lightning Strike Heatmap</span>
+                  <span className="font-medium text-[#1A1D20]">{translate('Lightning Strike Heatmap')}</span>
                 </span>
                 <input
                   type="checkbox"
@@ -1523,7 +1525,7 @@ export default function OfficerDashboard() {
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#0F172A]"></span>
-                  <span className="font-medium text-[#1A1D20]">Optical Flow Track Cones</span>
+                  <span className="font-medium text-[#1A1D20]">{translate('Optical Flow Track Cones')}</span>
                 </span>
                 <input
                   type="checkbox"
@@ -1539,7 +1541,7 @@ export default function OfficerDashboard() {
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]"></span>
-                  <span className="font-medium text-[#1A1D20]">Active Warning Polygons</span>
+                  <span className="font-medium text-[#1A1D20]">{translate('Active Warning Polygons')}</span>
                 </span>
                 <input
                   type="checkbox"

@@ -41,6 +41,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
     setFontScale,
     language,
     changeLanguage,
+    translate,
   } = useAccessibility();
 
   const navigate = useNavigate();
@@ -160,6 +161,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
   const activeLangObj =
     SUPPORTED_LANGUAGES.find((l) => l.code === language) || SUPPORTED_LANGUAGES[0];
+  const dashboardRole = role === 'duty_officer' ? 'officer' : role || 'citizen';
 
   const handleSignOut = async () => {
     await logout();
@@ -448,7 +450,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded bg-[#D9532F] px-3 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#BF4422] cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span className="capitalize">{role} dashboard</span>
+                  <span className="capitalize">{translate(`${dashboardRole} dashboard`)}</span>
                 </button>
                 <button
                   type="button"

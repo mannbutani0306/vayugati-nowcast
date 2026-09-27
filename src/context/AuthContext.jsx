@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const AuthContext = createContext({
@@ -54,6 +54,7 @@ export const AuthProvider = ({ children }) => {
   const [role, setRole] = useState('citizen');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const loginInProgressRef = useRef(false);
 
   /**
    * Fetches user profile metadata and authorization role from public.users table
@@ -192,9 +193,9 @@ export const AuthProvider = ({ children }) => {
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
-        if (currentSession?.user) {
+        if (currentSession?.user && !loginInProgressRef.current) {
           await fetchUserProfile(currentSession.user.id, currentSession.user.email);
-        } else {
+        } else if (!currentSession?.user) {
           setProfile(null);
           setRole('citizen');
         }
@@ -226,6 +227,7 @@ export const AuthProvider = ({ children }) => {
       return switchDemoRole(matchingKey);
     }
 
+    loginInProgressRef.current = true;
     try {
       const { data, error: signInErr } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -243,6 +245,8 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       setError(err.message || 'Authentication failed');
       return { success: false, error: err.message };
+    } finally {
+      loginInProgressRef.current = false;
     }
   };
 

@@ -15,6 +15,51 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'as', label: 'Assamese', native: 'অসমীয়া', flag: '🇮🇳' },
 ];
 
+const DASHBOARD_TRANSLATIONS = {
+  hi: {
+    'citizen dashboard': 'नागरिक डैशबोर्ड', 'officer dashboard': 'अधिकारी डैशबोर्ड', 'admin dashboard': 'प्रशासक डैशबोर्ड',
+    'Feed transparency': 'डेटा स्रोत पारदर्शिता', 'About Data Sources': 'डेटा स्रोतों के बारे में', 'Provider site': 'प्रदाता वेबसाइट',
+    'NWP Model': 'एनडब्ल्यूपी मॉडल', 'DB update #': 'डेटाबेस अपडेट #', 'Latency:': 'विलंबता:', 'Not measured': 'मापा नहीं गया',
+    'DRAFTS PENDING': 'मसौदे लंबित', 'Draw Hazard Zone': 'खतरा क्षेत्र बनाएं', 'Drawing Active (Click Map)': 'ड्रॉइंग सक्रिय (मानचित्र पर क्लिक करें)',
+    'Close Ring': 'बहुभुज बंद करें', 'Center': 'केंद्र', 'GIS Raster & Vector Layers': 'GIS रास्टर और वेक्टर परतें', '5-Layer Fusion': '5-परत फ्यूजन',
+    'Radar Reflectivity (dBZ)': 'रडार परावर्तन (dBZ)', 'INSAT Cloud Tops (IR CTT)': 'INSAT बादल शीर्ष (IR CTT)',
+    'Lightning Strike Heatmap': 'आकाशीय बिजली हीटमैप', 'Optical Flow Track Cones': 'ऑप्टिकल फ्लो ट्रैक क्षेत्र', 'Active Warning Polygons': 'सक्रिय चेतावनी बहुभुज',
+    'Executive Command Node': 'कार्यकारी कमान केंद्र', 'District Administrator:': 'जिला प्रशासक:', 'Download DDMA (CSV)': 'DDMA डाउनलोड करें (CSV)',
+    'Print Executive Brief': 'कार्यकारी सारांश प्रिंट करें', 'District Hazard Overview': 'जिला जोखिम अवलोकन',
+    'Institutional Alert Dispatches': 'संस्थागत चेतावनी प्रेषण', 'Emergency Pre-positioning Map': 'आपातकालीन पूर्व-तैनाती मानचित्र',
+    'User & Forecaster Access Table': 'उपयोगकर्ता एवं पूर्वानुमानकर्ता सूची', 'Active Red Alert Sector': 'सक्रिय रेड अलर्ट क्षेत्र',
+    'At-Risk Population': 'जोखिमग्रस्त जनसंख्या', 'Cell Broadcast Alert Pushed': 'सेल ब्रॉडकास्ट चेतावनी भेजी गई',
+    'Mobilized SDRF Assets': 'तैनात SDRF संसाधन', 'Radar Ingestion Health': 'रडार डेटा प्राप्ति स्थिति',
+    'District Key Infrastructure & Utility Directives': 'जिला प्रमुख अवसंरचना एवं सेवा निर्देश',
+    'View Full Institutional Control Console': 'पूरा संस्थागत नियंत्रण कक्ष देखें',
+    'Authorized User & Duty Forecaster Directory': 'अधिकृत उपयोगकर्ता एवं ड्यूटी पूर्वानुमानकर्ता सूची',
+    'Approve': 'स्वीकृत करें', 'Edit': 'संपादित करें', 'Revoke': 'रद्द करें', 'Reactivate': 'पुनः सक्रिय करें', 'Cancel': 'रद्द करें', 'Save User Changes': 'उपयोगकर्ता परिवर्तन सहेजें',
+  },
+  mr: {
+    'citizen dashboard': 'नागरिक डॅशबोर्ड', 'officer dashboard': 'अधिकारी डॅशबोर्ड', 'admin dashboard': 'प्रशासक डॅशबोर्ड',
+    'Feed transparency': 'डेटा स्रोत पारदर्शकता', 'About Data Sources': 'डेटा स्रोतांविषयी', 'Provider site': 'प्रदाता संकेतस्थळ',
+    'NWP Model': 'NWP मॉडेल', 'DB update #': 'डेटाबेस अद्यतन #', 'Latency:': 'विलंब:', 'Not measured': 'मोजलेले नाही',
+    'DRAFTS PENDING': 'मसुदे प्रलंबित', 'Draw Hazard Zone': 'धोका क्षेत्र काढा', 'Drawing Active (Click Map)': 'रेखाटन सुरू (नकाशावर क्लिक करा)',
+    'Close Ring': 'बहुभुज बंद करा', 'Center': 'केंद्र', 'GIS Raster & Vector Layers': 'GIS रास्टर आणि व्हेक्टर स्तर', '5-Layer Fusion': '5-स्तरीय फ्यूजन',
+    'Radar Reflectivity (dBZ)': 'रडार परावर्तन (dBZ)', 'INSAT Cloud Tops (IR CTT)': 'INSAT ढगांचे शिखर (IR CTT)',
+    'Lightning Strike Heatmap': 'वीज प्रहार हीटमॅप', 'Optical Flow Track Cones': 'ऑप्टिकल फ्लो ट्रॅक क्षेत्र', 'Active Warning Polygons': 'सक्रिय इशारा बहुभुज',
+    'Executive Command Node': 'कार्यकारी नियंत्रण केंद्र', 'District Administrator:': 'जिल्हा प्रशासक:', 'Download DDMA (CSV)': 'DDMA डाउनलोड करा (CSV)',
+    'Print Executive Brief': 'कार्यकारी सारांश छापा', 'District Hazard Overview': 'जिल्हा धोका आढावा',
+    'Institutional Alert Dispatches': 'संस्थात्मक इशारा प्रेषण', 'Emergency Pre-positioning Map': 'आपत्कालीन पूर्वतैनाती नकाशा',
+    'User & Forecaster Access Table': 'वापरकर्ता आणि अंदाजकर्ते यादी', 'Active Red Alert Sector': 'सक्रिय रेड अलर्ट क्षेत्र',
+    'At-Risk Population': 'धोक्यातील लोकसंख्या', 'Cell Broadcast Alert Pushed': 'सेल ब्रॉडकास्ट इशारा पाठवला',
+    'Mobilized SDRF Assets': 'तैनात SDRF साधने', 'Radar Ingestion Health': 'रडार डेटा स्थिती',
+    'District Key Infrastructure & Utility Directives': 'जिल्हा प्रमुख पायाभूत सुविधा निर्देश',
+    'View Full Institutional Control Console': 'संपूर्ण संस्थात्मक नियंत्रण कक्ष पाहा',
+    'Authorized User & Duty Forecaster Directory': 'अधिकृत वापरकर्ता आणि ड्यूटी अंदाजकर्ता यादी',
+    'Approve': 'मंजूर करा', 'Edit': 'संपादित करा', 'Revoke': 'रद्द करा', 'Reactivate': 'पुन्हा सक्रिय करा', 'Cancel': 'रद्द करा', 'Save User Changes': 'वापरकर्ता बदल जतन करा',
+  },
+};
+
+function translateDashboardText(text, language) {
+  return DASHBOARD_TRANSLATIONS[language]?.[text] || text;
+}
+
 const AccessibilityContext = createContext(null);
 
 export function AccessibilityProvider({ children }) {
@@ -138,6 +183,7 @@ export function AccessibilityProvider({ children }) {
         language,
         changeLanguage,
         languages: SUPPORTED_LANGUAGES,
+        translate: (text) => translateDashboardText(text, language),
         speakText,
         stopSpeaking,
         isSpeakingAlert,
@@ -161,6 +207,7 @@ export function useAccessibility() {
       language: 'en',
       changeLanguage: () => {},
       languages: SUPPORTED_LANGUAGES,
+      translate: (text) => text,
       speakText: () => {},
       stopSpeaking: () => {},
       isSpeakingAlert: false,

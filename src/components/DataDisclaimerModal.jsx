@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { ExternalLink, Info, Radio, Satellite, X, Zap } from 'lucide-react';
+import { useAccessibility } from '../context/AccessibilityContext';
 
 const DATA_SOURCES = [
   {
@@ -43,6 +44,8 @@ const DATA_SOURCES = [
 ];
 
 export default function DataDisclaimerModal({ open, onClose }) {
+  const { translate } = useAccessibility();
+
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event) => {
@@ -56,7 +59,7 @@ export default function DataDisclaimerModal({ open, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#101A22]/65 p-4"
+      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-[#101A22]/65 p-2 sm:items-center sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -65,13 +68,13 @@ export default function DataDisclaimerModal({ open, onClose }) {
       <section
         aria-labelledby="data-source-title"
         aria-modal="true"
-        className="w-full max-w-2xl border border-[#D9E1E3] bg-white shadow-2xl"
+        className="max-h-[calc(100dvh-1rem)] w-full max-w-2xl overflow-y-auto border border-[#D9E1E3] bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
         role="dialog"
       >
         <header className="flex items-start justify-between border-b border-[#D9E1E3] px-5 py-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase text-[#557078]">Feed transparency</p>
-            <h2 id="data-source-title" className="mt-1 text-lg font-bold text-[#142A32]">About Data Sources</h2>
+            <p className="text-[10px] font-semibold uppercase text-[#557078]">{translate('Feed transparency')}</p>
+            <h2 id="data-source-title" className="mt-1 text-lg font-bold text-[#142A32]">{translate('About Data Sources')}</h2>
           </div>
           <button aria-label="Close data sources" className="p-1 text-[#52656B] hover:bg-[#F0F4F4]" onClick={onClose} type="button">
             <X className="h-5 w-5" />
@@ -95,7 +98,7 @@ export default function DataDisclaimerModal({ open, onClose }) {
                   <p className="mt-1 text-xs leading-relaxed text-[#5D6D72]">{item.cadence}</p>
                   {item.href && (
                     <a className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#17627A] hover:underline" href={item.href} rel="noreferrer" target="_blank">
-                      Provider site <ExternalLink aria-hidden="true" className="h-3 w-3" />
+                      {translate('Provider site')} <ExternalLink aria-hidden="true" className="h-3 w-3" />
                     </a>
                   )}
                 </div>
