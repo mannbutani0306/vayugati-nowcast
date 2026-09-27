@@ -360,6 +360,7 @@ export default function CitizenPortal() {
   });
   const [isGpsActive, setIsGpsActive] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [gpsError, setGpsError] = useState(null);
 
   // 3. Network & Offline State
@@ -482,7 +483,9 @@ export default function CitizenPortal() {
         if (requestId !== assessmentSeq.current) return;
         console.error('PostGIS spatial assessment failed:', err);
         setDatabaseStatus('OFFLINE');
-        setDatabaseError(err.message || 'Unable to read active alerts from Supabase.');
+        setDatabaseError(err.code === 'PGRST202'
+          ? 'The live alert lookup is missing from this Supabase project. Apply migration 20260929_restore_citizen_alert_rpc.sql to enable live sync.'
+          : err.message || 'Unable to read active alerts from Supabase.');
         loadAlertsFromCache();
       } finally {
         if (requestId === assessmentSeq.current) setIsSyncing(false);
@@ -568,28 +571,35 @@ export default function CitizenPortal() {
     }
 
     setIsLocating(true);
+    setIsGpsActive(false);
+    setGpsAccuracy(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
+        const accuracy = Math.max(1, Math.round(position.coords.accuracy));
         setIsLocating(false);
         setIsGpsActive(true);
+        setGpsAccuracy(accuracy);
         setCurrentCoords({
           lat: userLat,
           lon: userLon,
-          name: `GPS Location (${userLat.toFixed(4)}°N, ${userLon.toFixed(4)}°E)`,
+          name: `Current GPS location (±${accuracy} m)`,
         });
+        setGpsError(accuracy > 1000 ? `Location is approximate (±${accuracy} m). Move outdoors for a better GPS fix.` : null);
         executeSpatialAssessment(userLat, userLon);
       },
       (error) => {
         setIsLocating(false);
+        setIsGpsActive(false);
         console.warn('GPS position error:', error.message);
-        setGpsError('GPS permission denied or unavailable. Using pilot coordinate.');
-        // Fallback to demo location inside storm cone
-        setCurrentCoords(PILOT_LOCATIONS[0]);
-        executeSpatialAssessment(PILOT_LOCATIONS[0].lat, PILOT_LOCATIONS[0].lon);
+        setGpsError(error.code === 1
+          ? 'Location permission is blocked. Allow location access in your browser, then try again.'
+          : error.code === 3
+            ? 'GPS is taking too long to respond. Move outdoors and try again.'
+            : 'Your device could not determine a location. The selected map location has not changed.');
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 20000, maximumAge: 0, enableHighAccuracy: true }
     );
   };
 
@@ -598,6 +608,7 @@ export default function CitizenPortal() {
     const loc = PILOT_LOCATIONS.find((l) => l.id === locationId);
     if (loc) {
       setIsGpsActive(false);
+      setGpsAccuracy(null);
       setCurrentCoords(loc);
       executeSpatialAssessment(loc.lat, loc.lon);
     }
@@ -670,7 +681,7 @@ export default function CitizenPortal() {
     <div className="min-h-screen bg-[#F8F9FA] text-[#1A1D20] font-sans antialiased pb-24 selection:bg-red-200">
       {/* 1. TOP UTILITY BAR (OFFLINE BANNER & 2G DATA SAVER) */}
       <div className="w-full bg-[#1A1D20] text-white text-xs border-b border-neutral-800">
-        <div className="max-w-4xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2">
           {/* Online/Offline status */}
           <div className="flex items-center space-x-2">
             {!isOnline || databaseStatus === 'OFFLINE' ? (
@@ -713,7 +724,7 @@ export default function CitizenPortal() {
           </div>
         </div>
         {databaseError && (
-          <div className="max-w-4xl mx-auto px-4 pb-2 text-[11px] text-amber-200" role="status">
+          <div className="max-w-7xl mx-auto px-4 pb-2 text-[11px] text-amber-200" role="status">
             {databaseError}{isCachedDataDisplayed ? ' Cached approved alerts are shown and labeled as cached.' : ' Live alert data is unavailable.'}
           </div>
         )}
@@ -721,7 +732,7 @@ export default function CitizenPortal() {
 
       {/* 2. PWA ACCESSIBLE HEADER WITH MULTI-LINGUAL SELECTOR */}
       <header className="relative z-10 bg-white border-b border-[#E5E0D8] shadow-xs">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           {/* Institutional Brand */}
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-lg bg-[#DC2626] text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0">
@@ -783,7 +794,7 @@ export default function CitizenPortal() {
 
         {/* GPS AUTO-DETECT & LOCATION PICKER STRIP */}
         <div className="bg-[#FAF7F2] border-t border-[#E5E0D8] px-4 py-2">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div className="flex items-center space-x-2 flex-1">
               <MapPin className="w-4 h-4 text-[#DC2626] shrink-0" />
               <select
@@ -791,6 +802,9 @@ export default function CitizenPortal() {
                 onChange={(e) => handleSelectLocation(e.target.value)}
                 className="w-full sm:max-w-sm py-1.5 px-2 bg-white rounded-lg border border-[#E5E0D8] text-xs font-semibold text-[#1A1D20] focus:ring-2 focus:ring-[#DC2626] focus:outline-none"
               >
+                {!PILOT_LOCATIONS.some((location) => location.name === currentCoords.name) && (
+                  <option value="custom">{currentCoords.name}</option>
+                )}
                 {PILOT_LOCATIONS.map((loc) => (
                   <option key={loc.id} value={loc.id}>
                     {loc.name} {loc.isInsideDemoCone ? '⚠️ (Storm Cone)' : ''}
@@ -813,6 +827,7 @@ export default function CitizenPortal() {
                 <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
                 <span>{isLocating ? t.locating : isGpsActive ? t.gpsLocated : t.useGps}</span>
               </button>
+              {gpsAccuracy != null && <span className="hidden text-[11px] text-[#59656D] sm:inline">±{gpsAccuracy} m</span>}
 
               {/* Siren Test Button in Header */}
               <button
@@ -833,7 +848,7 @@ export default function CitizenPortal() {
             </div>
           </div>
           {gpsError && (
-            <div className="max-w-4xl mx-auto mt-1 text-[11px] text-amber-700 font-medium">
+            <div className="max-w-7xl mx-auto mt-1 text-[11px] text-amber-700 font-medium">
               ℹ️ {gpsError}
             </div>
           )}
@@ -841,14 +856,14 @@ export default function CitizenPortal() {
       </header>
 
       {/* 3. MAIN ACCESSIBLE CONTENT CONTAINER */}
-      <main className="max-w-4xl mx-auto px-4 pt-4 space-y-4">
+      <main className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 pb-6 pt-4 lg:grid-cols-2">
         {/* REQUIREMENT 1: AUTO-GPS HYPER-LOCAL RISK BANNER */}
         {nearbyAlerts.length > 0 ? (
           <section
             role="alert"
             aria-label={t.activeConeWarningHeadline}
             aria-live="assertive"
-            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-red-800 text-white p-5 sm:p-6 shadow-xl border-2 border-red-500 animate-pulse"
+            className="relative col-span-full overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-700 to-red-800 p-5 text-white shadow-xl sm:p-6"
             style={{ animationDuration: '3s' }}
           >
             {/* Top Red Badge & Status */}
@@ -922,7 +937,7 @@ export default function CitizenPortal() {
           </section>
         ) : (
           /* Safe Zone Banner when user is outside storm cone */
-          <section className="rounded-2xl bg-white border border-emerald-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <section className="col-span-full flex flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center">
             <div className="flex items-center space-x-3.5">
               <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-7 h-7" />
@@ -942,7 +957,7 @@ export default function CitizenPortal() {
         )}
 
         {/* REQUIREMENT 2: MULTI-LINGUAL ACTIONABLE SAFETY ADVISORIES */}
-        <section className="bg-white rounded-2xl border border-[#E5E0D8] p-5 shadow-xs space-y-4">
+        <section className="col-span-full space-y-4 rounded-2xl border border-[#E5E0D8] bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3">
             <div className="flex items-center space-x-2">
               <ShieldAlert className="w-5 h-5 text-[#DC2626]" />
@@ -1045,8 +1060,8 @@ export default function CitizenPortal() {
           </div>
         </section>
 
-        {/* REQUIREMENT 3: INSTITUTIONAL WEATHER RADAR VIEW */}
-        <section className="bg-white rounded-2xl border border-[#E5E0D8] p-5 shadow-xs space-y-3">
+          {/* REQUIREMENT 3: INSTITUTIONAL WEATHER RADAR VIEW */}
+        <section className="min-w-0 space-y-3 rounded-2xl border border-[#E5E0D8] bg-white p-5 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E0D8] pb-3">
             <div>
               <h3 className="font-extrabold text-sm sm:text-base text-[#1A1D20] flex items-center gap-1.5">
@@ -1069,7 +1084,7 @@ export default function CitizenPortal() {
         </section>
 
         {/* OFFICIAL IMD / SDMA APPROVED WARNING BULLETINS */}
-        <section className="bg-white rounded-2xl border border-[#E5E0D8] p-5 shadow-xs space-y-3">
+        <section className="min-w-0 space-y-3 rounded-2xl border border-[#E5E0D8] bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3">
             <div>
               <h3 className="font-extrabold text-sm text-[#1A1D20] flex items-center gap-1.5">
@@ -1134,8 +1149,7 @@ export default function CitizenPortal() {
           </div>
         </section>
 
-        {/* 24x7 EMERGENCY DISASTER HELPLINES */}
-        <section className="rounded-2xl bg-[#0B2E4F] text-white p-5 shadow-sm space-y-3">
+        <section className="col-span-full space-y-3 rounded-2xl bg-[#0B2E4F] p-5 text-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#16436E] pb-2.5">
             <span className="font-bold uppercase tracking-wider text-[#FF9933] flex items-center gap-1.5 text-xs">
               <PhoneCall className="w-4 h-4" />

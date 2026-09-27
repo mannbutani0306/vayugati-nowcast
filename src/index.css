@@ -13,7 +13,7 @@
   --tier-watch: #D97706;
   --tier-warning: #EA580C;
   --tier-severe: #DC2626;
-  --app-font-scale: 1;
+  --app-font-scale: 1.125;
   --app-focus-color: #D9532F;
   font-size: calc(16px * var(--app-font-scale));
   transition: font-size 180ms ease;

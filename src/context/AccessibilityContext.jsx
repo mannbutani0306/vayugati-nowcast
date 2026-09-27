@@ -45,7 +45,7 @@ export function AccessibilityProvider({ children }) {
     root.classList.remove('font-scale-sm', 'font-scale-md', 'font-scale-lg');
     root.classList.add(`font-scale-${fontScale}`);
 
-    root.style.setProperty('--app-font-scale', fontScale === 'sm' ? '0.9' : fontScale === 'lg' ? '1.125' : '1');
+    root.style.setProperty('--app-font-scale', fontScale === 'sm' ? '1' : fontScale === 'lg' ? '1.25' : '1.125');
 
     localStorage.setItem('vayugati_font_scale', fontScale);
   }, [fontScale]);

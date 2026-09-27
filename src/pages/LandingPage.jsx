@@ -126,13 +126,13 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col antialiased">
       {/* 1. HERO SECTION */}
-      <section className="relative isolate overflow-hidden border-b border-[#E5E0D8] bg-white px-4 py-8 lg:px-8 lg:py-12">
+      <section className="relative isolate overflow-hidden border-b border-[#E5E0D8] bg-gradient-to-br from-sky-100 via-cyan-50 to-sky-100 px-4 py-8 lg:px-8 lg:py-12">
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
-          <div className="absolute inset-y-0 right-0 w-full bg-gradient-to-br from-sky-50 via-white to-cyan-50 lg:w-1/2" />
-          <div className="absolute bottom-0 right-0 h-2/5 w-full bg-sky-200/50 [clip-path:polygon(0_72%,14%_48%,29%_68%,45%_35%,57%_65%,73%_28%,86%_57%,100%_38%,100%_100%,0_100%)] lg:w-1/2" />
-          <div className="absolute bottom-0 right-0 h-1/4 w-full bg-cyan-700/20 [clip-path:polygon(0_70%,17%_32%,33%_68%,51%_24%,70%_72%,85%_34%,100%_61%,100%_100%,0_100%)] lg:w-1/2" />
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-100/70 via-cyan-50/40 to-sky-200/70" />
+          <div className="absolute bottom-0 left-0 h-2/5 w-full bg-sky-300/35 [clip-path:polygon(0_72%,14%_48%,29%_68%,45%_35%,57%_65%,73%_28%,86%_57%,100%_38%,100%_100%,0_100%)]" />
+          <div className="absolute bottom-0 left-0 h-1/4 w-full bg-cyan-800/15 [clip-path:polygon(0_70%,17%_32%,33%_68%,51%_24%,70%_72%,85%_34%,100%_61%,100%_100%,0_100%)]" />
         </div>
-        <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)] lg:gap-12">
+        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)] lg:gap-12">
           <div className="space-y-5">
           {/* Top Badge & Mission Indicator */}
           <div className="flex flex-wrap items-center gap-2.5">
@@ -219,7 +219,7 @@ export default function LandingPage() {
 
             {radarFeed?.mode !== 'WMS' && radarFeed?.mode !== 'XYZ_TMS_TILES' ? (
               <a href={radarFeed?.image_url || PUBLIC_IMD_RADAR_IMAGE_URL} rel="noreferrer" target="_blank" title="Open the public IMD radar image">
-                <img alt="Public IMD radar image; image is not georeferenced for map overlay" className="max-h-[390px] min-h-[300px] w-full bg-[#F1F5F6] object-contain" decoding="async" fetchPriority="high" loading="eager" src={radarFeed?.image_url || PUBLIC_IMD_RADAR_IMAGE_URL} />
+                <img alt="Public IMD radar image; image is not georeferenced for map overlay" className="block h-[min(60vh,520px)] min-h-[260px] w-full bg-[#F1F5F6] object-contain" decoding="async" fetchPriority="high" loading="eager" src={radarFeed?.image_url || PUBLIC_IMD_RADAR_IMAGE_URL} />
               </a>
             ) : (
               <div className="flex min-h-[300px] flex-col items-center justify-center gap-2 border border-dashed border-[#C9D5D8] bg-[#F5F8F8] px-6 text-center">

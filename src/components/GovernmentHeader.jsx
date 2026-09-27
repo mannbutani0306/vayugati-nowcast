@@ -293,7 +293,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
           </div>
 
           {/* Quick Header Controls: Live Clock, System Status & Official Login */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
             <div className="inline-flex items-center gap-2 border border-[#1E293B] bg-[#09101F] px-2.5 py-1.5 font-mono text-xs text-white" aria-label={`Current time ${istTime} India Standard Time`}>
               <Clock aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
               <time dateTime={new Date().toISOString()}>{istTime || '--:--:--'} IST</time>
