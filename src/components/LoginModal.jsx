@@ -37,6 +37,14 @@ const DEMO_PRESETS = {
   },
 };
 
+const LOCAL_DEMO_PASSWORDS = import.meta.env.DEV
+  ? {
+      citizen: 'citizen@123',
+      officer: 'officer@123',
+      admin: 'admin@123',
+    }
+  : null;
+
 function getLoginErrorMessage(error) {
   if (/invalid login credentials/i.test(error || '')) {
     return 'Supabase rejected these credentials. Enter the password saved for this account or reset it in Supabase Auth.';
@@ -66,7 +74,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
     const roleKey = activeTab;
     const roleEmail = DEMO_PRESETS[roleKey].email;
     setEmail(roleEmail);
-    setPassword(isConfigured ? '' : 'demo');
+    setPassword(LOCAL_DEMO_PASSWORDS?.[roleKey] || '');
     setErrorMessage('');
     setSuccessMessage('');
     setAutoFillMessage('');
