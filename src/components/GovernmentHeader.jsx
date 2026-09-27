@@ -1,27 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAccessibility, SUPPORTED_LANGUAGES } from '../context/AccessibilityContext';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Clock,
-  Radio,
   UserCheck,
   LogOut,
   LogIn,
-  AlertCircle,
   Database,
-  Shield,
   Eye,
   Globe,
   Sun,
   Moon,
   ChevronDown,
-  Volume2,
-  VolumeX,
-  Bell,
-  Sparkles,
   ExternalLink,
-  Flame,
+  X,
 } from 'lucide-react';
 
 /**
@@ -82,7 +74,7 @@ function NationalEmblemSVG({ className = 'w-9 h-11' }) {
 }
 
 export default function GovernmentHeader({ onOpenLogin }) {
-  const { user, profile, role, isConfigured, logout } = useAuth();
+  const { profile, role, logout } = useAuth();
   const {
     fontScale,
     setFontScale,
@@ -90,36 +82,11 @@ export default function GovernmentHeader({ onOpenLogin }) {
     cycleContrastMode,
     language,
     changeLanguage,
-    speakText,
-    stopSpeaking,
-    isSpeakingAlert,
   } = useAccessibility();
 
   const navigate = useNavigate();
-  const [istTime, setIstTime] = useState('');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-
-  const emergencyMarqueeText =
-    'Approved CAP alerts appear in the Citizen Portal after authorized review. This channel message does not indicate that an alert is currently active.';
-
-  // Live IST Clock
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setIstTime(
-        now.toLocaleTimeString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        })
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
 
   const handleDashboardRedirect = () => {
     const normalizedRole = String(role || '').toLowerCase().replace(/[- ]/g, '_');
@@ -131,12 +98,10 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const activeLangObj =
     SUPPORTED_LANGUAGES.find((l) => l.code === language) || SUPPORTED_LANGUAGES[0];
 
-  const handleToggleVoiceAlert = () => {
-    if (isSpeakingAlert) {
-      stopSpeaking();
-    } else {
-      speakText(emergencyMarqueeText);
-    }
+  const handleSignOut = async () => {
+    await logout();
+    setIsSignOutConfirmOpen(false);
+    navigate('/');
   };
 
   return (
@@ -319,7 +284,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
       </div>
 
       {/* 4. OFFICIAL MINISTRY BANNER (Deep Navy #0F172A) */}
-      <div className="bg-[#0F172A] text-[#FAF7F2] border-b border-[#1E293B] px-4 lg:px-8 py-3">
+      <div className="bg-[#0F172A] text-[#FAF7F2] border-b border-[#1E293B] px-4 lg:px-8 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           {/* Official Emblem & Branding */}
           <div className="flex min-w-0 items-center space-x-3.5">
@@ -335,22 +300,12 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   <span>|</span>
                   <span>Ministry of Earth Sciences (MoES)</span>
                 </div>
-                <div className="text-sm md:text-base font-bold tracking-tight text-white flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span>India Meteorological Department (IMD)</span>
-                  <span className="hidden sm:inline text-neutral-400 font-normal">•</span>
-                  <span className="hidden sm:inline text-xs text-neutral-300 font-semibold">
-                    NDMA Integrated Node
-                  </span>
+                <div className="text-sm md:text-base font-bold tracking-tight text-white">
+                  India Meteorological Department (IMD)
                 </div>
-                <div className="flex items-center space-x-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-xs font-extrabold text-[#FAF7F2] tracking-wide">
                     VayuGati Nowcast
-                  </span>
-                  <span className="text-[9px] bg-[#1E293B] text-slate-200 border border-slate-500/50 px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
-                    Weather operations prototype
-                  </span>
-                  <span className="text-[10px] text-neutral-400 hidden lg:inline">
-                    Convective-Scale Nowcasting (0–6 Hr Lead Time, 1–3 km Mesh)
                   </span>
                 </div>
               </div>
@@ -358,22 +313,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
           </div>
 
           {/* Quick Header Controls: Live Clock, System Status & Official Login */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Live IST Clock */}
-            <div className="bg-[#09101F] border border-[#1E293B] px-3 py-1.5 rounded text-xs flex items-center space-x-2 font-mono text-neutral-200">
-              <Clock className="w-3.5 h-3.5 text-[#FF9933]" />
-              <span className="font-semibold text-white">{istTime || '12:00:00'} IST</span>
-            </div>
-
-            {/* Operational System Status Indicator */}
-            <div
-              className={`border px-2.5 py-1.5 rounded text-[11px] flex items-center space-x-1.5 ${isConfigured ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300' : 'bg-amber-950/80 border-amber-500/50 text-amber-200'}`}
-              title="Configuration indicator only; individual feed availability is shown with its source status."
-            >
-              <span className={`w-2 h-2 rounded-full ${isConfigured ? 'bg-emerald-400' : 'bg-amber-300'}`}></span>
-              <span className="font-medium">Core configuration: {isConfigured ? 'Ready' : 'Required'}</span>
-            </div>
-
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               to="/data-sources"
               aria-label="Data sources and attribution"
@@ -385,22 +325,22 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
             {/* User Profile / Portal Action */}
             {profile ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleDashboardRedirect}
-                  className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
+                  className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span className="capitalize">{role} Dashboard</span>
+                  <span className="capitalize">{role} dashboard</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => logout()}
-                  title="Sign out"
-                  className="p-1.5 bg-[#09101F] hover:bg-neutral-800 text-neutral-300 rounded border border-[#1E293B] transition-colors cursor-pointer"
+                  onClick={() => setIsSignOutConfirmOpen(true)}
+                  className="bg-[#09101F] hover:bg-neutral-800 text-white px-3 py-1.5 rounded border border-[#1E293B] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign out</span>
                 </button>
               </div>
             ) : (
@@ -410,64 +350,29 @@ export default function GovernmentHeader({ onOpenLogin }) {
                 className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-3.5 py-1.5 rounded text-xs font-bold tracking-wide flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>OFFICIAL LOGIN</span>
+                <span>Sign in</span>
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* 5. LIVE EMERGENCY ALERT TICKER (RED/YELLOW CAP MARQUEE WITH AUDIO TTS) */}
-      <div className="bg-[#B91C1C] text-white text-xs py-1.5 px-4 overflow-hidden border-b border-[#991B1B] flex items-center shadow-inner">
-        {/* Warning Badge & Audio TTS Trigger */}
-        <div className="flex items-center space-x-2 shrink-0 mr-3">
-            <span className="bg-yellow-400 text-black font-extrabold text-[10px] uppercase px-2 py-0.5 rounded tracking-wider flex items-center gap-1 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-[#0B5D73]"></span>
-            <span>CAP DELIVERY</span>
-          </span>
-
-          {/* Web Speech API Audio Warning Button */}
-          <button
-            type="button"
-            onClick={handleToggleVoiceAlert}
-            title={isSpeakingAlert ? 'Stop audio' : 'Read CAP delivery information aloud'}
-            aria-label={isSpeakingAlert ? 'Stop audio' : 'Read CAP delivery information aloud'}
-            className={`p-1 rounded transition-all cursor-pointer flex items-center space-x-1 text-[11px] font-bold ${
-              isSpeakingAlert
-                ? 'bg-yellow-300 text-black animate-pulse'
-                : 'bg-black/30 hover:bg-black/50 text-white'
-            }`}
-          >
-            {isSpeakingAlert ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-yellow-300" />}
-            <span className="hidden sm:inline text-[10px]">
-              {isSpeakingAlert ? 'Stop Audio' : 'Audio Alert'}
-            </span>
-          </button>
+      {isSignOutConfirmOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" role="presentation">
+          <section className="w-full max-w-sm rounded-lg border border-[#E5E0D8] bg-white p-5 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="signout-title">
+            <div className="flex items-start justify-between gap-3">
+              <h2 id="signout-title" className="text-base font-bold text-[#1A1D20]">ARE YOU SURE YOU WANT TO SIGN OUT?</h2>
+              <button type="button" onClick={() => setIsSignOutConfirmOpen(false)} aria-label="Close sign-out confirmation" className="text-[#6C7278] hover:text-[#1A1D20]">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setIsSignOutConfirmOpen(false)} className="rounded border border-[#E5E0D8] px-3 py-2 text-sm font-semibold text-[#1A1D20]">Cancel</button>
+              <button type="button" onClick={handleSignOut} className="rounded bg-[#D9532F] px-3 py-2 text-sm font-semibold text-white hover:bg-[#BF4422]">Sign out</button>
+            </div>
+          </section>
         </div>
-
-        {/* Marquee Scrolling Text Strip */}
-          <div className="relative overflow-hidden w-full whitespace-nowrap" role="status" aria-label="CAP delivery information" aria-live="polite">
-          <div
-            className="inline-block animate-marquee font-mono text-[11px] tracking-wide text-yellow-100 font-bold"
-          >
-            {emergencyMarqueeText}
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(100%); }
-          100% { transform: translateX(-100%); }
-        }
-        .animate-marquee {
-          display: inline-block;
-          animation: marquee 30s linear infinite;
-        }
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
+      )}
     </header>
   );
 }

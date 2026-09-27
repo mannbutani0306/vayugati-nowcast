@@ -720,7 +720,7 @@ export default function CitizenPortal() {
       </div>
 
       {/* 2. PWA ACCESSIBLE HEADER WITH MULTI-LINGUAL SELECTOR */}
-      <header className="bg-white border-b border-[#E5E0D8] sticky top-0 z-40 shadow-xs">
+      <header className="relative z-10 bg-white border-b border-[#E5E0D8] shadow-xs">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           {/* Institutional Brand */}
           <div className="flex items-center space-x-2.5">
@@ -938,58 +938,8 @@ export default function CitizenPortal() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleSelectLocation('sahastradhara')}
-              className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-all shrink-0 cursor-pointer self-start sm:self-auto"
-            >
-              Simulate Inside Storm Cone
-            </button>
           </section>
         )}
-
-        {/* DEMO LOCATION TEST CHIPS (Ensures evaluator can test both states instantly) */}
-        <div className="bg-white rounded-xl border border-[#E5E0D8] p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-bold text-[#6C7278] flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-[#DC2626]" />
-            {t.testLocations}
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleSelectLocation('sahastradhara')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                currentCoords.id === 'sahastradhara' || isInsideStormCone
-                  ? 'bg-red-600 text-white shadow-2xs'
-                  : 'bg-[#F1F3F5] text-[#1A1D20] hover:bg-neutral-200'
-              }`}
-            >
-              ⚠️ {t.testInsideCone}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectLocation('dehradun_city')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                currentCoords.id === 'dehradun_city'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'bg-[#F1F3F5] text-[#1A1D20] hover:bg-neutral-200'
-              }`}
-            >
-              ⚡ {t.testNearCone}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectLocation('haridwar')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                currentCoords.id === 'haridwar'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'bg-[#F1F3F5] text-[#1A1D20] hover:bg-neutral-200'
-              }`}
-            >
-              🛡️ {t.testSafeZone}
-            </button>
-          </div>
-        </div>
 
         {/* REQUIREMENT 2: MULTI-LINGUAL ACTIONABLE SAFETY ADVISORIES */}
         <section className="bg-white rounded-2xl border border-[#E5E0D8] p-5 shadow-xs space-y-4">
@@ -1000,9 +950,6 @@ export default function CitizenPortal() {
                 {t.safetyAdvisoriesTitle}
               </h3>
             </div>
-            <span className="text-[10px] font-mono text-white bg-[#DC2626] px-2 py-0.5 rounded font-bold uppercase">
-              NDMA SOP
-            </span>
           </div>
 
           {/* Core Action Directives Grid */}
@@ -1108,9 +1055,6 @@ export default function CitizenPortal() {
               </h3>
               <p className="text-[11px] text-[#6C7278]">{t.radarViewSub}</p>
             </div>
-            <span className={`text-[10px] font-mono border px-2 py-0.5 rounded self-start sm:self-auto font-bold ${databaseStatus === 'CONNECTED' ? 'text-[#2E7D32] bg-emerald-50 border-emerald-200' : 'text-amber-800 bg-amber-50 border-amber-200'}`}>
-              Supabase Realtime: {databaseStatus}
-            </span>
           </div>
 
           {/* Interactive or Low-Bandwidth Leaflet GIS Canvas */}
@@ -1122,19 +1066,6 @@ export default function CitizenPortal() {
             alerts={nearbyAlerts}
           />
 
-          {/* Shelter directory is not wired to a verified database table yet. */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-            Verified shelter locations are not available from the operational database.
-          </div>
-        </section>
-
-        {/* 0–6 HOUR PROGRESSION STRIP */}
-        <section className="bg-white rounded-2xl border border-[#E5E0D8] p-5 shadow-xs space-y-3">
-          <h3 className="font-extrabold text-sm text-[#1A1D20] flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-[#DC2626]" />
-            {t.hourlyProgressionTitle}
-          </h3>
-          <p className="text-xs text-slate-600">No forecast-progression table is connected. This view will not substitute a generated timeline.</p>
         </section>
 
         {/* OFFICIAL IMD / SDMA APPROVED WARNING BULLETINS */}
@@ -1145,13 +1076,7 @@ export default function CitizenPortal() {
                 <Bell className="w-4 h-4 text-[#DC2626]" />
                 {t.liveBulletinsTitle}
               </h3>
-              <p className="text-[11px] text-[#6C7278]">
-                {isCachedDataDisplayed ? t.dataCachedNotice : databaseStatus === 'CONNECTED' ? 'Live approved CAP alerts from Supabase PostGIS.' : t.databaseOffline}
-              </p>
             </div>
-            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${databaseStatus === 'CONNECTED' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-800 bg-amber-50 border-amber-200'}`}>
-              Database: {databaseStatus}
-            </span>
           </div>
 
           <div className="space-y-3">
@@ -1337,8 +1262,8 @@ function CitizenRadarMap({ userLocation, isLowBandwidth, t, isInsideCone, alerts
   }, [userLocation, isLowBandwidth, t, isInsideCone, alerts]);
 
   return (
-    <div className="relative w-full h-[260px] sm:h-[300px] rounded-xl overflow-hidden border border-[#E5E0D8] bg-[#F1F3F5]">
-      <div ref={mapContainerRef} className="w-full h-full" />
+    <div className="relative isolate z-0 w-full h-[260px] sm:h-[300px] rounded-xl overflow-hidden border border-[#E5E0D8] bg-[#F1F3F5]">
+      <div ref={mapContainerRef} className="relative z-0 w-full h-full overflow-hidden" />
 
       {/* Floating Radar Legend */}
       <div className="absolute top-2 right-2 z-[400] bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-[#E5E0D8] text-[10px] shadow-sm flex flex-wrap items-center gap-3 text-[#1A1D20]">

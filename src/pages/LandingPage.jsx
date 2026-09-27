@@ -1,50 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import DataDisclaimerModal from '../components/DataDisclaimerModal';
-import { fetchInstabilityIndex, fetchLightningFeed, fetchRadarFeed, fetchSatelliteFeed } from '../lib/apiClient';
+import LoginModal from '../components/LoginModal';
+import { fetchRadarFeed } from '../lib/apiClient';
 import {
-  ShieldAlert,
   Radio,
-  Zap,
-  CloudRain,
-  Compass,
-  ArrowRight,
-  CheckCircle2,
-  AlertTriangle,
-  PhoneCall,
-  Clock,
-  ExternalLink,
-  ChevronRight,
   Info,
-  Layers,
   MapPin,
-  TrendingUp,
 } from 'lucide-react';
 
-export default function LandingPage({ onOpenLogin }) {
+export default function LandingPage() {
   const [radarFeed, setRadarFeed] = useState(null);
-  const [satelliteFeed, setSatelliteFeed] = useState(null);
-  const [lightningFeed, setLightningFeed] = useState(null);
-  const [nwpData, setNwpData] = useState(null);
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
     const refreshPublicFeeds = async () => {
-      const results = await Promise.allSettled([
-        fetchRadarFeed({ signal: controller.signal }),
-        fetchSatelliteFeed({}, { signal: controller.signal }),
-        fetchLightningFeed({ signal: controller.signal }),
-        fetchInstabilityIndex({ lat: 30.3165, lon: 78.0322, signal: controller.signal }),
-      ]);
+      const result = await fetchRadarFeed({ signal: controller.signal }).then(
+        (value) => ({ status: 'fulfilled', value }),
+        (reason) => ({ status: 'rejected', reason })
+      );
       if (!active) return;
-      setRadarFeed(results[0].status === 'fulfilled' ? results[0].value : { status: 'OFFLINE' });
-      setSatelliteFeed(results[1].status === 'fulfilled' ? results[1].value : { status: 'OFFLINE' });
-      setLightningFeed(results[2].status === 'fulfilled' ? results[2].value : { type: 'FeatureCollection', features: [], metadata: { status: 'OFFLINE' } });
-      setNwpData(results[3].status === 'fulfilled' ? results[3].value : null);
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') console.warn(`Public observation feed ${index + 1} unavailable:`, result.reason);
-      });
+      setRadarFeed(result.status === 'fulfilled' ? result.value : { status: 'OFFLINE' });
+      if (result.status === 'rejected') console.warn('Public radar feed unavailable:', result.reason);
     };
     refreshPublicFeeds();
     const refreshTimer = setInterval(refreshPublicFeeds, 60000);
@@ -116,15 +94,7 @@ export default function LandingPage({ onOpenLogin }) {
             </p>
           </div>
 
-          {/* Action Callouts */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={onOpenLogin}
-              className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-5 py-3 rounded-lg font-bold text-sm tracking-wide flex items-center space-x-2 transition-all shadow-sm cursor-pointer"
-            >
-              <span>ACCESS COMMAND PORTAL</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
             <a
               href="#advisories"
               className="bg-[#FAF7F2] hover:bg-[#E5E0D8] text-[#1A1D20] border border-[#E5E0D8] px-5 py-3 rounded-lg font-semibold text-sm transition-all"
@@ -133,29 +103,6 @@ export default function LandingPage({ onOpenLogin }) {
             </a>
           </div>
 
-          {/* Real-Time Monitoring Stations Ticker */}
-          <div className="pt-4 border-t border-[#E5E0D8] grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 text-xs">
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Radar Composite</span>
-              <span className="font-bold text-[#1A1D20] block">IMD DWR</span>
-              <span className="text-[10px] text-[#6C7278] font-semibold">{radarFeed?.status || 'CONNECTING'}{radarFeed?.image_status ? ` • public image ${radarFeed.image_status.toLowerCase()}` : ''}</span>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Satellite Link</span>
-              <span className="font-bold text-[#1A1D20] block">MOSDAC INSAT TIR1</span>
-              <span className="text-[10px] text-[#6C7278] font-semibold">{satelliteFeed?.status || 'CONNECTING'}</span>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">Lightning Proxy</span>
-              <span className="font-bold text-[#1A1D20] block">Blitzortung</span>
-              <span className="text-[10px] text-[#6C7278] font-semibold">{lightningFeed?.metadata?.status || 'CONNECTING'}{lightningFeed?.features ? ` • ${lightningFeed.features.length} points` : ''}</span>
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278] block">NWP Model Grid</span>
-              <span className="font-bold text-[#1A1D20] block">Open-Meteo GFS / ICON</span>
-              <span className="text-[10px] text-[#6C7278] font-semibold">{nwpData?.metadata?.mode || 'OFFLINE'}</span>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -172,13 +119,6 @@ export default function LandingPage({ onOpenLogin }) {
             </h2>
           </div>
           <button
-            onClick={onOpenLogin}
-            className="text-xs font-bold text-[#D9532F] hover:text-[#BF4422] flex items-center gap-1"
-          >
-            <span>Open Detailed Forecaster Tools</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-          <button
             onClick={() => setIsDataModalOpen(true)}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#315966] hover:text-[#173644]"
             type="button"
@@ -188,15 +128,12 @@ export default function LandingPage({ onOpenLogin }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 items-start gap-5">
           {/* Radar Reflectivity Preview Card */}
           <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-5 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3">
               <div>
                 <h3 className="font-bold text-sm text-[#1A1D20]">IMD Doppler Weather Radar</h3>
-                <span className="text-xs text-[#6C7278]">
-                  Feed state: {radarFeed?.status || 'CONNECTING'} • Image state: {radarFeed?.image_status || 'CHECKING'}
-                </span>
               </div>
             </div>
 
@@ -219,60 +156,8 @@ export default function LandingPage({ onOpenLogin }) {
             </p>
           </div>
 
-          {/* Live Sensor Metrics Snapshot */}
-          <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-5 space-y-4 shadow-2xs flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="border-b border-[#E5E0D8] pb-3">
-                <h3 className="font-bold text-sm text-[#1A1D20]">
-                  Multi-Sensor Fusion Indices
-                </h3>
-                <span className="text-xs text-[#6C7278]">
-                  Updated 2 minutes ago via Automated Station Bus
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-3 bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-[#6C7278]">Lightning strikes received</span>
-                    <span className="font-bold text-[#DC2626] font-mono">
-                      {lightningFeed?.metadata?.status === 'LIVE' ? lightningFeed.features.length : 'Unavailable'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[#6C7278] mt-0.5 block">
-                    Blitzortung proxy • {lightningFeed?.metadata?.status || 'CONNECTING'}
-                  </span>
-                </div>
-
-                <div className="p-3 bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-[#6C7278]">Cloud-Top Brightness (CTT)</span>
-                    <span className="font-bold text-[#DC2626] font-mono">Unavailable</span>
-                  </div>
-                  <span className="text-[10px] text-[#6C7278] mt-0.5 block">
-                    MOSDAC imagery is not a calibrated point temperature without a configured GeoTIFF.
-                  </span>
-                </div>
-
-                <div className="p-3 bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-[#6C7278]">CAPE Instability Energy</span>
-                    <span className="font-bold text-[#D9532F] font-mono">{nwpData?.current_cape ?? 'Unavailable'}{nwpData?.current_cape != null ? ' J/kg' : ''}</span>
-                  </div>
-                  <span className="text-[10px] text-[#6C7278] mt-0.5 block">
-                    {nwpData ? `CIN ${nwpData.cin_estimate ?? 'unavailable'} J/kg • Lifted Index ${nwpData.lifted_index ?? 'unavailable'} °C • ${nwpData.metadata?.mode || 'STATUS UNKNOWN'}` : 'Open-Meteo point sounding unavailable.'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={onOpenLogin}
-              className="w-full bg-[#FAF7F2] hover:bg-[#E5E0D8] border border-[#E5E0D8] text-[#1A1D20] py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-1.5 transition-colors"
-            >
-              <span>Official Forecaster Login</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+          <div className="lg:col-span-1">
+            <LoginModal embedded isOpen />
           </div>
         </div>
       </section>
@@ -289,9 +174,6 @@ export default function LandingPage({ onOpenLogin }) {
               <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D20] mt-1">
                 Active Weather Advisories for Citizens &amp; Travelers
               </h2>
-            </div>
-            <div className="text-xs text-[#6C7278] font-mono bg-[#FAF7F2] border border-[#E5E0D8] px-3 py-1.5 rounded">
-              Updated every 15 minutes • IMD Bulletin #ND-2026-44
             </div>
           </div>
 
@@ -338,130 +220,6 @@ export default function LandingPage({ onOpenLogin }) {
         </div>
       </section>
 
-      {/* 4. EMERGENCY CONTACT NUMBERS & ROLES CALLOUT */}
-      <section className="max-w-7xl mx-auto w-full px-4 lg:px-8 py-10 space-y-8">
-        {/* Disaster Hotlines Grid */}
-        <div className="bg-[#0B2E4F] text-white rounded-xl p-6 lg:p-8 space-y-4 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#12426E] pb-4">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#FF9933] flex items-center gap-1.5">
-                <PhoneCall className="w-4 h-4" />
-                State &amp; National Disaster Response Directory
-              </span>
-              <h3 className="text-lg md:text-xl font-bold mt-1">
-                Emergency Flash Flood &amp; Severe Storm Toll-Free Helplines
-              </h3>
-            </div>
-            <button
-              onClick={onOpenLogin}
-              className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
-            >
-              Responder Portal
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-            <div className="p-3 bg-[#08223B] rounded border border-[#16436E]">
-              <span className="text-[10px] text-neutral-400 uppercase block font-sans">NDMA National Control</span>
-              <span className="text-lg font-bold text-white mt-1 block">1070</span>
-              <span className="text-[10px] text-emerald-400 font-sans">24x7 Emergency Line</span>
-            </div>
-            <div className="p-3 bg-[#08223B] rounded border border-[#16436E]">
-              <span className="text-[10px] text-neutral-400 uppercase block font-sans">State Disaster (SDMA)</span>
-              <span className="text-lg font-bold text-white mt-1 block">1077</span>
-              <span className="text-[10px] text-emerald-400 font-sans">District Control Rooms</span>
-            </div>
-            <div className="p-3 bg-[#08223B] rounded border border-[#16436E]">
-              <span className="text-[10px] text-neutral-400 uppercase block font-sans">Emergency Medical / NDRF</span>
-              <span className="text-lg font-bold text-white mt-1 block">108 / 112</span>
-              <span className="text-[10px] text-emerald-400 font-sans">Immediate Dispatch</span>
-            </div>
-            <div className="p-3 bg-[#08223B] rounded border border-[#16436E]">
-              <span className="text-[10px] text-neutral-400 uppercase block font-sans">IMD Weather Enquiry</span>
-              <span className="text-lg font-bold text-white mt-1 block">1800-180-1717</span>
-              <span className="text-[10px] text-emerald-400 font-sans">Toll-Free Radar Info</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Role Portal Dispatch Card */}
-        <details className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-[#1A1D20]">
-            Portal access options
-          </summary>
-          <div className="px-4 pb-4 lg:px-8 lg:pb-8 space-y-6">
-          <div className="text-center max-w-xl mx-auto space-y-2">
-            <h3 className="text-xl font-bold text-[#1A1D20]">
-              Authorized Access to VayuGati Nowcast Command
-            </h3>
-            <p className="text-xs text-[#6C7278]">
-              Role-governed operational environments engineered for citizen safety, SDRF disaster response,
-              and IMD Doppler radar engineering.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Citizen Portal */}
-            <div className="p-5 rounded-xl border border-[#E5E0D8] bg-[#FAF7F2] space-y-3 flex flex-col justify-between">
-              <div className="space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
-                  1
-                </div>
-                <h4 className="font-bold text-sm text-[#1A1D20]">Citizen / Community</h4>
-                <p className="text-xs text-[#6C7278] leading-relaxed">
-                  Localized push early warnings, storm shelter navigators, and crowdsourced hail &amp; waterlogging reporting.
-                </p>
-              </div>
-              <button
-                onClick={onOpenLogin}
-                className="w-full bg-white hover:bg-emerald-50 text-[#1A1D20] border border-[#E5E0D8] py-2 rounded text-xs font-bold uppercase transition-colors"
-              >
-                Access Citizen View
-              </button>
-            </div>
-
-            {/* Officer Portal */}
-            <div className="p-5 rounded-xl border border-[#E5E0D8] bg-[#FAF7F2] space-y-3 flex flex-col justify-between">
-              <div className="space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-800 flex items-center justify-center font-bold text-sm">
-                  2
-                </div>
-                <h4 className="font-bold text-sm text-[#1A1D20]">Duty Forecaster / SDRF</h4>
-                <p className="text-xs text-[#6C7278] leading-relaxed">
-                  Live Doppler radar sweeps, lightning jump alarms, cell broadcast siren dispatch, and evacuation tasking.
-                </p>
-              </div>
-              <button
-                onClick={onOpenLogin}
-                className="w-full bg-[#D9532F] hover:bg-[#BF4422] text-white py-2 rounded text-xs font-bold uppercase transition-colors"
-              >
-                Access Forecaster View
-              </button>
-            </div>
-
-            {/* Admin Portal */}
-            <div className="p-5 rounded-xl border border-[#E5E0D8] bg-[#FAF7F2] space-y-3 flex flex-col justify-between">
-              <div className="space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-800 flex items-center justify-center font-bold text-sm">
-                  3
-                </div>
-                <h4 className="font-bold text-sm text-[#1A1D20]">District / IMD Admin</h4>
-                <p className="text-xs text-[#6C7278] leading-relaxed">
-                  Radar station calibration, NWP sounding ingestion, Supabase Row-Level Security policies &amp; sensor health telemetry.
-                </p>
-              </div>
-              <button
-                onClick={onOpenLogin}
-                className="w-full bg-white hover:bg-neutral-100 text-[#1A1D20] border border-[#E5E0D8] py-2 rounded text-xs font-bold uppercase transition-colors"
-              >
-                Access Admin View
-              </button>
-            </div>
-          </div>
-          </div>
-        </details>
-      </section>
-
       {/* 5. FOOTER */}
       <footer className="border-t border-[#E5E0D8] bg-[#FFFFFF] px-4 lg:px-8 py-6 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#6C7278]">
@@ -470,10 +228,6 @@ export default function LandingPage({ onOpenLogin }) {
             <span>• Operational Severe Weather Monitoring System</span>
           </div>
           <div className="flex items-center space-x-4">
-            <button onClick={onOpenLogin} className="hover:text-[#D9532F] font-semibold">
-              Official Portal Sign In
-            </button>
-            <span>•</span>
             <a href="#advisories" className="hover:text-[#D9532F]">
               Public Advisories
             </a>

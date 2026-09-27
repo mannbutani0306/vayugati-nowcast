@@ -36,6 +36,13 @@ body {
   max-width: 100%;
 }
 
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow: hidden;
+}
+
 main * {
   min-width: 0;
 }

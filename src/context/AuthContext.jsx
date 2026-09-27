@@ -134,6 +134,17 @@ export const AuthProvider = ({ children }) => {
       setError(null);
 
       if (!isSupabaseConfigured) {
+        if (localStorage.getItem('vayugati_demo_signed_out') === 'true') {
+          if (isMounted) {
+            setUser(null);
+            setProfile(null);
+            setRole('citizen');
+            setSession(null);
+            setLoading(false);
+          }
+          return;
+        }
+
         // Hydrate demo mode session
         const storedRole = localStorage.getItem('vayugati_demo_role') || 'officer';
         const demoUser = DEMO_PROFILES[storedRole] || DEMO_PROFILES.citizen;
@@ -252,6 +263,7 @@ export const AuthProvider = ({ children }) => {
   const signup = async ({ email, password, fullName = '', targetRole = 'citizen' }) => {
     setError(null);
     if (!isSupabaseConfigured) {
+      localStorage.removeItem('vayugati_demo_signed_out');
       const customProfile = {
         id: `mock-usr-${Date.now()}`,
         email,
@@ -311,6 +323,7 @@ export const AuthProvider = ({ children }) => {
       setRole('citizen');
       setSession(null);
       localStorage.removeItem('vayugati_demo_role');
+      localStorage.setItem('vayugati_demo_signed_out', 'true');
       return { success: true };
     }
 
@@ -333,6 +346,7 @@ export const AuthProvider = ({ children }) => {
    */
   const switchDemoRole = (newRole) => {
     const target = DEMO_PROFILES[newRole] || DEMO_PROFILES.citizen;
+    localStorage.removeItem('vayugati_demo_signed_out');
     localStorage.setItem('vayugati_demo_role', target.role);
     setUser({ id: target.id, email: target.email });
     setProfile(target);

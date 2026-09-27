@@ -1366,9 +1366,9 @@ export default function OfficerDashboard() {
         {/* ========================================================= */}
         {/* LEFT / CENTER: INTERACTIVE LEAFLET GIS CANVAS (7 or 8 COLS) */}
         {/* ========================================================= */}
-        <div className="lg:col-span-8 min-w-0 flex flex-col relative h-[min(70vh,560px)] min-h-[420px] lg:h-auto lg:min-h-[500px]">
+        <div className="lg:col-span-8 min-w-0 flex flex-col relative isolate z-0 overflow-hidden h-[min(70vh,560px)] min-h-[420px] lg:h-auto lg:min-h-[500px]">
           {/* Map Leaflet Container DOM */}
-          <div ref={mapContainerRef} className="w-full h-full z-0 bg-[#E2DDD5]" />
+          <div ref={mapContainerRef} className="relative z-0 w-full h-full overflow-hidden bg-[#E2DDD5]" />
 
           {/* FLOATING TOP TOOLBAR: LAYER SWITCHER & DRAWING TOOLS */}
           <div className="absolute top-4 left-4 z-10 flex flex-col sm:flex-row items-start sm:items-center gap-2 max-w-full">

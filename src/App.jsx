@@ -255,6 +255,15 @@ function GovernmentFooter() {
 function MainLayout() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleOpenLogin = () => {
+    if (location.pathname === '/') {
+      document.getElementById('portal-login')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setIsLoginModalOpen(true);
+  };
 
   // Global Severe Alert Toast Notification State
   const [activeToast, setActiveToast] = useState(null);
@@ -262,7 +271,7 @@ function MainLayout() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col font-sans">
       {/* Official Government Header with 4px Tricolour & Live Marquee */}
-      <GovernmentHeader onOpenLogin={() => setIsLoginModalOpen(true)} />
+      <GovernmentHeader onOpenLogin={handleOpenLogin} />
 
       {/* Main Routed Content Area */}
       <main id="main-content" className="flex-1">

@@ -907,8 +907,8 @@ function PrepositioningMap({ assets }) {
   }, [assets]);
 
   return (
-    <div className="relative w-full h-[320px] rounded-xl border border-[#E5E0D8] overflow-hidden bg-[#FAF7F2]">
-      <div ref={mapContainerRef} className="w-full h-full" />
+    <div className="relative isolate z-0 w-full h-[320px] rounded-xl border border-[#E5E0D8] overflow-hidden bg-[#FAF7F2]">
+      <div ref={mapContainerRef} className="relative z-0 w-full h-full overflow-hidden" />
       <div className="absolute top-2 right-2 z-[400] bg-white/95 px-2.5 py-1.5 rounded-lg border border-[#E5E0D8] text-[10px] shadow-sm flex items-center space-x-3 text-[#1A1D20]">
         <div className="flex items-center space-x-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]"></span>
