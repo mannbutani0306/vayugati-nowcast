@@ -62,7 +62,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 
-const RPC_SCHEMA_ERROR = 'Database setup required: apply the Supabase migrations, then reload the API schema cache.';
+const RPC_SCHEMA_ERROR = 'Database setup required: in Supabase SQL Editor, apply missing migrations 20260926_schema.sql through 20260929_restore_citizen_alert_rpc.sql in order, then redeploy Vercel.';
 
 function getOperationalDataError(error, fallback) {
   if (error?.code === 'PGRST202') return RPC_SCHEMA_ERROR;
@@ -1228,7 +1228,7 @@ export default function OfficerDashboard() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <DataStatusBadge
-              status={currentCell ? nwpStatus.mode : liveCellsLoading ? 'LOADING' : 'OFFLINE'}
+              status={currentCell ? nwpStatus.mode : liveCellsLoading ? 'LOADING' : liveCellsError ? 'OFFLINE' : 'EMPTY'}
               metadata={nwpStatus.metadata}
               hasCachedData={Boolean(selectedNwp)}
             />
