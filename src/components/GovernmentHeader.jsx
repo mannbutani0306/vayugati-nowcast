@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAccessibility, SUPPORTED_LANGUAGES } from '../context/AccessibilityContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { subscribeToApprovedAlerts } from '../lib/spatialQueries';
 import VayuGatiSaarthi from './VayuGatiSaarthi';
@@ -44,6 +44,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
   } = useAccessibility();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [istTime, setIstTime] = useState('');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
@@ -322,9 +323,9 @@ export default function GovernmentHeader({ onOpenLogin }) {
               {/* National Emblem of India Stylized Crest */}
               <div className="h-16 w-16 overflow-hidden rounded-lg bg-[#FAF7F2] flex items-center justify-center text-[#0F172A] shadow-md border border-[#E5E0D8] group-hover:scale-102 transition-transform">
                 <img
-                  src="/EMBLEM.jpeg"
+                  src="/emblem.png"
                   alt="State Emblem of India"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
               </div>
 
@@ -352,6 +353,12 @@ export default function GovernmentHeader({ onOpenLogin }) {
               to="/data-sources"
               aria-label="Data sources and attribution"
               className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 border border-[#1E3A5F] bg-[#14233D] px-3 text-[11px] text-white hover:bg-[#1C3254]"
+              onClick={(event) => {
+                if (['/citizen', '/officer', '/admin'].includes(location.pathname)
+                  && !window.confirm('Leave your dashboard to view data sources?')) {
+                  event.preventDefault();
+                }
+              }}
             >
               <Database aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
               <span>Data sources</span>
@@ -455,7 +462,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
       <div className="overflow-hidden border-b border-[#D8C66F] bg-[#F6E7A8] py-1 text-[#17202A]" aria-label="VayuGati updates">
         <p className="vayugati-marquee-track inline-block whitespace-nowrap px-4 text-[11px] font-semibold">
-          VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Check the Citizen Portal for current approved alerts&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, follow official IMD/NDMA guidance and call 112&nbsp;&nbsp;•&nbsp;&nbsp;
+          VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Check the Citizen Portal for current approved alerts&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, follow official IMD/NDMA guidance and call 112&nbsp;&nbsp;•&nbsp;&nbsp;Stay informed with VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Alerts shown here come from Supabase-approved notices&nbsp;&nbsp;•&nbsp;&nbsp;VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Check the Citizen Portal for current approved alerts&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, follow official IMD/NDMA guidance and call 112&nbsp;&nbsp;•&nbsp;&nbsp;
         </p>
       </div>
 

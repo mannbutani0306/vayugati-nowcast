@@ -19,12 +19,7 @@ import {
   recordForecasterAction,
   submitDraftAlert,
 } from '../lib/spatialQueries';
-import {
-  downloadCapXmlFile,
-  generateCapXml,
-  validateCapXml,
-  convertGeoJsonToCapPolygon,
-} from '../utils/capXmlGenerator';
+import { convertGeoJsonToCapPolygon } from '../utils/geoJsonPolygon';
 import {
   Radio,
   Zap,
@@ -464,7 +459,6 @@ export default function OfficerDashboard() {
   const [broadcastBanner, setBroadcastBanner] = useState(null);
 
   // XML Export Notification
-  const [exportNotice, setExportNotice] = useState(null);
 
   // Map Reference & Leaflet instances
   const mapContainerRef = useRef(null);
@@ -1088,7 +1082,7 @@ export default function OfficerDashboard() {
   };
 
   // -------------------------------------------------------------
-  // QUICK ACTIONS: INSPECT XAI, APPROVE, REJECT, EXPORT CAP XML
+  // QUICK ACTIONS: INSPECT XAI, APPROVE, REJECT
   // -------------------------------------------------------------
   const handleOpenXaiInspection = (alert) => {
     const targetCell = cells.find((cell) => cell.cellId === alert.cellId);
@@ -1102,7 +1096,7 @@ export default function OfficerDashboard() {
   };
 
   const handleApproveAlert = async (alert) => {
-    if (!['DRAFT', 'UNDER_REVIEW'].includes(alert.status) || pendingAlertActionId) return;
+    if (alert.trainingOnly || !['DRAFT', 'UNDER_REVIEW'].includes(alert.status) || pendingAlertActionId) return;
     setPendingAlertActionId(alert.id);
     try {
       let reviewRecord = alert;
@@ -1123,7 +1117,6 @@ export default function OfficerDashboard() {
       setAlerts((prev) => prev.map((item) => item.id === alert.id
         ? { ...item, ...approvedAlert, reviewedBy: dutyOfficer, reviewedAt: approvedRecord?.approved_at || new Date().toISOString() }
         : item));
-      downloadCapXmlFile(approvedAlert);
       setBroadcastBanner({
         alertId: alert.id,
         headline: approvedAlert.headline_en || `${alert.tier} ${alert.hazardType}`,
@@ -1178,27 +1171,19 @@ export default function OfficerDashboard() {
     }
   };
 
-  const handleExportCapXml = (alert) => {
-    const xml = downloadCapXmlFile(alert);
-    const validation = validateCapXml(xml);
-
-    setExportNotice({
-      alertId: alert.id,
-      isValid: validation.isValid,
-      missingCount: validation.missingElements.length,
-      filename: `CAP_NDMA_SACHET_${alert.id}.xml`,
-    });
-
-    setTimeout(() => {
-      setExportNotice(null);
-    }, 4500);
-  };
-
   // Forecaster Override committed inside XAI card
   const handleXaiOverrideCommitted = async (overrideData) => {
     const cell = cells.find((item) => item.cellId === overrideData.cellId);
-    if (!cell?.databaseId || !profile?.id) {
-      setDatabaseError('Risk override not saved: database cell or authenticated officer identity is unavailable.');
+    if (!cell?.databaseId) {
+      setCells((previous) => previous.map((item) => item.cellId === overrideData.cellId
+        ? { ...item, tier: overrideData.newTier }
+        : item));
+      setDatabaseError('');
+      setDraftNotice('Scenario preview only: this risk adjustment is local to this browser and was not saved to Supabase.');
+      return;
+    }
+    if (!profile?.id) {
+      setDatabaseError('Sign in with an authorized officer account before saving a risk override.');
       return;
     }
     try {
@@ -1397,24 +1382,6 @@ export default function OfficerDashboard() {
       {nwpError && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900" role="alert" aria-label="NWP feed status">
           {nwpError} {selectedNwp ? 'Showing the last successful sounding for this cell.' : 'Live instability values are unavailable.'}
-        </div>
-      )}
-
-      {exportNotice && (
-        <div className="bg-blue-900 border-b border-blue-700 text-white px-4 py-2 text-xs flex items-center justify-between" role="status" aria-live="polite" aria-label="CAP export result">
-          <div className="flex items-center space-x-2 font-mono">
-            <FileText className="w-4 h-4 text-blue-300 shrink-0" />
-            <span>
-              Generated &amp; Downloaded <strong>{exportNotice.filename}</strong> (NDMA CAP v1.2 / ITU-T X.1303 Valid: {exportNotice.isValid ? 'YES' : 'FAIL'})
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setExportNotice(null)}
-            className="text-blue-300 hover:text-white ml-2 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
@@ -1770,7 +1737,7 @@ export default function OfficerDashboard() {
                       <span>Status: <strong className={isApproved ? 'text-emerald-700' : isRejected ? 'text-red-700' : isUnderReview ? 'text-blue-700' : 'text-amber-700'}>{alert.status}</strong></span>
                       <span>Created: {alert.createdTimestamp}</span>
                     </div>
-                    {alert.localOnly && <p className="text-[10px] font-semibold text-amber-800">Demo only · not saved to Supabase</p>}
+                    {alert.trainingOnly && <p className="text-[10px] font-semibold text-sky-800">Training sample · saved as draft and cannot be broadcast</p>}
 
                     {alert.reviewedBy && (
                       <div className="text-[10px] font-mono bg-white px-2 py-1 rounded border border-[#E5E0D8] text-slate-700">
@@ -1794,24 +1761,13 @@ export default function OfficerDashboard() {
                         <span>Inspect XAI</span>
                       </button>
 
-                      {/* 2. Export CAP v1.2 XML */}
-                      <button
-                        type="button"
-                        onClick={() => handleExportCapXml(alert)}
-                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-slate-100 text-[#0F172A] border border-[#E5E0D8] flex items-center justify-center space-x-1 transition-colors cursor-pointer"
-                        title="Download NDMA CAP v1.2 XML document"
-                      >
-                        <Download className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Export CAP XML</span>
-                      </button>
-
                       {/* 3. Approve & Broadcast (For DRAFT) */}
                       {(isDraft || isUnderReview) && (
                         <button
                           type="button"
                           onClick={() => handleApproveAlert(alert)}
-                          disabled={pendingAlertActionId === alert.id || alert.localOnly}
-                          title={alert.localOnly ? 'Demo-only drafts cannot be approved or broadcast.' : undefined}
+                          disabled={pendingAlertActionId === alert.id || alert.trainingOnly}
+                          title={alert.trainingOnly ? 'Training-only drafts cannot be approved or broadcast.' : undefined}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" />

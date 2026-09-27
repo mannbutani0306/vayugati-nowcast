@@ -26,10 +26,8 @@ import {
   Shield,
   RefreshCw,
   Search,
-  Code,
 } from 'lucide-react';
 import { SECTOR_INFO, SEVERITY_TIERS, getFullNowcastTelemetrySnapshot } from '../utils/mockDataSeed';
-import { generateCapXml, downloadCapXmlFile } from '../utils/capXmlGenerator';
 
 // Institutional Dispatch Configurations
 const INITIAL_INSTITUTIONAL_DISPATCHES = [
@@ -294,30 +292,6 @@ export default function AdminPortal() {
     triggerSuccess('District Nowcast & Institutional Audit Log exported to CSV.');
   };
 
-  /**
-   * Action: Generate & Download Official NDMA CAP v1.2 XML Dispatch
-   */
-  const handleDownloadCapXmlDispatch = () => {
-    const alertMock = {
-      id: 'DISP-DDMA-991',
-      cellId: 'CELL-A1',
-      hazardType: 'CLOUDBURST',
-      tier: 'SEVERE',
-      targetGrid: 'Sahastradhara Basin & Rajpur Foothills (DDMA Priority Zone)',
-      leadTimeMinutes: 45,
-      maxReflectivityDbz: 63.8,
-      expectedRainfallRateMmHr: 118,
-      windGustKmh: 92,
-      aiDraftedText:
-        'CRITICAL CLOUDBURST ALERT: Extreme hydrometeor loading confirmed by dual-pol Doppler radar. Flash flooding imminent in Rispana/Bindal river channels. SDRF Pre-positioning Stage 3 activated.',
-      instruction:
-        'Evacuate riverbank settlements immediately to designated flood shelters. Restrict hill slope vehicular movement.',
-    };
-
-    downloadCapXmlFile(alertMock, `NDMA_CAP_v1.2_District_Dispatch_${Date.now()}.xml`);
-    triggerSuccess('Official NDMA CAP v1.2 XML Dispatch generated and downloaded.');
-  };
-
   const filteredUsers = usersList.filter(
     (u) =>
       u.fullName.toLowerCase().includes(searchUser.toLowerCase()) ||
@@ -349,15 +323,6 @@ export default function AdminPortal() {
 
         {/* Global Export & Action Bar */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleDownloadCapXmlDispatch}
-            className="bg-[#0B2E4F] hover:bg-[#12426E] text-white px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center space-x-2 transition-all cursor-pointer shadow-xs"
-          >
-            <Code className="w-3.5 h-3.5 text-[#FF9933]" />
-            <span>Export NDMA CAP v1.2 XML</span>
-          </button>
-
           <button
             type="button"
             onClick={handleDownloadCsvReport}

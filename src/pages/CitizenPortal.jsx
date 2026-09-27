@@ -468,6 +468,8 @@ export default function CitizenPortal() {
         const result = await fetchNearbyAlerts(lat, lon, 35);
         if (requestId !== assessmentSeq.current) return;
         if (result.error) throw result.error;
+        setDatabaseStatus('CONNECTED');
+        setDatabaseError('');
         const alertsList = result.data || [];
         setNearbyAlerts(alertsList);
         const insideAnyCone = alertsList.some((alert) => alert.is_direct_intersection);
@@ -529,11 +531,7 @@ export default function CitizenPortal() {
     let subscription;
     try {
       subscription = subscribeToApprovedAlerts(
-        () => executeSpatialAssessment(currentCoords.lat, currentCoords.lon),
-        (status) => {
-          setDatabaseStatus(status === 'SUBSCRIBED' ? 'CONNECTED' : status);
-          if (status === 'SUBSCRIBED') setDatabaseError('');
-        }
+        () => executeSpatialAssessment(currentCoords.lat, currentCoords.lon)
       );
     } catch (error) {
       setDatabaseStatus('OFFLINE');
@@ -617,51 +615,49 @@ export default function CitizenPortal() {
   // Web Audio API Siren Generator
   const toggleSirenSound = () => {
     if (isSirenActive) {
-      // Stop siren
       try {
         if (sirenOscillatorRef.current) {
           sirenOscillatorRef.current.stop();
-          sirenOscillatorRef.current.disconnect();
-        }
-        if (sirenAudioContextRef.current) {
-          sirenAudioContextRef.current.close();
         }
       } catch (e) {
         console.warn('Siren teardown:', e);
       }
-      setIsSirenActive(false);
     } else {
-      // Start siren
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) throw new Error('Audio playback is not supported in this browser.');
         const ctx = new AudioCtx();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
         osc.type = 'sawtooth';
         const now = ctx.currentTime;
-        // Modulate frequency between 480Hz and 880Hz to mimic disaster warning sirens
-        osc.frequency.setValueAtTime(480, now);
-        osc.frequency.linearRampToValueAtTime(880, now + 0.8);
-        osc.frequency.linearRampToValueAtTime(480, now + 1.6);
-        osc.frequency.linearRampToValueAtTime(880, now + 2.4);
-        osc.frequency.linearRampToValueAtTime(480, now + 3.2);
+        for (let cycle = 0; cycle < 5; cycle += 1) {
+          osc.frequency.setValueAtTime(480, now + cycle);
+          osc.frequency.linearRampToValueAtTime(880, now + cycle + 0.5);
+          osc.frequency.linearRampToValueAtTime(480, now + cycle + 1);
+        }
 
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 3.5);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.setValueAtTime(0.16, now + 4.7);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 5);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
+        osc.stop(now + 5);
+        osc.onended = () => {
+          ctx.close().catch(() => {});
+          if (sirenOscillatorRef.current === osc) {
+            sirenAudioContextRef.current = null;
+            sirenOscillatorRef.current = null;
+            setIsSirenActive(false);
+          }
+        };
 
         sirenAudioContextRef.current = ctx;
         sirenOscillatorRef.current = osc;
         setIsSirenActive(true);
-
-        // Auto-shutoff after 4 seconds
-        setTimeout(() => {
-          setIsSirenActive(false);
-        }, 3800);
       } catch (err) {
         console.warn('Web Audio API not supported or blocked:', err);
         setIsSirenActive(false);
@@ -838,7 +834,7 @@ export default function CitizenPortal() {
                     ? 'bg-red-600 border-red-700 text-white animate-pulse'
                     : 'bg-white border-[#E5E0D8] text-red-600 hover:bg-red-50'
                 }`}
-                title="Synthesizes emergency siren audio tone"
+                title="Manual five-second sound test only; approved alerts do not autoplay audio"
               >
                 {isSirenActive ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                 <span className="hidden sm:inline">
@@ -930,7 +926,7 @@ export default function CitizenPortal() {
                   }`}
                 >
                   <Volume2 className="w-4 h-4" />
-                  <span>{isSirenActive ? t.stopSiren : t.soundSiren}</span>
+                    <span>{isSirenActive ? t.stopSiren : 'Test Warning Sound'}</span>
                 </button>
               </div>
             </div>

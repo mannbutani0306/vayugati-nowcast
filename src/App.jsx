@@ -129,9 +129,8 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
 /**
  * GIGW Compliant Government Footer Component
  */
-function GovernmentFooter({ showDisclaimerStrip = true }) {
+function GovernmentFooter() {
   const currentYear = new Date().getFullYear();
-  const lastUpdated = '26 Sep 2026, 18:30 IST';
 
   return (
     <footer className="border-t border-[#E5E0D8] bg-[#08223B] text-white text-xs antialiased mt-auto">
@@ -180,7 +179,16 @@ function GovernmentFooter({ showDisclaimerStrip = true }) {
                 <Link to="/admin" className="hover:text-[#FF9933] transition-colors">District Admin &amp; DDMA Command</Link>
               </li>
               <li>
-                <Link to="/data-sources" className="hover:text-[#FF9933] transition-colors">Data Sources &amp; Attribution</Link>
+                <Link
+                  to="/data-sources"
+                  onClick={(event) => {
+                    if (['/citizen', '/officer', '/admin'].includes(location.pathname)
+                      && !window.confirm('Leave your dashboard to view data sources?')) {
+                      event.preventDefault();
+                    }
+                  }}
+                  className="hover:text-[#FF9933] transition-colors"
+                >Data Sources &amp; Attribution</Link>
               </li>
             </ul>
           </div>
@@ -234,19 +242,6 @@ function GovernmentFooter({ showDisclaimerStrip = true }) {
           </div>
         </div>
 
-        {/* Disclaimer & Compliance Strip */}
-        {showDisclaimerStrip && <div className="pt-4 border-t border-[#16436E] text-[10px] text-neutral-400 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <p>
-              <strong>Disclaimer:</strong> Operational weather monitoring and early warning platform developed for the Ministry of Earth Sciences and India Meteorological Department, Government of India.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 shrink-0 font-mono">
-            <span>Last Updated: {lastUpdated}</span>
-            <span>•</span>
-            <span className="text-emerald-400 font-bold">Operational Portal</span>
-          </div>
-        </div>}
       </div>
     </footer>
   );
@@ -333,7 +328,7 @@ function MainLayout() {
       />
 
       {/* GIGW Compliant Government Footer */}
-      <GovernmentFooter showDisclaimerStrip={location.pathname !== '/'} />
+      <GovernmentFooter />
     </div>
   );
 }

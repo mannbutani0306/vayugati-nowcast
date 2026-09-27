@@ -50,7 +50,7 @@ const sources = [
     sourceUrl: 'https://docs.oasis-open.org/emergency/cap/v1.2/CAP-v1.2-os.html',
     mode: 'Operational-ready format',
     state: 'Approval + XML generation supported',
-    detail: 'Approved warnings are stored in Supabase and can be exported as CAP v1.2 XML. Producing a compliant file is not the same as dispatching it to NDMA SACHET; an authorized delivery integration is still required.',
+    detail: 'Approved warnings are stored in Supabase. This prototype does not dispatch warnings to NDMA SACHET or any national broadcast network.',
     tone: 'blue',
   },
 ];

@@ -193,6 +193,7 @@ export async function fetchOfficerAlerts() {
   if (error) throw error;
   return (data || []).map((row) => ({
     ...row,
+    trainingOnly: row.event_type === 'TRAINING_EXERCISE',
     cellId: row.cell_uid || row.id,
     cellName: row.location_label || row.cell_uid || row.event_type,
     hazardType: row.event_type,

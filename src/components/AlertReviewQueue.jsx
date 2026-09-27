@@ -12,20 +12,15 @@ import {
   Send,
   FileText,
   UserCheck,
-  Check,
   X,
   ChevronDown,
   Layers,
   ArrowRight,
   Database,
   Filter,
-  Download,
   BrainCircuit,
-  Code,
-  Copy,
 } from 'lucide-react';
 import { SEVERITY_TIERS } from '../utils/mockDataSeed';
-import { generateCapXml, downloadCapXmlFile } from '../utils/capXmlGenerator';
 import { fetchOfficerAlerts, fetchCapAlertAuditLogs, subscribeToCapAlerts, beginAlertReview, approveAlert, rejectAlert } from '../lib/spatialQueries';
 import SHAPExplainability from './SHAPExplainability';
 
@@ -40,9 +35,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
   const loadSeq = useRef(0);
   const [selectedAlertForEdit, setSelectedAlertForEdit] = useState(null);
   const [selectedAlertForReject, setSelectedAlertForReject] = useState(null);
-  const [selectedAlertForCapXml, setSelectedAlertForCapXml] = useState(null);
   const [selectedAlertForXai, setSelectedAlertForXai] = useState(null);
-  const [copiedXml, setCopiedXml] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('Radar ground clutter / anomalous propagation artifact');
   const [customRejectNote, setCustomRejectNote] = useState('');
   const [showAuditLogDrawer, setShowAuditLogDrawer] = useState(false);
@@ -95,7 +88,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
    * Action 1: Approve & Broadcast
    */
   const handleApprove = async (alertItem, editedText = {}) => {
-    if (pendingAlertId || !['DRAFT', 'UNDER_REVIEW'].includes(alertItem.status)) return;
+    if (pendingAlertId || alertItem.trainingOnly || !['DRAFT', 'UNDER_REVIEW'].includes(alertItem.status)) return;
     setPendingAlertId(alertItem.id);
     const nowTimestamp = new Date().toLocaleTimeString('en-IN', { hour12: false }) + ' IST';
     try {
@@ -129,7 +122,6 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
       setAlerts((prev) => prev.map((item) => item.id === alertItem.id
         ? { ...item, ...approvedAlert, reviewedBy: `${officerName} (${officerBadge})`, reviewedAt: approvedRow?.approved_at || nowTimestamp }
         : item));
-      downloadCapXmlFile(approvedAlert);
       onBroadcastApproved?.(approvedAlert);
       return true;
     } catch (error) {
@@ -291,6 +283,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
             const isUnderReview = alert.status === 'UNDER_REVIEW';
             const isApproved = alert.status === 'APPROVED';
             const isRejected = alert.status === 'REJECTED';
+            const isTrainingOnly = alert.trainingOnly;
 
             return (
               <div
@@ -330,6 +323,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                     >
                       {alert.status}
                     </span>
+                    {isTrainingOnly && <span className="rounded border border-sky-300 bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-900">TRAINING ONLY · NOT FOR BROADCAST</span>}
                   </div>
 
                   <div className="flex items-center space-x-2 text-xs font-mono text-[#6C7278]">
@@ -379,30 +373,12 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                   </div>
                 )}
 
-                {/* Approval Signature and Institutional CAP Export if Approved */}
+                {/* Approval Signature if Approved */}
                 {isApproved && (
                   <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="flex items-center space-x-1.5">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-semibold">Approved &amp; Broadcast to Citizen Feeds &amp; SDRF Cell Towers</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAlertForCapXml(alert)}
-                        className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
-                      >
-                        <Code className="w-3 h-3 text-emerald-700" />
-                        <span>View NDMA CAP v1.2 XML</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadCapXmlFile(alert)}
-                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold flex items-center space-x-1 transition-colors shadow-2xs cursor-pointer"
-                      >
-                        <Download className="w-3 h-3" />
-                        <span>Download .xml</span>
-                      </button>
+                      <span className="font-semibold">Approved &amp; available in the Citizen Portal. External agency broadcast is not configured.</span>
                     </div>
                   </div>
                 )}
@@ -410,7 +386,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                 {/* Duty Forecaster Review Actions (For DRAFT alerts) */}
                 {(isDraft || isUnderReview) && (
                   <div className="pt-2 border-t border-[#E5E0D8] flex flex-wrap items-center justify-between gap-2 text-xs">
-                    {/* Diagnostic Tools (SHAP & CAP Preview) */}
+                    {/* Diagnostic Tools */}
                     <div className="flex items-center space-x-2">
                       <button
                         type="button"
@@ -421,14 +397,6 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                         <span>SHAP Physics Attribution</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAlertForCapXml(alert)}
-                        className="px-3 py-1.5 rounded-lg border border-[#E5E0D8] bg-[#FAF7F2] hover:bg-neutral-200 text-[#1A1D20] font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
-                      >
-                        <Code className="w-3.5 h-3.5 text-[#D9532F]" />
-                        <span>Preview CAP v1.2</span>
-                      </button>
                     </div>
 
                     {/* Operational Review Decisions */}
@@ -458,7 +426,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                       )}
 
                       {/* Action 3: Approve & Broadcast */}
-                      <button
+                      {!isTrainingOnly && <button
                         type="button"
                         onClick={() => handleApprove(alert)}
                         disabled={pendingAlertId === alert.id}
@@ -466,7 +434,7 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>{pendingAlertId === alert.id ? 'Processing…' : 'Approve &amp; Broadcast'}</span>
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 )}
@@ -737,96 +705,6 @@ export default function AlertReviewQueue({ onBroadcastApproved }) {
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* 7. MODAL: NDMA CAP v1.2 XML PREVIEW & EXPORT */}
-      {selectedAlertForCapXml && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="relative w-full max-w-3xl bg-white rounded-xl border border-[#E5E0D8] shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3 shrink-0">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-red-50 text-[#D9532F] flex items-center justify-center font-bold">
-                  <Code className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-base text-[#1A1D20]">
-                    NDMA CAP v1.2 Standard Alert XML Dispatch
-                  </h4>
-                  <p className="text-xs text-[#6C7278]">
-                    OASIS CAP-V1.2 schema • Dispatched to SDMA / DDMA Emergency Operations Centers
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedAlertForCapXml(null);
-                  setCopiedXml(false);
-                }}
-                className="p-1 rounded text-[#6C7278] hover:text-[#1A1D20] cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Validation Tag */}
-            <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-2.5 text-xs text-emerald-900 flex items-center justify-between shrink-0">
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Schema Validated: <strong>OASIS CAP-V1.2 / NDMA Integrated Early Warning</strong></span>
-              </div>
-              <span className="font-mono text-[10px] text-emerald-800">
-                Target: {selectedAlertForCapXml.targetGrid || 'Pilot Sector'}
-              </span>
-            </div>
-
-            {/* XML Code Viewer */}
-            <div className="flex-1 overflow-y-auto rounded-lg border border-neutral-800 bg-[#1A1D20] p-4 text-emerald-300 font-mono text-[11px] leading-relaxed select-all">
-              <pre className="whitespace-pre">{generateCapXml(selectedAlertForCapXml)}</pre>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#E5E0D8] shrink-0">
-              <span className="text-[11px] text-[#6C7278] font-mono">
-                Payload Size: ~{Math.round(generateCapXml(selectedAlertForCapXml).length / 1024 * 10) / 10} KB • En/Hi Dual-Payload
-              </span>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generateCapXml(selectedAlertForCapXml));
-                    setCopiedXml(true);
-                    setTimeout(() => setCopiedXml(false), 2500);
-                  }}
-                  className="px-3.5 py-2 rounded-lg border border-[#E5E0D8] bg-[#FAF7F2] hover:bg-neutral-200 text-[#1A1D20] text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer"
-                >
-                  {copiedXml ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-emerald-700 font-bold">Copied XML!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-[#D9532F]" />
-                      <span>Copy to Clipboard</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => downloadCapXmlFile(selectedAlertForCapXml)}
-                  className="px-4 py-2 rounded-lg bg-[#D9532F] hover:bg-[#BF4422] text-white text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download .xml File</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

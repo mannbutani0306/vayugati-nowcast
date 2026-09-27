@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,7 +39,7 @@ const DEMO_PRESETS = {
 
 function getLoginErrorMessage(error) {
   if (/invalid login credentials/i.test(error || '')) {
-    return 'Supabase rejected these credentials. Role buttons fill sample values only; create this account in Supabase Auth or enter your provisioned credentials.';
+    return 'Supabase rejected these credentials. Enter the password saved for this account or reset it in Supabase Auth.';
   }
   return error || 'Authentication failed. Please verify your credentials.';
 }
@@ -54,6 +54,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const passwordInputRef = useRef(null);
 
   if (!isOpen) return null;
 
@@ -69,16 +70,28 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   };
 
   const handleRoleSelect = (roleKey) => {
-      if (!isConfigured) {
-        handleAutoFill(roleKey);
-        return;
-      }
+    const roleEmail = DEMO_PRESETS[roleKey].email;
+    setActiveTab(roleKey);
+    setEmail(roleEmail);
+    setPassword('');
+    setErrorMessage('');
+    setSuccessMessage('');
 
-      setActiveTab(roleKey);
-      setEmail(DEMO_PRESETS[roleKey].email);
-      setPassword('');
-      setErrorMessage('');
-      setSuccessMessage('');
+    if (!isConfigured) return;
+
+    if (navigator.credentials?.get) {
+      navigator.credentials.get({ password: true, mediation: 'optional' })
+        .then((credential) => {
+          if (credential?.id?.toLowerCase() === roleEmail && credential.password) {
+            setPassword(credential.password);
+          } else {
+            passwordInputRef.current?.focus();
+          }
+        })
+        .catch(() => passwordInputRef.current?.focus());
+    } else {
+      passwordInputRef.current?.focus();
+    }
   };
 
   /**
@@ -108,6 +121,20 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
         setIsSubmitting(false);
         return;
       }
+
+      if (isConfigured && window.PasswordCredential && navigator.credentials?.store) {
+        try {
+          const savedCredential = new window.PasswordCredential({
+            id: email.trim().toLowerCase(),
+            password,
+            name: DEMO_PRESETS[presetRole]?.roleName || email,
+          });
+          await navigator.credentials.store(savedCredential);
+        } catch {
+          // Browsers without credential-manager support can still sign in normally.
+        }
+      }
+
       const targetRoute = DEMO_PRESETS[presetRole]?.route || '/citizen';
 
       setSuccessMessage(`Authentication confirmed. Transferring to ${DEMO_PRESETS[presetRole]?.roleName || 'Portal'}...`);
@@ -178,17 +205,18 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-              {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Choose an account email. Your browser can autofill its saved password.</p>}
+              {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Choose a role to autofill its saved browser password, or enter it manually.</p>}
           </div>
 
           {/* Standard Form Submission */}
           <form onSubmit={handleSubmit} autoComplete="on" className="mt-4 space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-[#1A1D20] mb-1">Authorized email</label>
+              <label htmlFor="login-email" className="block text-xs font-semibold text-[#1A1D20] mb-1">Authorized email</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-[#6C7278] absolute left-3 top-2.5" />
                 <input
                   type="email"
+                  id="login-email"
                   name="email"
                   autoComplete="username"
                   required
@@ -201,16 +229,18 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#1A1D20] mb-1">
+              <label htmlFor="login-password" className="block text-xs font-semibold text-[#1A1D20] mb-1">
                 Password
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-[#6C7278] absolute left-3 top-2.5" />
                 <input
                   type="password"
+                  id="login-password"
                   name="password"
                   autoComplete="current-password"
                   required={isConfigured}
+                  ref={passwordInputRef}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
