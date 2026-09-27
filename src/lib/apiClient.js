@@ -169,10 +169,10 @@ export async function fetchHealthStatus() {
   return apiFetch('/health');
 }
 
-export async function askVayuGatiSaarthi(messages, options = {}) {
+export async function askVayuGatiSaarthi(messages, context = {}, options = {}) {
   const response = await apiFetch('/assistant/chat', {
     method: 'POST',
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, context }),
     ...options,
   });
   return response.text;

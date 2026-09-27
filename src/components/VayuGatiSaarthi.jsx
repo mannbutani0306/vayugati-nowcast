@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { askVayuGatiSaarthi } from '../lib/apiClient';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { Bot, LoaderCircle, Send, X } from 'lucide-react';
 
 const WELCOME_MESSAGE = {
@@ -8,6 +11,8 @@ const WELCOME_MESSAGE = {
 };
 
 export default function VayuGatiSaarthi({ isOpen, onClose }) {
+  const location = useLocation();
+  const { role, profile } = useAuth();
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -31,7 +36,26 @@ export default function VayuGatiSaarthi({ isOpen, onClose }) {
     setIsSending(true);
 
     try {
-      const answer = await askVayuGatiSaarthi(conversation);
+      const appContext = {
+        current_page: location.pathname,
+        portal_role: profile?.role || role || 'citizen',
+        approved_alerts: { status: 'UNAVAILABLE', items: [] },
+      };
+
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase
+          .from('cap_alerts')
+          .select('identifier,event_type,severity,urgency,certainty,headline_en,description_en,location_label,eta_minutes,created_at,expires_at')
+          .eq('status', 'APPROVED')
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        appContext.approved_alerts = error
+          ? { status: 'UNAVAILABLE', items: [] }
+          : { status: 'AVAILABLE', checked_at: new Date().toISOString(), items: data || [] };
+      }
+
+      const answer = await askVayuGatiSaarthi(conversation, appContext);
       setMessages((current) => [...current, { role: 'model', text: answer }]);
     } catch (error) {
       setMessages((current) => [...current, {
