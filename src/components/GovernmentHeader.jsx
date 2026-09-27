@@ -351,7 +351,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
             <Link
               to="/data-sources"
               aria-label="Data sources and attribution"
-              className="border border-[#1E3A5F] bg-[#14233D] px-2.5 py-1.5 text-[11px] text-white hover:bg-[#1C3254] inline-flex items-center gap-1.5"
+              className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 border border-[#1E3A5F] bg-[#14233D] px-3 text-[11px] text-white hover:bg-[#1C3254]"
             >
               <Database aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
               <span>Data sources</span>
@@ -364,7 +364,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
                 title="Notifications"
                 aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
                 aria-expanded={isNotificationMenuOpen}
-                className="relative inline-flex h-9 w-10 items-center justify-center border border-[#1E3A5F] bg-[#14233D] text-white hover:bg-[#1C3254]"
+                className="relative inline-flex h-9 min-w-9 items-center justify-center border border-[#1E3A5F] bg-[#14233D] text-white hover:bg-[#1C3254]"
               >
                 <Bell aria-hidden="true" className="h-4 w-4 text-[#FF9933]" />
                 {unreadCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-[#D9532F] px-1 text-[9px] font-bold leading-4 text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
@@ -413,7 +413,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
             <button
               type="button"
               onClick={() => setIsSaarthiOpen(true)}
-              className="inline-flex h-9 items-center gap-1.5 border border-[#FFF0B0] bg-[#F6E7A8] px-2.5 text-[11px] font-bold text-[#17202A] shadow-sm hover:bg-[#EBD98C] sm:px-3"
+              className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 border border-[#FFF0B0] bg-[#F6E7A8] px-3 text-[11px] font-bold text-[#17202A] shadow-sm hover:bg-[#EBD98C]"
             >
               <MessageCircle aria-hidden="true" className="h-4 w-4" />
               <span>VayuGati Saarthi</span>
@@ -425,7 +425,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
                 <button
                   type="button"
                   onClick={handleDashboardRedirect}
-                  className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded bg-[#D9532F] px-3 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-[#BF4422] cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
                   <span className="capitalize">{role} dashboard</span>
@@ -433,7 +433,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
                 <button
                   type="button"
                   onClick={() => setIsSignOutConfirmOpen(true)}
-                  className="bg-[#09101F] hover:bg-neutral-800 text-white px-3 py-1.5 rounded border border-[#1E293B] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded border border-[#1E293B] bg-[#09101F] px-3 text-xs font-semibold text-white transition-colors hover:bg-neutral-800 cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Sign out</span>
@@ -443,7 +443,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
               <button
                 type="button"
                 onClick={onOpenLogin}
-                className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-3.5 py-1.5 rounded text-xs font-bold tracking-wide flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
+                className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded bg-[#D9532F] px-3 text-xs font-bold tracking-wide text-white shadow-sm transition-all hover:bg-[#BF4422] cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Sign in</span>
@@ -451,6 +451,12 @@ export default function GovernmentHeader({ onOpenLogin }) {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="overflow-hidden border-b border-[#D8C66F] bg-[#F6E7A8] py-1 text-[#17202A]" aria-label="VayuGati updates">
+        <p className="vayugati-marquee-track inline-block whitespace-nowrap px-4 text-[11px] font-semibold">
+          VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Check the Citizen Portal for current approved alerts&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, follow official IMD/NDMA guidance and call 112&nbsp;&nbsp;•&nbsp;&nbsp;
+        </p>
       </div>
 
       {isSignOutConfirmOpen && (

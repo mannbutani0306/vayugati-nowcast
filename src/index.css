@@ -30,6 +30,23 @@ body {
   overflow-x: hidden;
 }
 
+@keyframes vayugati-marquee {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
+}
+
+.vayugati-marquee-track {
+  animation: vayugati-marquee 28s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vayugati-marquee-track {
+    animation: none;
+    transform: none;
+  }
+}
+
 #root,
 #main-content {
   min-width: 0;

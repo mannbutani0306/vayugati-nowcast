@@ -40,6 +40,13 @@ const DEMO_PRESETS = {
   },
 };
 
+function getLoginErrorMessage(error) {
+  if (/invalid login credentials/i.test(error || '')) {
+    return 'Supabase rejected these credentials. Role buttons fill sample values only; create this account in Supabase Auth or enter your provisioned credentials.';
+  }
+  return error || 'Authentication failed. Please verify your credentials.';
+}
+
 export default function LoginModal({ isOpen, onClose, embedded = false }) {
   const { login, logout, isConfigured } = useAuth();
   const navigate = useNavigate();
@@ -80,7 +87,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
     try {
       const res = await login({ email, password });
       if (res && res.success === false && !res.profile) {
-        setErrorMessage(res.error || 'Authentication failed. Please verify credentials.');
+        setErrorMessage(getLoginErrorMessage(res.error));
         setIsSubmitting(false);
         return;
       }
@@ -106,7 +113,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
         navigate(targetRoute);
       }, 500);
     } catch (err) {
-      setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
+      setErrorMessage(getLoginErrorMessage(err.message));
       setIsSubmitting(false);
     }
   };
@@ -165,7 +172,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-            {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Select the role assigned to this account. Access is verified after sign-in.</p>}
+            {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Role buttons fill sample credentials; real Supabase Auth accounts must be provisioned.</p>}
           </div>
 
           {/* Standard Form Submission */}
