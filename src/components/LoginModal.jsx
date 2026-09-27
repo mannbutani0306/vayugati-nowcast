@@ -17,7 +17,6 @@ const DEMO_PRESETS = {
   citizen: {
     roleName: 'Citizen / Community Observer',
     email: 'citizen@vayugati.gov.in',
-    password: 'Citizen123!',
     route: '/citizen',
     description: 'Citizen portal',
     icon: User,
@@ -25,7 +24,6 @@ const DEMO_PRESETS = {
   officer: {
     roleName: 'Duty Forecaster / SDRF Officer',
     email: 'officer@vayugati.gov.in',
-    password: 'Officer123!',
     route: '/officer',
     description: 'Officer portal',
     icon: Radio,
@@ -33,7 +31,6 @@ const DEMO_PRESETS = {
   admin: {
     roleName: 'District / State IMD Admin',
     email: 'admin@vayugati.gov.in',
-    password: 'Admin123!',
     route: '/admin',
     description: 'Administrator portal',
     icon: Sliders,
@@ -53,7 +50,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
 
   const [activeTab, setActiveTab] = useState('citizen');
   const [email, setEmail] = useState(isConfigured ? '' : DEMO_PRESETS.citizen.email);
-  const [password, setPassword] = useState(isConfigured ? '' : DEMO_PRESETS.citizen.password);
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -66,7 +63,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
   const handleAutoFill = (roleKey) => {
     setActiveTab(roleKey);
     setEmail(DEMO_PRESETS[roleKey].email);
-    setPassword(DEMO_PRESETS[roleKey].password);
+    setPassword('');
     setErrorMessage('');
     setSuccessMessage('');
   };
@@ -181,17 +178,19 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 );
               })}
             </div>
-              {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Choose an account email, then enter its password. Accounts are verified by Supabase.</p>}
+              {isConfigured && <p className="mt-1.5 text-[11px] text-[#6C7278]">Choose an account email. Your browser can autofill its saved password.</p>}
           </div>
 
           {/* Standard Form Submission */}
-          <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <form onSubmit={handleSubmit} autoComplete="on" className="mt-4 space-y-3">
             <div>
               <label className="block text-xs font-semibold text-[#1A1D20] mb-1">Authorized email</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-[#6C7278] absolute left-3 top-2.5" />
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="username"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -209,7 +208,9 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
                 <Lock className="w-4 h-4 text-[#6C7278] absolute left-3 top-2.5" />
                 <input
                   type="password"
-                  required
+                  name="password"
+                  autoComplete="current-password"
+                  required={isConfigured}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
