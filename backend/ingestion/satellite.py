@@ -19,8 +19,10 @@ from dotenv import load_dotenv
 
 PUBLIC_INSAT_IR_URL = "https://mausam.imd.gov.in/Satellite/3Dasiasec_ir1.jpg"
 MOSDAC_GALLERY_URL = "https://mosdac.gov.in/gallery/index.html?prod=3SIMG_%27%2A_L1B_STD_IR1.jpg"
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-LOCAL_TIR_DIR = Path(os.getenv("MOSDAC_TIR_LOCAL_DIR", str(Path(os.getenv("DATA_DIR", "./data")) / "mosdac")))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data"))).resolve()
+LOCAL_TIR_DIR = Path(os.getenv("MOSDAC_TIR_LOCAL_DIR", str(DATA_DIR / "mosdac"))).resolve()
 LOCAL_SCENE_PATTERN = re.compile(
     r"3RIMG_(\d{2}[A-Z]{3}\d{4})_(\d{4})_L1C_ASIA_MER_.*_IMG_TIR1\.tif$",
     re.IGNORECASE,

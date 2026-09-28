@@ -15,8 +15,9 @@ import numpy as np
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-DATA_DIR = Path(os.getenv("DATA_DIR", "./data"))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data"))).resolve()
 CASE_DIRECTORIES = {
     "leh_2010_08_05": DATA_DIR / "imerg_halfhourly" / "leh_2010_08_05",
     "leh_2011_07_25": DATA_DIR / "imerg_halfhourly" / "leh_2011_07_25",
