@@ -116,40 +116,34 @@ export default function LandingPage() {
   const currentWeather = weather?.current;
   const weatherCode = Number(currentWeather?.weather_code);
 
-  // Public INFO-tier and active advisories
+  // Generic safety examples; current warnings come from authorized agencies.
   const publicAdvisories = [
     {
       id: 'ADV-01',
       tier: 'INFO',
       region: 'Dehradun & Rishikesh Foothills',
-      title: 'Monsoon Orographic Updraft Advisory',
-      status: 'Advisory Active',
-      timeWindow: 'Valid for next 6 Hours',
+      title: 'Heavy-rain safety example',
       description:
-        'Atmospheric moisture loading remains high (PWAT > 60 mm). Intermittent moderate-to-heavy convective showers expected along southern Himalayan slopes. River discharge levels normal.',
-      safetyTip: 'Avoid pitching riverside campsites and monitor local municipal sirens.',
+        'During intense rainfall, water levels in streams and underpasses can rise quickly. Check current local authority updates before travelling.',
+      safetyTip: 'Keep away from riverbeds, drains, and flooded roads.',
     },
     {
       id: 'ADV-02',
       tier: 'WATCH',
       region: 'Haridwar – Roorkee Corridor',
-      title: 'Thunderstorm & Squall Watch',
-      status: 'Watch Active',
-      timeWindow: 'Lead time: 2 – 4 Hours',
+      title: 'Strong-wind safety example',
       description:
-        'Doppler radar detects cell consolidation moving East-Northeast at 38 km/h. Gusty surface winds reaching 50–70 km/h possible during convective passage.',
-      safetyTip: 'Secure unanchored temporary tin roofing and park vehicles away from old trees.',
+        'Thunderstorm outflows can produce sudden damaging gusts. Follow official warnings and avoid exposed locations during storms.',
+      safetyTip: 'Stay indoors and keep away from trees, temporary structures, and power lines.',
     },
     {
       id: 'ADV-03',
       tier: 'INFO',
       region: 'Upper Gangetic Transition Zone',
-      title: 'General Convective Outlook',
-      status: 'Normal Monitoring',
-      timeWindow: 'Valid 0-12 Hours',
+      title: 'Lightning safety example',
       description:
-        'Continuous Doppler scanning operational. No severe cloudburst thresholds breached in plain sectors. Standard agricultural operations may proceed with awareness.',
-      safetyTip: 'Keep battery-powered transistor radios handy in rural zones.',
+        'A lack of an alert on this prototype does not mean conditions are safe. Check official IMD and disaster-management bulletins for your area.',
+      safetyTip: 'Move inside a substantial building when thunder is heard.',
     },
   ];
 
@@ -179,7 +173,7 @@ export default function LandingPage() {
               <span className="text-[#D9532F]">seen sooner.</span>
             </h1>
             <p className="text-base sm:text-lg text-[#6C7278] leading-relaxed">
-              Convective-scale nowcasts combine Doppler radar, INSAT imagery, lightning observations, and numerical weather guidance to support 0–6 hour warnings.
+              Built to explore 0–6 hour convective nowcasting. This prototype currently provides live NWP guidance, public imagery, and local historical archives; authorized radar, calibrated satellite, and lightning feeds are not yet configured for operational fusion.
             </p>
           </div>
 
@@ -188,7 +182,7 @@ export default function LandingPage() {
               href="#advisories"
               className="bg-[#FAF7F2] hover:bg-[#E5E0D8] text-[#1A1D20] border border-[#E5E0D8] px-5 py-3 rounded-lg font-semibold text-sm transition-all"
             >
-              View Public Safety Advisories
+              View safety examples
             </a>
           </div>
           </div>
@@ -225,13 +219,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 2. LIVE RADAR & TELEMETRY PREVIEW */}
+      {/* 2. PUBLIC FEED STATUS & IMAGERY PREVIEW */}
       <section id="live-radar" className="max-w-7xl mx-auto w-full px-4 lg:px-8 py-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
           <div>
             <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-[#D9532F]">
               <Radio className="w-3.5 h-3.5" />
-              <span>Real-Time Sensor Telemetry Preview</span>
+              <span>Public feed status &amp; imagery preview</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D20]">
               Pilot Sector: Dehradun – Western Himalayan Foothills
@@ -281,17 +275,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 3. PUBLIC INFO-TIER ADVISORIES SECTION */}
+      {/* 3. ILLUSTRATIVE SAFETY EXAMPLES */}
       <section id="advisories" className="bg-[#FFFFFF] border-y border-[#E5E0D8] px-4 lg:px-8 py-10">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E0D8] pb-4">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-[#2E7D32] flex items-center gap-1.5">
                 <Info className="w-4 h-4" />
-                Public Information Bulletins
+                Illustrative safety examples · not live warnings
               </span>
               <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D20] mt-1">
-                Active Weather Advisories for Citizens &amp; Travelers
+                Example guidance for severe-weather scenarios
               </h2>
             </div>
           </div>
@@ -311,9 +305,9 @@ export default function LandingPage() {
                       className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
                       style={{ backgroundColor: tierBg, color: tierColor }}
                     >
-                      {adv.tier} TIER
+                      EXAMPLE · {adv.tier}
                     </span>
-                    <span className="text-[11px] font-mono text-[#6C7278]">{adv.timeWindow}</span>
+                    <span className="text-[11px] font-semibold text-[#6C7278]">Example only</span>
                   </div>
 
                   <div>
@@ -344,7 +338,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#6C7278]">
           <div className="flex items-center space-x-2">
             <span className="font-bold text-[#1A1D20]">VayuGati Nowcast</span>
-            <span>• Operational Severe Weather Monitoring System</span>
+            <span>• Convective nowcast research prototype</span>
           </div>
           <div className="flex items-center space-x-4">
             <a href="#advisories" className="hover:text-[#D9532F]">

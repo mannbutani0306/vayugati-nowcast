@@ -175,4 +175,4 @@ NASA/GES DISC and MOSDAC terms apply to downloaded products. Download access doe
 | C3 | PARTIAL | Exact reader pins; empty INSAT endpoint returns `AWAITING REAL DATA` | `docker compose up --build` not run; full empty-container startup unverified |
 | C4 | FIXED | Both IMERG directories and MOSDAC filename discovery exercised | Inventory reflects the current local archive only |
 | Final acceptance | FIXED | `scripts/final_check.py`: 22/22 checks passed, including empty-data states and `npm run build` | Docker checks remain unverified |
-| GitHub push | NOT DONE | Workspace has no `.git` directory or configured remote | Attach this folder to the intended Git repository/remote before pushing |
+| GitHub target | CONFIGURED | `origin` points to `https://github.com/mannbutani0306/vayugati-nowcast.git`; `main` tracks `origin/main` | Verify the published commit and deployment separately before submission |
