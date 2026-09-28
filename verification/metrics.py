@@ -3,6 +3,7 @@
 from typing import Iterable, Sequence
 
 import numpy as np
+import cv2
 
 
 def _contingency(observed, predicted, threshold=0.5):
@@ -45,8 +46,17 @@ def fss(observed, predicted, radius=1, threshold=0.5):
         raise ValueError("FSS inputs must be matching 2-D arrays")
     kernel = 2 * radius + 1
     def neighborhood(field):
+        if radius == 0:
+            return field
         padded = np.pad(field, radius, mode="constant")
-        return np.asarray([[padded[row:row + kernel, col:col + kernel].mean() for col in range(field.shape[1])] for row in range(field.shape[0])])
+        averaged = cv2.boxFilter(
+            padded,
+            ddepth=-1,
+            ksize=(kernel, kernel),
+            normalize=True,
+            borderType=cv2.BORDER_CONSTANT,
+        )
+        return averaged[radius:-radius, radius:-radius]
     numerator = np.mean((neighborhood(obs) - neighborhood(pred)) ** 2)
     denominator = np.mean(neighborhood(obs) ** 2 + neighborhood(pred) ** 2)
     return 1.0 - numerator / denominator if denominator else 1.0

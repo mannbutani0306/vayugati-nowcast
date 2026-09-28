@@ -1,0 +1,92 @@
+{
+  "status": "DOCUMENTED_CASE",
+  "citation": "Bhan, S.C., Devrani, A.K., Sinha, V. (2015), An analysis of monthly rainfall and the meteorological conditions associated with cloudburst over the dry region of Leh (Ladakh), India, MAUSAM 66(1), 107-122.",
+  "location": {
+    "name": "Leh, Ladakh",
+    "latitude_n": 34.09,
+    "longitude_e": 77.34,
+    "elevation_m_asl": 3514,
+    "most_affected_area": "Choglamsar, approximately 5 km south of Leh"
+  },
+  "event": {
+    "date_utc": "2010-08-05",
+    "time_utc": "20:00-20:30",
+    "time_ist": "2010-08-06 01:30-02:00",
+    "reported_deaths": "About 200; another paper section states more than 200 unofficially",
+    "reported_injured": "Approximately 400"
+  },
+  "leh_observatory": {
+    "rainfall_mm": 12.8,
+    "period_utc": "2010-08-05 03:00 to 2010-08-06 03:00",
+    "note": "Heaviest rain fell south of Leh and was not measured by the observatory."
+  },
+  "chronology": [
+    {
+      "event": "Convection began over the Tibetan Plateau southeast of Leh",
+      "time_utc": "2010-08-05 06:00",
+      "source": "Kalpana-1 infrared"
+    },
+    {
+      "event": "Convection reached Ladakh after northwestward movement and intensification",
+      "time_utc": "2010-08-05 15:00",
+      "source": "Kalpana-1 infrared"
+    },
+    {
+      "event": "TRMM rainfall estimates south of Leh were highest during this interval",
+      "time_utc": "2010-08-05 15:00-18:00",
+      "rainfall_cm_range": [4, 8],
+      "source": "TRMM 3B41RT"
+    },
+    {
+      "event": "TRMM rainfall estimates reduced markedly",
+      "time_utc": "2010-08-05 18:00-21:00",
+      "source": "TRMM 3B41RT"
+    },
+    {
+      "event": "Very intense convective cloud persisted over the area until about this time",
+      "time_utc": "2010-08-05 21:00",
+      "source": "Kalpana-1 infrared",
+      "cloud_top_temperature_contour_min_c": -60
+    },
+    {
+      "event": "Convection shifted westward and little rain fell afterward",
+      "time_utc": "2010-08-05 21:00",
+      "source": "Kalpana-1 infrared"
+    },
+    {
+      "event": "Landslide occurred after the most intense rainfall spell",
+      "time_utc": "2010-08-05 20:00",
+      "source": "Published case account"
+    }
+  ],
+  "environment": {
+    "500_hpa": "Cyclonic circulation over Tibet near 30N, 82E",
+    "western_himalaya_winds": "Southeasterly winds of 15-20 kt extended to mid-levels",
+    "200_hpa": "Anticyclone centered near 35N, 78E, with easterly/southeasterly steering",
+    "leh_dew_point_c": [
+      {"date_utc": "2010-08-02 03:00", "value": 1.5},
+      {"date_utc": "2010-08-05 03:00", "value": 13.0}
+    ]
+  },
+  "trmm_3b41rt": {
+    "progression": "Rainfall progressed into the affected region from the southeast.",
+    "highest_estimates_location": "South of Leh",
+    "highest_estimates_time_utc": "2010-08-05 15:00-18:00",
+    "highest_estimates_cm_range": [4, 8],
+    "marked_reduction_time_utc": "2010-08-05 18:00-21:00",
+    "landslide_time_utc": "2010-08-05 20:00"
+  },
+  "leh_monthly_climatology_1901_2003": {
+    "excludes_missing_years": 21,
+    "mean_precipitation_mm": [9.4, 7.5, 8.5, 6.1, 5.9, 4.3, 12.6, 15.0, 8.5, 4.1, 2.3, 4.8],
+    "standard_deviation_mm": [8.7, 7.0, 10.2, 7.6, 6.6, 4.7, 12.1, 16.7, 12.7, 11.6, 4.2, 6.5],
+    "month_order": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "annual_total_mm_approx": 105,
+    "highest_recorded_24h_rainfall_mm": 51.3,
+    "highest_recorded_24h_date": "1933-08-22"
+  },
+  "source_notes": [
+    "The Hindi abstract gives latitude 30.09N, while the paper text gives 34.09N; this record uses 34.09N.",
+    "July/August mean rainfall differs across sections: 15.4/15.2 mm in Section 3, 15.1/12.3 mm in Section 6.1, and 12.6/15.0 mm in Table 1; this record uses Table 1."
+  ]
+}

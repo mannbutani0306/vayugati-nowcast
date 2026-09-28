@@ -5,6 +5,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
@@ -12,7 +13,9 @@ from sklearn.model_selection import train_test_split
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "saved_models"
 MODEL_PATH = MODEL_DIR / "convective_risk_gb.pkl"
+MODEL_META_PATH = MODEL_DIR / "model_meta.json"
 CATALOGUE_PATH = BASE_DIR / "event_catalogue.json"
+INDEPENDENT_VALIDATION_PATH = BASE_DIR / "independent_validation.csv"
 
 FEATURE_COLUMNS = [
     "reflectivity_dbz",
@@ -121,8 +124,9 @@ def train_model() -> tuple[GradientBoostingClassifier, dict]:
     curated_pred = model.predict(curated_df[FEATURE_COLUMNS])
     report = classification_report(curated_df["severity"], curated_pred, output_dict=True, zero_division=0)
     labels = ["INFO", "WATCH", "WARNING", "SEVERE"]
+    # This evaluates agreement with heuristic-generated labels, not predictive skill.
     metrics = {
-        "augmentation_holdout_accuracy": float(accuracy_score(y_test, augmentation_pred)),
+        "heuristic_label_consistency": float(accuracy_score(y_test, augmentation_pred)),
         "curated_textbook_sanity_accuracy": float(accuracy_score(curated_df["severity"], curated_pred)),
         "curated_textbook_rows": len(curated_df),
         "synthetic_augmentation_rows": len(df),
@@ -133,9 +137,31 @@ def train_model() -> tuple[GradientBoostingClassifier, dict]:
     return model, metrics
 
 
+def evaluate_independent_validation(model: GradientBoostingClassifier) -> dict | None:
+    if not INDEPENDENT_VALIDATION_PATH.exists():
+        print("independent validation: not provided (roadmap)")
+        return None
+    validation = pd.read_csv(INDEPENDENT_VALIDATION_PATH)
+    if len(validation) < 5:
+        print("independent validation: not provided (roadmap)")
+        return None
+    severity_map = {label: index for index, label in enumerate(("INFO", "WATCH", "WARNING", "SEVERE"))}
+    observed = validation["observed_severity"].replace(severity_map).astype(int)
+    predicted = model.predict(validation[FEATURE_COLUMNS])
+    return {
+        "rows": len(validation),
+        "accuracy": float(accuracy_score(observed, predicted)),
+        "source": "independent_validation.csv",
+    }
+
+
 def save_model(model: GradientBoostingClassifier) -> None:
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, MODEL_PATH)
+    MODEL_META_PATH.write_text(json.dumps({
+        "sklearn_version": sklearn.__version__,
+        "model_file": MODEL_PATH.name,
+    }, indent=2), encoding="utf-8")
 
 
 def save_catalogue(catalogue: list[dict]) -> None:
@@ -147,6 +173,7 @@ def main() -> None:
     save_catalogue(catalogue)
     model, report = train_model()
     save_model(model)
+    report["independent_validation"] = evaluate_independent_validation(model)
     print(json.dumps({
         "model_path": str(MODEL_PATH),
         "catalogue_path": str(CATALOGUE_PATH),

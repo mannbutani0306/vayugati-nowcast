@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAccessibility } from '../context/AccessibilityContext';
 import SHAPExplainabilityCard from '../components/SHAPExplainabilityCard';
 import DataStatusBadge from '../components/DataStatusBadge';
-import { fetchInstabilityIndex, fetchLiveFusionGrid, fetchVerificationResults, normalizeLiveCells } from '../lib/apiClient';
+import { fetchInstabilityIndex, fetchLiveFusionGrid, fetchRealCases, fetchRealSatelliteScene, fetchRealVerificationResults, fetchVerificationResults, normalizeLiveCells } from '../lib/apiClient';
 import {
   generateMotionConePolygon,
   haversineDistance,
@@ -354,6 +354,18 @@ const TIER_COLORS = {
   },
 };
 
+function formatSkillEstimate(value) {
+  if (typeof value === 'number') return value.toFixed(3);
+  if (!value || typeof value.mean !== 'number') return 'Unavailable';
+  return `${value.mean.toFixed(3)} +/- ${(value.std || 0).toFixed(3)}`;
+}
+
+function documentedUtcMillis(value) {
+  const match = value?.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})(?:-(\d{2}:\d{2}))?/);
+  const time = match?.[3] || match?.[2];
+  return match ? Date.parse(`${match[1]}T${time}:00Z`) : null;
+}
+
 export default function OfficerDashboard() {
   const { profile, session, isConfigured } = useAuth();
   const { translate } = useAccessibility();
@@ -422,11 +434,18 @@ export default function OfficerDashboard() {
   const [nwpError, setNwpError] = useState('');
   const [verificationData, setVerificationData] = useState(null);
   const [verificationError, setVerificationError] = useState('');
+  const [realVerificationData, setRealVerificationData] = useState(null);
+  const [realVerificationError, setRealVerificationError] = useState('');
+  const [verificationView, setVerificationView] = useState('synthetic');
+  const [realCaseData, setRealCaseData] = useState(null);
+  const [realCaseError, setRealCaseError] = useState('');
+  const [realSatelliteScene, setRealSatelliteScene] = useState(null);
 
   // GIS Layer Visibility Switches
   const [layerVisibility, setLayerVisibility] = useState({
     radarDbz: true,
     insatCloudTop: true,
+    realInsatScene: false,
     lightningHeatmap: true,
     opticalFlowCones: true,
     warningPolygons: true,
@@ -499,6 +518,22 @@ export default function OfficerDashboard() {
   }, [cells, selectedCellId, nwpByCell]);
 
   const selectedNwp = currentCell ? nwpByCell[currentCell.cellId] : null;
+  const skillLeadRows = verificationData?.aggregate_by_lead || [];
+  const skillChartPoints = (key) => skillLeadRows.map((row, index) => {
+    const score = row[key]?.mean ?? 0;
+    return `${40 + index * 104},${105 - score * 80}`;
+  }).join(' ');
+  const leh2010Case = realCaseData?.cases?.find((item) => item.event?.date_utc === '2010-08-05');
+  const leh2011Case = realCaseData?.cases?.find((item) => item.event?.date_utc === '2011-07-25');
+  const lehChronology = leh2010Case?.chronology || [];
+  const impactEntry = lehChronology.find((item) => item.event.toLowerCase().includes('landslide'));
+  const impactMillis = documentedUtcMillis(impactEntry?.time_utc);
+  const anchorTimeline = [
+    { label: 'Initiation', entry: lehChronology.find((item) => item.event.toLowerCase().includes('convection began')) },
+    { label: 'Arrival', entry: lehChronology.find((item) => item.event.toLowerCase().includes('reached ladakh')) },
+    { label: 'Peak rain', entry: lehChronology.find((item) => item.event.toLowerCase().includes('rainfall estimates south of leh were highest')) },
+    { label: 'Landslide', entry: impactEntry },
+  ].filter((item) => item.entry);
 
   // Counts for Badges
   const draftCount = alerts.filter((a) => a.status === 'DRAFT').length;
@@ -510,6 +545,30 @@ export default function OfficerDashboard() {
     fetchVerificationResults()
       .then((payload) => { if (mounted) setVerificationData(payload); })
       .catch((error) => { if (mounted) setVerificationError(error.message || 'Verification results unavailable.'); });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchRealCases()
+      .then((payload) => { if (mounted) setRealCaseData(payload); })
+      .catch((error) => { if (mounted) setRealCaseError(error.message || 'Documented case data unavailable.'); });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchRealVerificationResults()
+      .then((payload) => { if (mounted) setRealVerificationData(payload); })
+      .catch((error) => { if (mounted) setRealVerificationError(error.message || 'Real archive verification unavailable.'); });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchRealSatelliteScene()
+      .then((payload) => { if (mounted) setRealSatelliteScene(payload); })
+      .catch(() => { if (mounted) setRealSatelliteScene({ status: 'AWAITING REAL DATA', message: 'Local INSAT scene metadata unavailable.' }); });
     return () => { mounted = false; };
   }, []);
 
@@ -770,18 +829,18 @@ export default function OfficerDashboard() {
         }
 
         const marker = L.circleMarker([cell.lat, cell.lon], {
-          radius: cell.lifecycleState === 'INITIATION' ? 9 : 5,
-          color: cell.lifecycleState === 'INITIATION' ? '#FDE047' : '#FFFFFF',
+          radius: cell.initiation?.detected ? 9 : 5,
+          color: cell.initiation?.detected ? '#FDE047' : '#FFFFFF',
           weight: 1.5,
-          fillColor: cell.lifecycleState === 'INITIATION' ? '#F97316' : tierMeta.bg,
+          fillColor: cell.initiation?.detected ? '#F97316' : tierMeta.bg,
           fillOpacity: 1,
         }).bindTooltip(`${cell.cellName} • ${cell.radarDbz} dBZ`);
         marker.on('click', () => {
           setSelectedCellId(cell.cellId);
         });
         radarLayer.addLayer(marker);
-        if (cell.lifecycleState === 'INITIATION') {
-          radarLayer.addLayer(L.marker([cell.lat, cell.lon], { icon: L.divIcon({ className: 'initiation-badge', html: '<div style="background:#F97316;color:white;font:bold 10px monospace;padding:2px 5px;border:1px solid #FDE047;border-radius:9999px;box-shadow:0 0 0 3px rgba(249,115,22,.25);">NEW</div>', iconSize: [30, 18], iconAnchor: [15, 26] }) }));
+        if (cell.initiation?.detected) {
+          radarLayer.addLayer(L.marker([cell.lat, cell.lon], { icon: L.divIcon({ className: 'initiation-badge', html: '<div class="animate-pulse" style="background:#F97316;color:white;font:bold 10px monospace;padding:2px 5px;border:1px solid #FDE047;border-radius:9999px;box-shadow:0 0 0 3px rgba(249,115,22,.25);">NEW</div>', iconSize: [30, 18], iconAnchor: [15, 26] }) }));
         }
       });
     }
@@ -799,6 +858,17 @@ export default function OfficerDashboard() {
         });
         cloudTopLayer.addLayer(L.marker([cell.lat, cell.lon], { icon: cttLabel }));
       });
+    }
+
+    if (layerVisibility.realInsatScene && realSatelliteScene?.real_scene_overlay?.image_data_base64) {
+      const [south, west, north, east] = realSatelliteScene.real_scene_overlay.bounds_south_west_north_east;
+      const sceneOverlay = L.imageOverlay(
+        `data:image/png;base64,${realSatelliteScene.real_scene_overlay.image_data_base64}`,
+        [[south, west], [north, east]],
+        { opacity: 0.62, interactive: true },
+      );
+      sceneOverlay.bindTooltip(`INSAT-3DR TIR1 raw values; not brightness temperature · ${realSatelliteScene.scene_time_utc}`);
+      cloudTopLayer.addLayer(sceneOverlay);
     }
 
     // 3. LAYER: Lightning Strike Heatmap (GLD360 / Ground Network)
@@ -919,7 +989,7 @@ export default function OfficerDashboard() {
         polygonsLayer.addLayer(badgeMarker);
       });
     }
-  }, [cells, alerts, layerVisibility, layerOpacity]);
+  }, [cells, alerts, layerVisibility, layerOpacity, realSatelliteScene]);
 
   // Trigger layer redraw whenever cell, alert, or visibility changes
   useEffect(() => {
@@ -1382,6 +1452,12 @@ export default function OfficerDashboard() {
         </div>
       )}
 
+      {currentCell?.initiation?.status === 'SIMULATED_DEMO_FIXTURE' && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900" role="status">
+          Detector input: simulated frames. Initiation status is a demo fixture, not an observation.
+        </div>
+      )}
+
       {liveCellsError && !missingRpcSchema && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700" role="alert" aria-label="Live cell data unavailable">
           Offline Database: {liveCellsError} No live cell data is available.
@@ -1501,6 +1577,22 @@ export default function OfficerDashboard() {
                   className="rounded text-[#D9532F] focus:ring-[#D9532F]"
                 />
               </label>
+
+              <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="w-2.5 h-2.5 shrink-0 border border-sky-700 bg-sky-200"></span>
+                  <span className="truncate font-medium text-[#1A1D20]">Real INSAT-3DR scene</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.realInsatScene}
+                  onChange={(event) => setLayerVisibility((previous) => ({ ...previous, realInsatScene: event.target.checked }))}
+                  className="rounded text-[#D9532F] focus:ring-[#D9532F]"
+                />
+              </label>
+              {realSatelliteScene?.analysis_status === 'AWAITING_CALIBRATION' && (
+                <p className="px-1 text-[10px] leading-4 text-amber-800">Raw channel preview only; no temperature units or matching calibration were found.</p>
+              )}
 
               {/* 2. INSAT Cloud Tops */}
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
@@ -1639,20 +1731,164 @@ export default function OfficerDashboard() {
             </div>
             {verificationData?.status === 'SYNTHETIC_RECONSTRUCTIONS_ONLY' && <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">SYNTHETIC</span>}
           </div>
+          <div className="mt-3 inline-flex border-b border-slate-200" role="tablist" aria-label="Model skill data source">
+            {[
+              ['synthetic', 'Synthetic skill'],
+              ['real', 'IMERG archived'],
+            ].map(([view, label]) => (
+              <button key={view} type="button" role="tab" aria-selected={verificationView === view} onClick={() => setVerificationView(view)} className={`border-b-2 px-3 py-2 text-[11px] font-semibold ${verificationView === view ? 'border-[#D9532F] text-slate-900' : 'border-transparent text-slate-500'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {verificationView === 'synthetic' && <>
           {verificationError && <p className="mt-2 text-xs text-red-700">{verificationError}</p>}
           {verificationData?.status === 'NOT_GENERATED' && <p className="mt-2 text-xs text-slate-600">Run verification harness to populate.</p>}
           {verificationData?.cases?.length > 0 && (
-            <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-mono">
+                {[60, 120].map((lead) => {
+                  const row = skillLeadRows.find((item) => item.lead_minutes === lead);
+                  return (
+                    <div key={lead} className="rounded border border-slate-200 bg-slate-50 p-2">
+                      <strong className="block text-slate-900">{lead}-min CSI across cases</strong>
+                      <span>Nowcast {formatSkillEstimate(row?.nowcast_CSI)}</span>
+                      <span className="block">Persistence {formatSkillEstimate(row?.persistence_CSI)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 rounded border border-slate-200 bg-white p-2">
+                <div className="mb-1 flex gap-4 text-[10px] font-semibold text-slate-700">
+                  <span className="text-red-700">Nowcast CSI</span>
+                  <span className="text-blue-700">Persistence CSI</span>
+                </div>
+                <svg viewBox="0 0 600 130" className="h-32 w-full" role="img" aria-label="Synthetic CSI versus lead time for nowcast and persistence">
+                  <line x1="40" y1="105" x2="560" y2="105" stroke="#94a3b8" />
+                  <line x1="40" y1="25" x2="40" y2="105" stroke="#94a3b8" />
+                  <polyline points={skillChartPoints('nowcast_CSI')} fill="none" stroke="#b91c1c" strokeWidth="2.5" />
+                  <polyline points={skillChartPoints('persistence_CSI')} fill="none" stroke="#1d4ed8" strokeWidth="2.5" />
+                  {skillLeadRows.map((row, index) => (
+                    <text key={row.lead_minutes} x={40 + index * 104} y="122" textAnchor="middle" fontSize="9" fill="#475569">{row.lead_minutes}m</text>
+                  ))}
+                </svg>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
               {verificationData.cases.filter((item) => item.lead_minutes === 60).map((item) => (
                 <div key={item.case} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10px] font-mono text-slate-700">
                   <div className="mb-1 font-sans text-[11px] font-bold text-slate-900">{item.case}</div>
-                  <div>CSI {item.nowcast.CSI.toFixed(3)} / {item.persistence.CSI.toFixed(3)}</div>
-                  <div>POD {item.nowcast.POD.toFixed(3)} / {item.persistence.POD.toFixed(3)}</div>
-                  <div>FAR {item.nowcast.FAR.toFixed(3)} / {item.persistence.FAR.toFixed(3)}</div>
+                  <div>60-min CSI {formatSkillEstimate(item.nowcast.CSI)} / {formatSkillEstimate(item.persistence.CSI)}</div>
+                  <div>120-min CSI {formatSkillEstimate(verificationData.cases.find((leadRow) => leadRow.case === item.case && leadRow.lead_minutes === 120)?.nowcast.CSI)} / {formatSkillEstimate(verificationData.cases.find((leadRow) => leadRow.case === item.case && leadRow.lead_minutes === 120)?.persistence.CSI)}</div>
+                  <div>60-min POD {formatSkillEstimate(item.nowcast.POD)} / {formatSkillEstimate(item.persistence.POD)}</div>
+                  <div>60-min FAR {formatSkillEstimate(item.nowcast.FAR)} / {formatSkillEstimate(item.persistence.FAR)}</div>
                 </div>
               ))}
+              </div>
+            </>
+          )}
+          </>}
+          {verificationView === 'real' && (
+            <div className="mt-3">
+              {realVerificationError && <p className="text-xs text-red-700">{realVerificationError}</p>}
+              {realVerificationData?.status === 'AWAITING REAL DATA' && (
+                <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+                  <strong>AWAITING REAL DATA</strong>
+                  <p className="mt-1">{realVerificationData.instructions}</p>
+                </div>
+              )}
+              {realVerificationData?.status === 'REAL DATA PRESENT - VERIFICATION NOT RUN' && (
+                <p className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">{realVerificationData.instructions}</p>
+              )}
+              {realVerificationData?.status === 'REAL_ARCHIVED' && (
+                <>
+                  <p className="text-[10px] text-slate-600">GPM IMERG Final Run V07 archived precipitation rate. This satellite-derived product includes morphing/advection processing; it is not an independent operational-radar test and is approximately 10 km, coarser than the 1-3 km target.</p>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {realVerificationData.cases.map((caseResult) => (
+                      <div key={caseResult.case_id} className="rounded border border-slate-200 bg-slate-50 p-2 text-[10px] font-mono text-slate-700">
+                        <strong className="block font-sans text-[11px] text-slate-900">{caseResult.case_id.replaceAll('_', ' ')}</strong>
+                        <span>{caseResult.frames_loaded}/{caseResult.files_found} frames · {caseResult.first_timestamp_utc} to {caseResult.last_timestamp_utc}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 max-h-72 overflow-auto rounded border border-slate-200">
+                    <table className="w-full min-w-[760px] text-left text-[10px]">
+                      <thead className="sticky top-0 bg-slate-100"><tr><th className="p-2">Case</th><th className="p-2">Lead</th><th className="p-2">Threshold</th><th className="p-2">Nowcast CSI</th><th className="p-2">Persistence CSI</th><th className="p-2">POD / FAR</th><th className="p-2">FSS / Bias</th><th className="p-2">Valid area</th></tr></thead>
+                      <tbody>
+                        {realVerificationData.cases.flatMap((caseResult) => caseResult.results.map((row) => (
+                          <tr key={`${caseResult.case_id}-${row.lead_minutes}-${row.threshold_mm_hr}`} className="border-t border-slate-200">
+                            <td className="p-2">{caseResult.case_id}</td><td className="p-2">{row.lead_minutes} min</td><td className="p-2">{row.threshold_mm_hr} mm/h</td>
+                            <td className="p-2">{formatSkillEstimate(row.nowcast.CSI)}</td><td className="p-2">{formatSkillEstimate(row.persistence.CSI)}</td>
+                            <td className="p-2">{formatSkillEstimate(row.nowcast.POD)} / {formatSkillEstimate(row.nowcast.FAR)}</td>
+                            <td className="p-2">{formatSkillEstimate(row.nowcast.FSS)} / {formatSkillEstimate(row.nowcast.bias)}</td>
+                            <td className="p-2">{(row.valid_area_fraction * 100).toFixed(1)}%</td>
+                          </tr>
+                        )))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <ul className="mt-2 list-disc pl-5 text-[10px] text-slate-600">{realVerificationData.caveats.map((caveat) => <li key={caveat}>{caveat}</li>)}</ul>
+                </>
+              )}
             </div>
           )}
+
+          <div className="mt-4 border-t border-slate-200 pt-4" aria-label="Real-world documented Leh anchor case">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-bold text-slate-900">Real-World Anchor Case - Leh 2010</h4>
+              {leh2010Case && <span className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-900">DOCUMENTED_CASE - from published paper, not imagery</span>}
+            </div>
+            {realCaseError && <p className="mt-2 text-xs text-red-700">{realCaseError}</p>}
+            {realCaseData?.status === 'AWAITING REAL DATA' && <p className="mt-2 text-xs text-slate-600">AWAITING REAL DATA: documented case records are missing from this deployment.</p>}
+            {leh2010Case && (
+              <>
+                <p className="mt-1 text-[10px] text-slate-600">Schematic timeline from documented UTC chronology; not satellite imagery.</p>
+                <ol className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                  {anchorTimeline.map(({ label, entry }) => {
+                    const eventMillis = documentedUtcMillis(entry.time_utc);
+                    const leadHours = impactMillis != null && eventMillis != null
+                      ? Math.round((impactMillis - eventMillis) / 360000) / 10
+                      : null;
+                    return (
+                      <li key={label} className="rounded border border-slate-200 bg-slate-50 p-2">
+                        <strong className="block text-[11px] text-slate-900">{label}</strong>
+                        <span className="block text-[10px] text-slate-700">{entry.time_utc} UTC</span>
+                        {label !== 'Landslide' && leadHours != null && <span className="block text-[10px] font-mono text-sky-900">{leadHours} h to impact</span>}
+                      </li>
+                    );
+                  })}
+                </ol>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="rounded border border-slate-200 p-3 text-[11px] text-slate-700">
+                    <strong className="block text-slate-900">Observed facts</strong>
+                    <p className="mt-1">Leh observatory measured {leh2010Case.leh_observatory.rainfall_mm} mm in 24 h; the paper says the heaviest rain fell south of the city and was not gauged. Choglamsar, about 5 km south, had the most damage. Reported impact: {leh2010Case.event.reported_deaths} deaths and {leh2010Case.event.reported_injured} injured.</p>
+                    <p className="mt-2 font-semibold text-slate-900">Source: {leh2010Case.citation}</p>
+                  </div>
+                  <div className="rounded border border-slate-200 p-3 text-[11px] text-slate-700">
+                    <strong className="block text-slate-900">What each VayuGati head reports for this case</strong>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="w-full text-left text-[10px]">
+                        <thead><tr><th className="py-1 pr-2">Head</th><th className="py-1 pr-2">Result</th><th className="py-1">Basis</th></tr></thead>
+                        <tbody>
+                          {leh2010Case.rain_anomaly.head_reports.map((head) => (
+                            <tr key={head.head} className="border-t border-slate-200 align-top">
+                              <td className="py-1 pr-2 font-semibold">{head.head}</td><td className="py-1 pr-2">{head.result}</td><td className="py-1">{head.detail}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="mt-2">TRMM estimates are satellite-derived with known uncertainty.</p>
+                    <p className="mt-1 font-semibold text-slate-900">Source: {leh2010Case.citation}</p>
+                  </div>
+                </div>
+                {leh2011Case && (
+                  <p className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-[10px] text-amber-950">
+                    False-alarm risk discussion: on 25 Jul 2011 the anomaly heuristic also triggers from a documented &gt;40 mm / 6 h lower bound, while the paper reports no rain at Leh, casualties, or landslides. This is not presented as a success. Source: {leh2011Case.citation}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </section>
 
         {/* ========================================================= */}

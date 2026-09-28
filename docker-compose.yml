@@ -5,6 +5,10 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data:ro
   frontend:
     build:
       context: .

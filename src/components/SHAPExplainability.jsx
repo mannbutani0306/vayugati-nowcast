@@ -463,7 +463,8 @@ export default function SHAPExplainability({
   // Export SHAP JSON Diagnostic File
   const handleExportShapJson = () => {
     const exportPayload = {
-      model: 'VayuGati Convective ConvLSTM + LightGBM Fusion v3.2',
+      status: 'SIMULATED_DEMO_FIXTURE',
+      model: 'Illustrative fixture; not a live model explanation',
       inspectionTimestamp: new Date().toISOString(),
       cellId: currentCell.cellId,
       cellName: currentCell.cellName,
@@ -481,7 +482,7 @@ export default function SHAPExplainability({
         observed: f.observedValue,
         climatologyBaseline: f.climatologyMean,
         shapleyWeight: f.shapValue,
-        percentageContribution: Math.round((Math.abs(f.shapValue) / (totalPositiveShap + Math.abs(totalNegativeShap))) * 100) + '%',
+        percentageContribution: ((Math.abs(f.shapValue) / (totalPositiveShap + Math.abs(totalNegativeShap))) * 100).toFixed(1) + '%',
         impact: f.direction,
       })),
     };
@@ -522,7 +523,7 @@ export default function SHAPExplainability({
             Verifies exact thermodynamic and kinematic weights driving the AI convective hazard classifier.
           </p>
           <p className="mt-2 text-[11px] font-semibold text-amber-700">
-            Physics Matrix values are illustrative fixture examples; the Forecaster XAI Card requests real backend TreeExplainer values.
+            ILLUSTRATIVE EXAMPLE: Physics Matrix values are fixture examples; the Forecaster XAI Card requests backend SHAP values and shows unavailable status on failure.
           </p>
         </div>
 

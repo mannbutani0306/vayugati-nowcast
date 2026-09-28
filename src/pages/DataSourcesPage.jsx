@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowUpRight, Database, ExternalLink, Radio, Satellite, ShieldCheck, Zap } from 'lucide-react';
+import { fetchImergMonthlyContext, fetchRealSatelliteScene, fetchRealVerificationResults } from '../lib/apiClient';
 
 const sources = [
   {
@@ -63,6 +64,9 @@ const statusClasses = {
 
 const environment = [
   ['NWP_API_BASE_URL', 'Base URL for the NWP provider; defaults to Open-Meteo.'],
+  ['DATA_DIR', 'Root directory for local archived data; defaults to ./data.'],
+  ['MOSDAC_TIR_LOCAL_DIR', 'Local INSAT-3DR TIR1 directory; defaults to DATA_DIR/mosdac.'],
+  ['IMERG_MONTHLY_REGION_LABEL', 'Optional Giovanni region label; defaults to UNVERIFIED - confirm shape in Giovanni.'],
   ['MOSDAC_TIR_GEOTIFF_URL', 'Calibrated, georeferenced TIR1 raster for point sampling.'],
   ['MOSDAC_TIR_TILE_URL / MOSDAC_TIR_BOUNDS', 'Satellite tile template and explicit map bounds.'],
   ['IMD_RADAR_TILE_URL / IMD_RADAR_BOUNDS', 'Radar tile template and explicit map bounds.'],
@@ -81,6 +85,41 @@ const indianSourceRegister = [
 ];
 
 export default function DataSourcesPage() {
+  const [monthlyContext, setMonthlyContext] = useState(null);
+  const [realArchive, setRealArchive] = useState(null);
+  const [realScene, setRealScene] = useState(null);
+  const [sourceError, setSourceError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.allSettled([
+      fetchImergMonthlyContext(),
+      fetchRealVerificationResults(),
+      fetchRealSatelliteScene(),
+    ]).then(([monthly, archive, scene]) => {
+      if (!mounted) return;
+      if (monthly.status === 'fulfilled') setMonthlyContext(monthly.value);
+      if (archive.status === 'fulfilled') setRealArchive(archive.value);
+      if (scene.status === 'fulfilled') setRealScene(scene.value);
+      const rejected = [monthly, archive, scene].find((result) => result.status === 'rejected');
+      if (rejected) setSourceError(rejected.reason?.message || 'Some local archive status could not be loaded.');
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  const sourceRows = [
+    { ...sources[0], name: 'Open-Meteo NWP', state: 'REAL_LIVE', detail: 'Live forecast API request path. Coverage and provider uptime vary; this is NWP guidance, not an official IMD warning.' },
+    { ...sources[1], name: 'INSAT-3DR scene(s)', mode: 'Local archived TIR1 GeoTIFF', state: realScene?.status || 'AWAITING REAL DATA', detail: realScene?.message || 'Local scene inventory is loading. Brightness temperature requires declared units or a verified matching calibration lookup.' },
+    { icon: Database, name: 'IMERG monthly', source: 'NASA GPM IMERG Giovanni', sourceUrl: 'https://gpm.nasa.gov/data/imerg', mode: 'Local monthly CSV · context only', state: monthlyContext?.status || 'AWAITING REAL DATA', detail: monthlyContext ? `${monthlyContext.input_row_count} rows parsed; region: ${monthlyContext.region_label}. Context only - not a nowcast input.` : 'Monthly precipitation context is unavailable until the local Giovanni CSV is present.' , tone: 'blue' },
+    { icon: Database, name: 'IMERG half-hourly Leh cases', source: 'NASA GPM IMERG Final Run V07', sourceUrl: 'https://gpm.nasa.gov/data/imerg', mode: 'Local archived HDF5', state: realArchive?.status || 'AWAITING REAL DATA', detail: realArchive?.cases?.map((item) => `${item.case_id}: ${item.frames_loaded ?? item.files_found}/${item.files_found} frames`).join('; ') || 'Awaiting local half-hourly files in the documented Leh case folders.', tone: 'blue' },
+    { icon: ShieldCheck, name: 'Leh case facts', source: 'Bhan et al. (2015), MAUSAM 66(1), 107-122', mode: 'Published-paper case record', state: 'DOCUMENTED_CASE', detail: 'Paraphrased facts from the cited paper; no imagery is presented as observed. See the Officer real-world anchor case.', tone: 'blue' },
+    { icon: Satellite, name: 'Kalpana-1 imagery (2010 case)', source: 'Kalpana-1 IR chronology in Bhan et al. (2015)', mode: 'Paper-reported chronology only', state: 'REQUEST', detail: 'Original satellite scenes are not included; the documented chronology is not a replacement for imagery.', tone: 'amber' },
+    { ...sources[2], name: 'IMD DWR', state: 'REQUEST', detail: 'Authorized DWR observations and calibrated reflectivity archives are not configured.' },
+    { ...sources[3], name: 'Lightning', state: 'SIMULATED proxy', detail: 'Lightning values in the storm-cell demo are simulated proxy values, not official observed lightning.' },
+    { icon: Radio, name: 'Storm cells', source: 'VayuGati demo cell generator', mode: 'Synthetic fixture', state: 'SIMULATED_DEMO_FIXTURE', detail: 'Named cells, lifecycle histories, and hazard inputs are demo fixtures; never label them as observed storms.', tone: 'amber' },
+    { ...sources[4], state: 'SIMULATED_DEMO_FIXTURE', tone: 'amber' },
+  ];
+
   return (
     <div lang="en" className="min-h-[70vh] bg-[#FAF7F2] text-[#1A1D20]">
       <header className="border-b border-[#E5E0D8] bg-white">
@@ -109,15 +148,17 @@ export default function DataSourcesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E0D8]">
-                {sources.map(({ icon: Icon, name, source, sourceUrl, mode, state, detail, tone }) => (
+                {sourceRows.map(({ icon: Icon, name, source, sourceUrl, mode, state, detail, tone }) => (
                   <tr key={name} className="align-top hover:bg-[#F7FAFB]">
                     <th scope="row" className="px-4 py-4 font-semibold text-[#172A33]">
                       <span className="flex items-center gap-2"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#0B7084]" />{name}</span>
                     </th>
                     <td className="px-4 py-4 font-medium">
-                      <a href={sourceUrl} target="_blank" rel="noreferrer" aria-label={`Open ${source} external source`} className="inline-flex items-center gap-1 text-[#07586B] underline decoration-[#8CB5BD] underline-offset-2 hover:text-[#0B2C39]">
-                        {source}<ExternalLink aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                      </a>
+                      {sourceUrl ? (
+                        <a href={sourceUrl} target="_blank" rel="noreferrer" aria-label={`Open ${source} external source`} className="inline-flex items-center gap-1 text-[#07586B] underline decoration-[#8CB5BD] underline-offset-2 hover:text-[#0B2C39]">
+                          {source}<ExternalLink aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                        </a>
+                      ) : source}
                     </td>
                     <td className="px-4 py-4">{mode}</td>
                     <td className="px-4 py-4"><span className={`inline-block border px-2 py-1 text-xs font-semibold ${statusClasses[tone]}`}>{state}</span></td>
@@ -127,9 +168,37 @@ export default function DataSourcesPage() {
               </tbody>
             </table>
           </div>
+          {sourceError && <p className="mt-2 text-xs text-amber-800">{sourceError}</p>}
           <p className="mt-3 text-xs leading-5 text-[#59656D]">
             “Live” describes a request path, not guaranteed coverage, provider accuracy, or official warning authority. Check each feed’s returned status and timestamp before operational use.
           </p>
+        </section>
+
+        <section className="mt-9 border-t border-[#D8DDE0] pt-6" aria-labelledby="seasonal-context-heading">
+          <h2 id="seasonal-context-heading" className="text-lg font-bold">Seasonal context (IMERG monthly, context only - not a nowcast input)</h2>
+          {monthlyContext?.status === 'REAL_ARCHIVED' ? (
+            <>
+              <p className="mt-1 text-xs text-[#59656D]">Monthly-mean precipitation rate was converted to mm/month using each calendar month's day count. Region: {monthlyContext.region_label}. This series is not radar data and is not a nowcast input.</p>
+              <div className="mt-4 border border-[#D8DDE0] bg-white p-4">
+                <div className="grid h-36 grid-cols-12 items-end gap-2" role="img" aria-label="IMERG monthly context climatology in millimeters per month">
+                  {monthlyContext.monthly_context.map((month) => {
+                    const maximum = Math.max(...monthlyContext.monthly_context.map((item) => item.mean_precipitation_mm || 0), 1);
+                    const height = month.mean_precipitation_mm == null ? 0 : Math.max(2, month.mean_precipitation_mm / maximum * 100);
+                    return (
+                      <div key={month.month} className="flex h-full min-w-0 flex-col items-center justify-end gap-1" title={`${month.month_name}: ${month.mean_precipitation_mm?.toFixed(1) ?? 'Unavailable'} mm/month`}>
+                        <span className="text-[9px] font-mono text-[#59656D]">{month.mean_precipitation_mm?.toFixed(0) ?? 'n/a'}</span>
+                        <div className="w-full max-w-8 bg-[#0B7084]" style={{ height: `${height}%` }}></div>
+                        <span className="text-[9px] text-[#59656D]">{month.month_name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-xs font-semibold text-[#173943]">JJAS / rest-of-year mean monthly total ratio: {monthlyContext.jjas_vs_rest_ratio?.toFixed(2) ?? 'Unavailable'} · {monthlyContext.region_label}</p>
+              </div>
+            </>
+          ) : (
+            <p className="mt-3 border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">AWAITING REAL DATA: {monthlyContext?.instructions || 'Place the Giovanni monthly export at data/imerg_monthly/monthly_mean.csv.'}</p>
+          )}
         </section>
 
         <section className="mt-9 border-t border-[#D8DDE0] pt-6" aria-labelledby="indian-register-heading">

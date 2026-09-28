@@ -36,12 +36,14 @@ from typing import Dict, List, Any, Literal, Optional, Tuple, Union
 import urllib.request
 import urllib.error
 import urllib.parse
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from zoneinfo import ZoneInfo
 
 import httpx
 import joblib
 import numpy as np
+import sklearn
 from dotenv import load_dotenv
 
 try:
@@ -56,7 +58,8 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 try:
     from .ingestion.lightning import get_lightning_feed
     from .ingestion.radar import get_radar_feed
-    from .ingestion.satellite import get_satellite_feed
+    from .ingestion.satellite import get_local_real_scene, get_satellite_feed
+    from .ingestion.imerg import AWAITING_INSTRUCTIONS, imerg_inventory, read_monthly_context
     from .ingestion.synthetic_storm_sim import simulate_storm_cell
     from .hazards import (
         assess_cloudburst,
@@ -66,10 +69,12 @@ try:
         synthetic_lightning_points,
     )
     from .hazards.initiation import detect_initiation
+    from .hazards.rain_anomaly import assess_rain_anomaly, unavailable_rain_anomaly
 except ImportError:
     from ingestion.lightning import get_lightning_feed
     from ingestion.radar import get_radar_feed
-    from ingestion.satellite import get_satellite_feed
+    from ingestion.satellite import get_local_real_scene, get_satellite_feed
+    from ingestion.imerg import AWAITING_INSTRUCTIONS, imerg_inventory, read_monthly_context
     from ingestion.synthetic_storm_sim import simulate_storm_cell
     from hazards import (
         assess_cloudburst,
@@ -79,6 +84,7 @@ except ImportError:
         synthetic_lightning_points,
     )
     from hazards.initiation import detect_initiation
+    from hazards.rain_anomaly import assess_rain_anomaly, unavailable_rain_anomaly
 
 # Configure structured meteorological logging
 logging.basicConfig(
@@ -98,6 +104,9 @@ MODEL_FEATURES = [
 ]
 MODEL_LABELS = {0: "INFO", 1: "WATCH", 2: "WARNING", 3: "SEVERE"}
 ML_MODEL_PATH = Path(__file__).resolve().parent / "ml" / "saved_models" / "convective_risk_gb.pkl"
+ML_MODEL_META_PATH = ML_MODEL_PATH.with_name("model_meta.json")
+_FUSION_GRID_CACHE: Dict[Tuple[Any, ...], Tuple[float, Dict[str, Any]]] = {}
+_FUSION_GRID_CACHE_LOCK = threading.Lock()
 ML_CATALOGUE_PATH = Path(__file__).resolve().parent / "ml" / "event_catalogue.json"
 _MODEL_CACHE: Optional[Any] = None
 
@@ -110,6 +119,15 @@ def _load_ml_model() -> Optional[Any]:
         logger.warning("No trained ML model artifact found at %s; using heuristic inference fallback.", ML_MODEL_PATH)
         return None
     try:
+        metadata = json.loads(ML_MODEL_META_PATH.read_text(encoding="utf-8"))
+        artifact_version = metadata.get("sklearn_version")
+        if artifact_version != sklearn.__version__:
+            logger.warning(
+                "Model artifact scikit-learn version %s does not match runtime %s; using rule-based scorer.",
+                artifact_version,
+                sklearn.__version__,
+            )
+            return None
         _MODEL_CACHE = joblib.load(ML_MODEL_PATH)
         if hasattr(_MODEL_CACHE, "predict_proba"):
             logger.info("Loaded trained model artifact from %s", ML_MODEL_PATH)
@@ -127,6 +145,7 @@ def _load_ml_model() -> Optional[Any]:
 try:
     from fastapi import FastAPI, HTTPException, Query, Body, status
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.middleware.gzip import GZipMiddleware
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel, Field
     FASTAPI_AVAILABLE = True
@@ -848,6 +867,14 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
         )
 
         current_echo = _demo_reflectivity_grid(c["reflectivity_dbz"])
+        initiation_frames = [
+            _demo_reflectivity_grid(min(34.0, c["reflectivity_dbz"] - offset))
+            for offset in (18.0, 12.0, 6.0)
+        ] + [current_echo]
+        initiation_result = detect_initiation(
+            initiation_frames,
+            c["cloud_top_cooling_rate"],
+        )
         previous_echo = _demo_reflectivity_grid(
             c["reflectivity_dbz"],
             offset_km=(
@@ -897,6 +924,16 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
         processed_cells.append({
             **c,
             "data_mode": "DEMO_FIXTURE",
+            "initiation": {
+                "detected": bool(initiation_result["detections"]),
+                "first_detected_at": (
+                    initiation_result["detections"][0]["first_detected_at"]
+                    if initiation_result["detections"] else None
+                ),
+                "cooling_rate": float(c["cloud_top_cooling_rate"]),
+                "basis": "Four simulated reflectivity frames; first crossing of 35 dBZ gated by cooling <= -4 C/15 min.",
+                "status": "SIMULATED_DEMO_FIXTURE",
+            },
             "risk_assessment": risk_output,
             "hazard_heads": hazard_heads,
             "track_cones": track_cones,
@@ -927,6 +964,7 @@ def compute_hazard_heads(
     flow_v_kmh: Optional[Any] = None,
     reflectivity_frames_dbz: Optional[List[Any]] = None,
     lightning_features: Optional[List[Dict[str, Any]]] = None,
+    rain_anomaly_inputs: Optional[Dict[str, Any]] = None,
     status: str = "SIMULATED_DEMO_FIXTURE",
 ) -> Dict[str, Any]:
     """Compute all additive hazard heads while preserving source-status honesty."""
@@ -944,8 +982,6 @@ def compute_hazard_heads(
             # Last-resort only for a brand-new cell with no frame history.
             flow_u_kmh = np.full_like(echo_grid, 20.0)
             flow_v_kmh = np.full_like(echo_grid, 10.0)
-        flow_u_kmh = np.full_like(echo_grid, 20.0)
-        flow_v_kmh = np.full_like(echo_grid, 10.0)
     downburst = assess_downburst(echo_grid, flow_u_kmh, flow_v_kmh, status=status)
     if reflectivity_frames_dbz is None:
         reflectivity_frames_dbz = [echo_grid - offset for offset in (9.0, 6.0, 3.0, 0.0)]
@@ -960,11 +996,16 @@ def compute_hazard_heads(
         status=status,
         source="synthetic lightning proxy; not an observation" if status.startswith("SIMULATED") else "configured lightning GeoJSON",
     )
+    rain_anomaly = (
+        assess_rain_anomaly(**rain_anomaly_inputs, status=status)
+        if rain_anomaly_inputs else unavailable_rain_anomaly()
+    )
     return {
         "hail": hail.to_dict(),
         "downburst": downburst.to_dict(),
         "cloudburst": cloudburst.to_dict(),
         "lightning_density": lightning.to_dict(),
+        "rain_anomaly": rain_anomaly,
         "summary": {
             "hail_probability": float(np.asarray(hail.probability).mean()),
             "downburst_gust_kmh": float(np.asarray(downburst.field).max()) if downburst.field is not None else None,
@@ -1009,6 +1050,7 @@ app = FastAPI(
 
 # Enable CORS for React frontend running on port 3000 / 5173
 if FASTAPI_AVAILABLE:
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -1152,6 +1194,12 @@ async def get_radar_observation():
     return await get_radar_feed()
 
 
+@app.get("/api/v1/satellite/real-scene")
+def get_real_satellite_scene():
+    """Return only locally archived INSAT scenes; never download archive data."""
+    return get_local_real_scene()
+
+
 @app.get("/api/v1/ingestion/lightning")
 async def get_lightning_observation():
     """Return validated Blitzortung-proxy strikes as an India-clipped GeoJSON FeatureCollection."""
@@ -1165,6 +1213,13 @@ async def get_hazard_heads(
     reflectivity_dbz: float = Query(default=45.0, ge=0, le=90),
     cape_jkg: float = Query(default=1800.0, ge=0),
     lightning_rate_per_min: float = Query(default=0.0, ge=0),
+    speed_kmh: float = Query(default=20.0, ge=0),
+    bearing_deg: float = Query(default=45.0, ge=0, le=360),
+    accumulation_mm: Optional[float] = Query(default=None, ge=0),
+    window_hours: Optional[float] = Query(default=None, gt=0),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    climatology_mean_mm: Optional[float] = Query(default=None, gt=0),
+    climatology_sd_mm: Optional[float] = Query(default=None, gt=0),
 ):
     """Return all four hazard heads for a selected cell with source metadata."""
     lightning_feed = await get_lightning_feed()
@@ -1176,6 +1231,26 @@ async def get_hazard_heads(
         and abs(float((feature.get("geometry") or {}).get("coordinates", [999, 999])[0]) - lon) <= 0.1
     ]
     source_status = "LIVE_LIGHTNING_MIXED_SIMULATED" if metadata.get("status") == "LIVE" else "SIMULATED_DEMO_FIXTURE"
+    current_echo = _demo_reflectivity_grid(reflectivity_dbz)
+    previous_echo = _demo_reflectivity_grid(
+        reflectivity_dbz,
+        offset_km=(
+            -(speed_kmh * 10.0 / 60.0) * math.sin(math.radians(bearing_deg)),
+            (speed_kmh * 10.0 / 60.0) * math.cos(math.radians(bearing_deg)),
+        ),
+    )
+    rain_values = (accumulation_mm, window_hours, month, climatology_mean_mm, climatology_sd_mm)
+    rain_inputs = None
+    if any(value is not None for value in rain_values):
+        if any(value is None for value in rain_values):
+            raise HTTPException(status_code=422, detail="All rain anomaly parameters are required together.")
+        rain_inputs = {
+            "accumulation_mm": accumulation_mm,
+            "window_hours": window_hours,
+            "month": month,
+            "monthly_mean_mm": climatology_mean_mm,
+            "monthly_sd_mm": climatology_sd_mm,
+        }
     return compute_hazard_heads(
         latitude=lat,
         longitude=lon,
@@ -1183,11 +1258,27 @@ async def get_hazard_heads(
         cape_jkg=cape_jkg,
         lightning_rate_per_min=lightning_rate_per_min,
         lightning_features=live_features or None,
+        reflectivity_frames_dbz=[previous_echo, current_echo],
+        rain_anomaly_inputs=rain_inputs,
         status=source_status,
     )
 
 
-@app.get("/api/v1/initiation-alerts")
+@app.post("/api/v1/initiation-alerts")
+def post_initiation_alerts(payload: Dict[str, Any] = Body(...)):
+    """Detect reflectivity threshold crossings gated by cloud-top cooling."""
+    try:
+        result = detect_initiation(
+            payload["reflectivity_frames"],
+            payload["cloud_top_cooling_rate"],
+        )
+        result["status"] = payload.get("status", "SIMULATED_DEMO_FIXTURE")
+        return result
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"Initiation detection error: {exc}") from exc
+
+
+@app.get("/api/v1/initiation-alerts", deprecated=True)
 def get_initiation_alerts(
     reflectivity_frames: str = Query(..., description="JSON array of three or more 2-D reflectivity frames"),
     cloud_top_cooling_rate: float = Query(..., description="Cloud-top cooling in C per 15 minutes"),
@@ -1207,18 +1298,118 @@ def get_verification_results():
     return json.loads(results_path.read_text(encoding="utf-8"))
 
 
+@app.get("/api/v1/verification/real")
+def get_real_verification_results():
+    inventories = [imerg_inventory(case_id) for case_id in ("leh_2010_08_05", "leh_2011_07_25")]
+    if not any(item["files_found"] for item in inventories):
+        return {
+            "status": "AWAITING REAL DATA",
+            "product": "GPM IMERG Final Run V07 archived files",
+            "source_url": "https://gpm.nasa.gov/data/imerg",
+            "cases": inventories,
+            "instructions": AWAITING_INSTRUCTIONS,
+        }
+    results_path = Path(__file__).resolve().parents[1] / "verification" / "real_results.json"
+    if not results_path.exists():
+        return {
+            "status": "REAL DATA PRESENT - VERIFICATION NOT RUN",
+            "product": "GPM IMERG Final Run V07 archived files",
+            "source_url": "https://gpm.nasa.gov/data/imerg",
+            "cases": inventories,
+            "instructions": "Run python scripts/imerg_case_verification.py to calculate verification metrics.",
+        }
+    results = json.loads(results_path.read_text(encoding="utf-8"))
+    results["runtime_inventory"] = inventories
+    return results
+
+
+@app.get("/api/v1/real-cases")
+def get_real_cases():
+    """Serve cited documented case facts and additive heuristic calculations."""
+    case_dir = Path(__file__).resolve().parents[1] / "verification" / "real_cases"
+    case_paths = (case_dir / "leh_2010.json", case_dir / "leh_2011.json")
+    if not all(path.exists() for path in case_paths):
+        return {"status": "AWAITING REAL DATA", "cases": [], "message": "Documented case JSON files are missing from the application image."}
+
+    leh_2010, leh_2011 = [json.loads(path.read_text(encoding="utf-8")) for path in case_paths]
+    leh_climatology = leh_2010["leh_monthly_climatology_1901_2003"]
+    august_mean = leh_climatology["mean_precipitation_mm"][7]
+    august_sd = leh_climatology["standard_deviation_mm"][7]
+    july_mean = leh_climatology["mean_precipitation_mm"][6]
+    july_sd = leh_climatology["standard_deviation_mm"][6]
+    leh_2010["rain_anomaly"] = {
+        "status": "DOCUMENTED_CASE",
+        "method": "Project monthly-climatology heuristic; TRMM estimates are satellite-derived and have known uncertainty.",
+        "monthly_mean_mm": august_mean,
+        "monthly_sd_mm": august_sd,
+        "estimate_scenarios": [
+            assess_rain_anomaly(value, 3.0, 8, august_mean, august_sd, status="DOCUMENTED_CASE")
+            for value in (40.0, 80.0)
+        ],
+        "reported_rate_range_mm_hr": [40.0 / 3.0, 80.0 / 3.0],
+        "fixed_threshold_100_mm_hr_triggered": False,
+        "head_reports": [
+            {"head": "Climatology-relative rain anomaly", "result": "TRIGGERED", "detail": "TRMM 4-8 cm in 3 h is 2.67-5.33 times the August mean of 15.0 mm.", "status": "DOCUMENTED_CASE"},
+            {"head": "Cloudburst fixed 100 mm/h criterion", "result": "NOT TRIGGERED", "detail": "Estimated 3-hour average rate is about 13-27 mm/h.", "status": "DOCUMENTED_CASE"},
+            {"head": "Hail", "result": "UNAVAILABLE", "detail": "No event reflectivity or hail observations in this case record.", "status": "DOCUMENTED_CASE"},
+            {"head": "Downburst", "result": "UNAVAILABLE", "detail": "No event radar flow or surface-gust grid in this case record.", "status": "DOCUMENTED_CASE"},
+            {"head": "Lightning density", "result": "UNAVAILABLE", "detail": "No event lightning observations in this case record.", "status": "DOCUMENTED_CASE"},
+            {"head": "Convective initiation", "result": "UNAVAILABLE", "detail": "No calibrated gridded reflectivity history is included in the published facts.", "status": "DOCUMENTED_CASE"},
+        ],
+    }
+    leh_2011["rain_anomaly"] = {
+        "status": "DOCUMENTED_CASE",
+        "method": "Project monthly-climatology heuristic; TRMM estimates are satellite-derived and have known uncertainty.",
+        "monthly_mean_mm": july_mean,
+        "monthly_sd_mm": july_sd,
+        "lower_bound_estimate": assess_rain_anomaly(40.0, 6.0, 7, july_mean, july_sd, status="DOCUMENTED_CASE"),
+        "head_reports": [
+            {"head": "Climatology-relative rain anomaly", "result": "TRIGGERED", "detail": "The documented >40 mm in 6 h lower bound exceeds 3.17 times the July mean of 12.6 mm; reported impacts were nil.", "status": "DOCUMENTED_CASE"},
+            {"head": "Cloudburst fixed 100 mm/h criterion", "result": "NOT TRIGGERED ON SIX-HOUR AVERAGE", "detail": "The >40 mm six-hour total averages >6.7 mm/h; it does not establish the peak sub-hour rate.", "status": "DOCUMENTED_CASE"},
+            {"head": "Impact interpretation", "result": "FALSE-ALARM RISK DISCUSSION", "detail": "The anomaly trigger coexists with no reported casualties or landslides; this is not a success claim.", "status": "DOCUMENTED_CASE"},
+        ],
+    }
+    return {"status": "DOCUMENTED_CASE", "citation": leh_2010["citation"], "cases": [leh_2010, leh_2011]}
+
+
+@app.get("/api/v1/ingestion/imerg/monthly-context")
+def get_imerg_monthly_context():
+    """Return the local monthly IMERG context series; never feed it into nowcasting."""
+    return read_monthly_context()
+
+
 @app.get("/api/v1/live-fusion-grid")
 def get_live_fusion_grid(
     min_lat: Optional[float] = Query(default=6.0, description="Bounding box southern latitude"),
     min_lon: Optional[float] = Query(default=68.0, description="Bounding box western longitude"),
     max_lat: Optional[float] = Query(default=38.0, description="Bounding box northern latitude"),
-    max_lon: Optional[float] = Query(default=98.0, description="Bounding box eastern longitude")
+    max_lon: Optional[float] = Query(default=98.0, description="Bounding box eastern longitude"),
+    include_display_grid: bool = Query(default=False),
+    decimate: int = Query(default=2, ge=1, le=16, description="Keep every Nth grid sample; current-cell polygons are preserved"),
 ):
     """
     Requirement 4.1:
     Returns GeoJSON FeatureCollection of illustrative demo fixture cells + 15, 30, 45, and 60-minute projected track cones.
     Conforms to standard GeoJSON RFC 7946 specifications for direct Leaflet / MapLibre visualization.
     """
+    cache_key = (min_lat, min_lon, max_lat, max_lon, include_display_grid, decimate)
+    now = time.monotonic()
+    with _FUSION_GRID_CACHE_LOCK:
+        cached = _FUSION_GRID_CACHE.get(cache_key)
+        if cached and now - cached[0] < 30.0:
+            return cached[1]
+
+    def decimate_grids(value):
+        if isinstance(value, dict):
+            return {key: decimate_grids(item) for key, item in value.items()}
+        if not isinstance(value, list):
+            return value
+        if value and all(isinstance(row, list) for row in value) and all(
+            not isinstance(item, (list, dict)) for row in value for item in row
+        ):
+            return [row[::decimate] for row in value[::decimate]]
+        return [decimate_grids(item) for item in value]
+
     try:
         active_cells = generate_synthetic_active_cells()
         features = []
@@ -1231,6 +1422,7 @@ def get_live_fusion_grid(
                 continue
 
             risk = cell["risk_assessment"]
+            hazard_heads = decimate_grids(cell["hazard_heads"]) if decimate > 1 else cell["hazard_heads"]
 
             # 1. Feature for Current Active Cell Polygon (lead_time = 0)
             cell_feature = {
@@ -1241,6 +1433,7 @@ def get_live_fusion_grid(
                     "feature_type": "CURRENT_CONVECTIVE_CELL",
                     "data_mode": cell["data_mode"],
                     "lifecycle_state": cell.get("lifecycle_state"),
+                    "initiation": cell.get("initiation"),
                     "cell_uid": cell["cell_uid"],
                     "name": cell["name"],
                     "state": cell["state"],
@@ -1254,7 +1447,7 @@ def get_live_fusion_grid(
                     "cloud_top_temp_c": cell["cloud_top_temp_c"],
                     "cloud_top_cooling_rate": cell["cloud_top_cooling_rate"],
                     "lightning_rate_per_min": cell["lightning_rate"],
-                    "hazard_heads": cell["hazard_heads"],
+                    "hazard_heads": hazard_heads,
                     "hail_probability": cell["hazard_heads"]["summary"]["hail_probability"],
                     "downburst_gust_kmh": cell["hazard_heads"]["summary"]["downburst_gust_kmh"],
                     "cloudburst_mm_hr": cell["hazard_heads"]["summary"]["cloudburst_mm_hr"],
@@ -1306,6 +1499,8 @@ def get_live_fusion_grid(
                 "data_mode": "DEMO_FIXTURE",
                 "total_active_cells": len(active_cells),
                 "features_returned": len(features),
+                "decimation_factor": decimate,
+                "display_grid_included": include_display_grid,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "lead_times_included": [0, 15, 30, 45, 60]
                 ,"resolution_metadata": {
@@ -1317,6 +1512,16 @@ def get_live_fusion_grid(
             "data_mode": "DEMO_FIXTURE",
             "features": features
         }
+
+        if include_display_grid:
+            geojson_payload["display_grid_1km"] = {
+                "status": "SIMULATED_DEMO_FIXTURE",
+                "available": False,
+                "message": "No source gridded observation field is available for a display grid.",
+            }
+
+        with _FUSION_GRID_CACHE_LOCK:
+            _FUSION_GRID_CACHE[cache_key] = (time.monotonic(), geojson_payload)
 
         return geojson_payload
 

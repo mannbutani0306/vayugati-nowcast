@@ -29,11 +29,30 @@ import {
   Search,
 } from 'lucide-react';
 import { SECTOR_INFO, SEVERITY_TIERS, INITIAL_CONVECTIVE_CELLS, getFullNowcastTelemetrySnapshot } from '../utils/mockDataSeed';
+import { fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
 
 function withinCurrentCellRadius(facility, cell) {
   const latKm = (facility.lat - cell.lat) * 111.32;
   const lonKm = (facility.lon - cell.lon) * 111.32 * Math.cos((cell.lat * Math.PI) / 180);
   return Math.hypot(latKm, lonKm) <= 12;
+}
+
+function polygonContainsFacility(facility, geometry) {
+  const polygons = geometry?.type === 'Polygon'
+    ? [geometry.coordinates]
+    : geometry?.type === 'MultiPolygon' ? geometry.coordinates : [];
+  return polygons.some((polygon) => {
+    const ring = polygon[0] || [];
+    let inside = false;
+    for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
+      const [x1, y1] = ring[index];
+      const [x2, y2] = ring[previous];
+      const crosses = (y1 > facility.lat) !== (y2 > facility.lat)
+        && facility.lon < ((x2 - x1) * (facility.lat - y1)) / (y2 - y1) + x1;
+      if (crosses) inside = !inside;
+    }
+    return inside;
+  });
 }
 
 // Institutional Dispatch Configurations
@@ -196,19 +215,78 @@ export default function AdminPortal() {
 
   // State Management
   const [institutionalDispatches, setInstitutionalDispatches] = useState(INITIAL_INSTITUTIONAL_DISPATCHES);
+  const [dispatchFixtureFallback, setDispatchFixtureFallback] = useState(false);
+  const [dispatchCellStatus, setDispatchCellStatus] = useState('AWAITING');
 
   useEffect(() => {
-    // Dispatch status is derived from facility/cell geometry at load time;
-    // it is no longer a permanent assertion embedded in fixture status text.
-    setInstitutionalDispatches((previous) => previous.map((facility) => {
-      const intersectingCell = INITIAL_CONVECTIVE_CELLS.find((cell) => withinCurrentCellRadius(facility, cell));
+    let mounted = true;
+    const applyDispatchGeometry = (facilities, cells) => facilities.map((facility) => {
+      const currentCell = cells.find((cell) => polygonContainsFacility(facility, cell.trackGeometry));
+      if (currentCell) {
+        return {
+          ...facility,
+          status: 'ACTIVE_DISPATCH',
+          statusLabel: `Current polygon: ${currentCell.cellName}`,
+          geometryMatch: currentCell.cellId,
+          etaMinutes: 0,
+        };
+      }
+      const earliestCone = cells.flatMap((cell) => cell.cones || [])
+        .filter((cone) => polygonContainsFacility(facility, cone.geometry))
+        .sort((left, right) => left.leadTimeMinutes - right.leadTimeMinutes)[0];
+      if (earliestCone) {
+        return {
+          ...facility,
+          status: 'PRE_ALERT',
+          statusLabel: `Forecast cone: ${earliestCone.cellName}`,
+          geometryMatch: earliestCone.cellId,
+          etaMinutes: earliestCone.leadTimeMinutes,
+        };
+      }
       return {
         ...facility,
-        status: intersectingCell ? 'ACTIVE_DISPATCH' : 'MONITORING_DISPATCH',
-        statusLabel: intersectingCell ? `Intersection: ${intersectingCell.name}` : 'No current polygon intersection',
-        geometryMatch: intersectingCell ? intersectingCell.id : null,
+        status: 'MONITORING_DISPATCH',
+        statusLabel: 'No current polygon or 60-minute cone intersection',
+        geometryMatch: null,
+        etaMinutes: null,
       };
-    }));
+    });
+
+    fetchLiveFusionGrid()
+      .then((payload) => {
+        if (!mounted) return;
+        const currentCells = normalizeLiveCells(payload).map((cell) => ({
+          ...cell,
+          cones: (payload.features || [])
+            .filter((feature) => feature?.properties?.feature_type === 'FORECAST_TRACK_CONE'
+              && feature.properties.parent_cell_uid === cell.cellId)
+            .map((feature) => ({
+              geometry: feature.geometry,
+              leadTimeMinutes: Number(feature.properties.lead_time_minutes),
+              cellId: cell.cellId,
+              cellName: cell.cellName,
+            })),
+        }));
+        setDispatchFixtureFallback(false);
+        setDispatchCellStatus(currentCells[0]?.dataMode || 'NO_CELLS');
+        setInstitutionalDispatches((previous) => applyDispatchGeometry(previous, currentCells));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setDispatchFixtureFallback(true);
+        setDispatchCellStatus('SIMULATED_DEMO_FIXTURE');
+        setInstitutionalDispatches((previous) => previous.map((facility) => {
+          const fallbackCell = INITIAL_CONVECTIVE_CELLS.find((cell) => withinCurrentCellRadius(facility, cell));
+          return {
+            ...facility,
+            status: fallbackCell ? 'ACTIVE_DISPATCH' : 'MONITORING_DISPATCH',
+            statusLabel: fallbackCell ? `Fixture fallback: ${fallbackCell.name}` : 'Fixture fallback: no current intersection',
+            geometryMatch: fallbackCell?.id || null,
+            etaMinutes: null,
+          };
+        }));
+      });
+    return () => { mounted = false; };
   }, []);
   const [usersList, setUsersList] = useState(INITIAL_USERS);
   const [searchUser, setSearchUser] = useState('');
@@ -502,6 +580,9 @@ export default function AdminPortal() {
               <p className="text-xs text-[#6C7278]">
                 Mandatory operational interlocks for Aviation, Schools, Railways, and Electric Utilities.
               </p>
+              <span className={`mt-2 inline-flex rounded border px-2 py-1 text-[10px] font-mono font-bold ${dispatchFixtureFallback ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                {dispatchFixtureFallback ? 'fixture fallback' : `Cell source: ${dispatchCellStatus}`}
+              </span>
             </div>
             <span className="text-xs font-mono font-bold bg-[#FAF7F2] border border-[#E5E0D8] px-3 py-1.5 rounded text-[#1A1D20]">
               Authority: Section 30 Disaster Management Act 2005

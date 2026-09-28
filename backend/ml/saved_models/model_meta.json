@@ -1,0 +1,4 @@
+{
+  "sklearn_version": "1.9.1",
+  "model_file": "convective_risk_gb.pkl"
+}

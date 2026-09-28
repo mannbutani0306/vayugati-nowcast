@@ -1,0 +1,39 @@
+{
+  "status": "DOCUMENTED_CASE",
+  "citation": "Bhan, S.C., Devrani, A.K., Sinha, V. (2015), An analysis of monthly rainfall and the meteorological conditions associated with cloudburst over the dry region of Leh (Ladakh), India, MAUSAM 66(1), 107-122.",
+  "location": {
+    "name": "Leh, Ladakh",
+    "latitude_n": 34.09,
+    "longitude_e": 77.34,
+    "elevation_m_asl": 3514
+  },
+  "event": {
+    "date_utc": "2011-07-25",
+    "observatory_rain_recorded": false,
+    "reported_casualties": false,
+    "reported_landslides": false
+  },
+  "chronology": [
+    {
+      "event": "Convection began east of Leh with a small area colder than -30 C",
+      "time_utc": "2011-07-25 06:00",
+      "cloud_top_temperature_threshold_c": -30
+    },
+    {
+      "event": "Cloud tops colder than -50 C were present south and east of Leh",
+      "time_utc": "2011-07-25 11:00",
+      "cloud_top_temperature_threshold_c": -50
+    },
+    {
+      "event": "Convection had moved eastward",
+      "time_utc": "2011-07-25 15:00"
+    }
+  ],
+  "trmm_3b41rt": {
+    "rainfall_0600_0900_utc_mm_range": [25, 30],
+    "rainfall_0900_1200_utc_mm_range": [15, 18],
+    "six_hour_total_mm_gt": 40,
+    "rain_after_utc": "2011-07-25 12:00",
+    "rain_after_1200_recorded": false
+  }
+}

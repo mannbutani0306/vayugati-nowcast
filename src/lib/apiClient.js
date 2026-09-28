@@ -81,6 +81,7 @@ export function normalizeLiveCellFeature(feature) {
   return {
     dataMode: props.data_mode || 'UNKNOWN',
     lifecycleState: props.lifecycle_state || null,
+    initiation: props.initiation || null,
     trackGeometry: feature?.geometry || null,
     cellId: props.cell_uid || feature?.id || `CELL-${Math.random().toString(36).slice(2, 8)}`,
     cellName: props.name || 'Live Convective Cell',
@@ -182,6 +183,22 @@ export async function fetchHazardHeads({ lat, lon, ...params }, options = {}) {
 
 export async function fetchVerificationResults(options = {}) {
   return apiFetch('/verification', options);
+}
+
+export async function fetchRealVerificationResults(options = {}) {
+  return apiFetch('/verification/real', options);
+}
+
+export async function fetchRealSatelliteScene(options = {}) {
+  return apiFetch('/satellite/real-scene', options);
+}
+
+export async function fetchImergMonthlyContext(options = {}) {
+  return apiFetch('/ingestion/imerg/monthly-context', options);
+}
+
+export async function fetchRealCases(options = {}) {
+  return apiFetch('/real-cases', options);
 }
 
 export async function fetchSeverityExplanation(payload, options = {}) {

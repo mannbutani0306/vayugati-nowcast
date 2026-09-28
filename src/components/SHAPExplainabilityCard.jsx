@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 // Fallback values are illustrative and are used only when no cell data is supplied.
+// Default walkthrough metrics are illustrative, never a substitute for returned SHAP values.
 export const DEFAULT_SEVERE_CELL = {
   cellId: 'CELL-A1',
   cellName: 'Sahastradhara Cloudburst Convective Core',
@@ -246,15 +247,21 @@ export default function SHAPExplainabilityCard({
       cloud_top_cooling_rate_c_per_15m: shapCooling,
     })
       .then((payload) => { if (mounted) { setShapExplanation(payload.explanation); setShapError(''); } })
-      .catch((error) => { if (mounted) { setShapExplanation(null); setShapError(error.message || 'Real SHAP values unavailable.'); } });
+      .catch(() => { if (mounted) { setShapExplanation(null); setShapError('Real SHAP unavailable.'); } });
     return () => { mounted = false; };
   }, [cell.cellId, shapReflectivity, shapCape, shapLightning, shapCooling]);
 
+  const totalAbsoluteShap = (shapExplanation?.features || []).reduce(
+    (total, feature) => total + Math.abs(feature.shap_value),
+    0,
+  );
   const displayAttributions = shapExplanation?.features?.map((feature) => ({
     id: feature.name,
     name: feature.name,
     shapValue: feature.shap_value,
-    contributionPercent: Math.round(Math.abs(feature.shap_value) * 100),
+    contributionPercent: totalAbsoluteShap > 0
+      ? (Math.abs(feature.shap_value) / totalAbsoluteShap) * 100
+      : 0,
     observedValue: String(feature.value),
     physicsRationale: 'Contribution computed by the backend TreeExplainer response for this selected feature vector.',
     color: feature.shap_value >= 0 ? '#DC2626' : '#2563EB',
@@ -612,6 +619,9 @@ export default function SHAPExplainabilityCard({
             </div>
           ) : <div className="space-y-4">
             <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#E5E0D8]">
+              <p className="mb-3 text-[11px] font-semibold text-amber-800">
+                ILLUSTRATIVE EXAMPLE: static walkthrough chart, not selected-cell SHAP output.
+              </p>
               {/* Responsive SVG Chart */}
               <div className="w-full overflow-x-auto">
                 <svg
@@ -1014,7 +1024,7 @@ export default function SHAPExplainabilityCard({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {displayAttributions.length === 0 ? (
               <div className="md:col-span-2 rounded border border-slate-200 bg-slate-50 px-4 py-5 text-center text-xs text-slate-600">
-                Feature contribution rankings are unavailable for this cell.
+                {shapError || 'Real SHAP unavailable for this cell.'}
               </div>
             ) : displayAttributions.map((attr) => {
               const Icon = attr.icon || Activity;
@@ -1067,7 +1077,7 @@ export default function SHAPExplainabilityCard({
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
-                          width: `${Math.min(100, attr.contributionPercent * 2.8)}%`,
+                          width: `${Math.min(100, attr.contributionPercent * 2)}%`,
                           backgroundColor: attr.color,
                         }}
                       ></div>
@@ -1085,7 +1095,9 @@ export default function SHAPExplainabilityCard({
 
                   <div className="flex items-center justify-between text-[10px] text-[#6C7278] font-mono">
                     <span>Category: {attr.category}</span>
-                    <span className="text-[#0F172A]">{attr.sensor}</span>
+                    <span className="text-[#0F172A]" title="Raw SHAP value, measured in model log-odds units.">
+                      {attr.shapValue >= 0 ? '+' : ''}{Number(attr.shapValue).toFixed(3)} log-odds
+                    </span>
                   </div>
                 </div>
               );

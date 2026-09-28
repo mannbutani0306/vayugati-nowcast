@@ -1,16 +1,24 @@
-# VayuGati Nowcast
+# VayuGati Nowcast | SIH26084
 
-VayuGati Nowcast addresses SIH26084: convective-scale, 0-6 hour hyper-local guidance on a 1-3 km **display** grid, combining atmospheric guidance, radar/satellite/lightning adapters, dense motion estimation, and hazard-specific heads for hail, downburst, cloudburst, lightning, and convective initiation. The display grid is interpolated from coarser NWP until authorized DWR/INSAT assimilation is available; demo observations and verification cases are explicitly labeled.
+VayuGati Nowcast is a prototype for SIH26084: hyper-local convective guidance over a 0-6 hour horizon on a 1-3 km **display** grid. It combines live Open-Meteo NWP, local archived satellite precipitation context, documented Leh case facts, dense optical-flow experiments, hazard heuristics, and existing Supabase/CAP workflows. Interpolated display resolution is not native forecast skill. This is not an official IMD or NDMA warning service.
 
 ## Architecture
 
 ```text
-Ingest: Open-Meteo REAL + authorized adapters + labeled synthetic stand-ins
-    -> Nowcast: dense Farneback optical flow (legacy Lucas-Kanade retained)
-    -> Hazard heads: hail / downburst / cloudburst / lightning / initiation
-    -> Verification: CSI / POD / FAR / FSS and persistence comparison
-    -> Serve: FastAPI + Supabase spatial/CAP workflow
-    -> Portals: Citizen / Officer / Admin
+Inputs
+  REAL_LIVE: Open-Meteo NWP
+  REAL_ARCHIVED: local IMERG / INSAT files, when available
+  DOCUMENTED_CASE: cited Leh paper facts
+  SIMULATED_DEMO_FIXTURE: named cells, lightning proxy, detector demo frames
+       |
+       v
+Python ingestion -> dense Farneback + retained Lucas-Kanade path
+       |
+       +-> hazard heads: hail / downburst / cloudburst / lightning / initiation / rain anomaly
+       +-> verification: synthetic ensemble + local archived IMERG evaluation
+       |
+       v
+FastAPI -> existing Supabase spatial + CAP review workflows -> Citizen / Officer / Admin React portals
 ```
 
 ## Quickstart
@@ -22,7 +30,10 @@ docker compose up --build
 ```
 
 Frontend: `http://localhost:3000`
+
 API: `http://localhost:8000`
+
+The backend receives `./data` as a read-only mount at `/app/data`. The image includes the cited Leh case JSON and trains its GBM artifact during build. Docker was not available in the development environment used for this pass, so the image build and container startup still need deployment-side verification.
 
 ### Manual
 
@@ -31,88 +42,137 @@ npm install
 npm run dev
 ```
 
-In a second terminal:
+In another terminal:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 .\.venv\Scripts\python.exe -m uvicorn backend.nowcast_engine:app --host 0.0.0.0 --port 8000
 ```
 
-The frontend defaults to `http://localhost:8000/api/v1`; hosted deployments set `VITE_NOWCAST_API_URL`. Supabase remains external. Existing Citizen, Officer, Admin login, CAP approval, RLS, and RPC workflows are preserved.
+If using a different Python environment, install `backend/requirements.txt` there instead. The frontend defaults to `http://localhost:8000/api/v1`; hosted deployments may set `VITE_NOWCAST_API_URL`. Supabase remains an external service.
+
+### Local data
+
+Archived files are read from `DATA_DIR` (default `./data` for manual runs). No runtime archive download is attempted. Put authorized data in the paths below; consult [data/README.md](data/README.md) for product and redistribution cautions.
+
+| Path | Contents |
+|---|---|
+| `data/imerg_halfhourly/leh_2010_08_05/` | GPM IMERG V07 half-hourly HDF5 |
+| `data/imerg_halfhourly/leh_2011_07_25/` | GPM IMERG V07 half-hourly HDF5 |
+| `data/imerg_monthly/monthly_mean.csv` | Giovanni monthly-mean rate CSV |
+| `data/mosdac/` | Local INSAT-3DR TIR1 scenes and matching calibration product, if available |
 
 ## Five-minute judge demo
 
-1. Open the Citizen portal, select a location or use GPS, and point out that approved alerts come from the existing Supabase workflow; unavailable feeds remain labeled rather than being presented as live.
-2. Open the Officer portal and select a cell. Show the existing radar/cone and SHAP workflow alongside the additive hazard-head values for hail, downburst, cloudburst, and lightning.
-3. Open the Model Skill panel. Read: “Synthetic reconstruction - relative skill only, not real-world operational CSI.” At 60 minutes, the generated report currently shows Himachal `0.885` vs persistence `0.797`, Delhi-NCR `0.931` vs `0.033`, and Chennai `0.884` vs `0.046` CSI.
-4. Open the XAI card and show that the attribution request calls `POST /api/v1/explain-severity`; the response uses real SHAP TreeExplainer contributions aggregated over the fitted class-specific trees.
-5. Open Admin and show that institutional status is recalculated from facility coordinates and current-cell geometry rather than being a permanent active-dispatch assertion.
+1. Open the Citizen portal and point out that approved warnings use the existing Supabase workflow; unavailable feeds are not presented as observations.
+2. Open Officer > Model Skill. Compare the synthetic 60/120-minute CSI spreads with the separate IMERG archived tab. The archived IMERG comparison includes results where nowcast ties or loses to persistence.
+3. Open “Real-World Anchor Case - Leh 2010”. The timeline is schematic and derived from the cited paper, not satellite imagery. The event began over the Tibetan Plateau around 06:00 UTC, reached Ladakh around 15:00 UTC, had the highest reported TRMM estimates south of Leh from 15:00-18:00 UTC, and the landslide was around 20:00 UTC.
+4. Show the threshold contrast: the paper reports TRMM estimates of 4-8 cm in 3 hours, approximately 13-27 mm/h average. The fixed 100 mm/h cloudburst criterion does not trigger, while the project climatology heuristic triggers at 2.67-5.33 times the August mean of 15.0 mm. TRMM is satellite-derived and uncertain; the 25 Jul 2011 companion also triggers the anomaly heuristic despite no reported casualties or landslides, illustrating false-alarm risk.
+5. In the Officer map, enable “Real INSAT-3DR scene”. The current local raster is shown as a raw-channel preview only: it has no declared temperature units or matching calibration lookup, so no brightness temperature, cooling, or initiation analysis is claimed. Open Admin to show live polygon/cone dispatch status or its visible fixture-fallback badge.
 
-## Verification headline
+The Leh case facts are from Bhan, S.C., Devrani, A.K., Sinha, V. (2015), “An analysis of monthly rainfall and the meteorological conditions associated with cloudburst over the dry region of Leh (Ladakh), India”, *MAUSAM* 66(1), 107-122.
 
-The following values are generated by `python -m verification.run_case_studies` and stored in `verification/results.json`:
+## Synthetic verification
 
-| Synthetic case | 60-min nowcast CSI | 60-min persistence CSI |
+The table below is generated from `verification/results.json` by `python scripts/render_readme_verification.py`; do not edit its rows by hand. Run `python -m verification.run_case_studies` to refresh the artifact.
+
+<!-- VERIFICATION_TABLE_START -->
+| Synthetic case | Nowcast CSI (mean +/- std) | Persistence CSI (mean +/- std) |
 |---|---:|---:|
-| Himachal monsoon cloudburst character | 0.885 | 0.797 |
-| Delhi-NCR pre-monsoon hail/dust-storm character | 0.931 | 0.033 |
-| Chennai coastal squall-line character | 0.884 | 0.046 |
+| DECAYING storm | 0.216 +/- 0.007 | 0.063 +/- 0.004 |
+| Fast squall line | 0.866 +/- 0.009 | 0.018 +/- 0.001 |
+| GROWING storm | 0.711 +/- 0.006 | 0.144 +/- 0.002 |
+| Moderate coastal line | 0.906 +/- 0.004 | 0.089 +/- 0.002 |
+| Orographic quasi-stationary | 0.905 +/- 0.003 | 0.802 +/- 0.002 |
+| Splitting/merging cells | 0.925 +/- 0.006 | 0.331 +/- 0.002 |
+<!-- VERIFICATION_TABLE_END -->
 
-The harness uses known ground-truth vectors of 6 km/h at 35°, 45 km/h at 80°, and 30 km/h at 110°, respectively. Farneback estimates them in the current generated run as approximately 2.8/34.7°, 44.5/80.0°, and 29.7/110.0°. The broad Himachal case is intentionally near-stationary; similarity with persistence is the expected behavior. These are synthetic reconstructions, not real radar reanalysis or operational CSI.
+The synthetic harness uses six regimes, a 384 x 384 km-equivalent domain, and 20 deterministic seeds per regime. In the Himachal-style quasi-stationary case the nowcast is **ahead of persistence** at 60 minutes (Farneback underestimates the slow motion yet still beats a frozen frame). Expanding the domain reduces storm domain-exit artifacts; it does not remove domain boundaries or make this a geographic radar verification. The decaying, growing, and splitting/merging cases retain their measured outcomes; advection-only motion can lose when storm intensity or structure changes.
+
+**Known limitations:** truth fields are synthetic rather than observed weather; advection has no growth/decay physics; the reliability diagnostic is based on synthetic reflectivity thresholds and is not calibrated ML probability. These scores are not operational forecast skill.
+
+## Real-data verification
+
+`python scripts/imerg_case_verification.py` uses only local GPM IMERG Final Run V07 files and writes `verification/real_results.json` plus a report section. Current local inventory: 61/61 Leh 2010 frames from 2010-08-05 00:00 UTC through 2010-08-06 06:00 UTC, and 37/37 Leh 2011 frames from 2011-07-25 00:00 through 18:00 UTC.
+
+At +60 minutes and 1 mm/h, the current measured Leh 2010 CSI is 0.423 for advection and 0.424 for persistence; Leh 2011 is 0.443 for both. Read the generated report for all thresholds and lead times. IMERG is itself a morphing/advection-based satellite product, so this is not an independent operational-radar test. Its approximately 10 km resolution is coarser than the 1-3 km target. Valid-area fractions are reported and empty archives produce `AWAITING REAL DATA` with placement instructions.
 
 ## Reality and roadmap register
 
-### REAL/LIVE now
+### REAL
 
-- Existing Supabase authentication, RLS, spatial alert lookup, CAP review, approval, and audit workflow.
-- Open-Meteo requests when reachable; payloads carry live/offline/cache metadata.
-- Dense Farneback computation when two reflectivity grids are supplied.
-- SHAP values from the persisted Gradient Boosting artifact through the new explainability endpoint when `shap` is installed.
-- Bilinear interpolation is computed for the NWP display grid, with native/display resolution metadata.
+- `REAL_LIVE`: Open-Meteo NWP request path when the provider responds; response status and timing remain relevant.
+- `REAL_ARCHIVED`: local IMERG HDF5/CSV and INSAT TIR1 files where inventory confirms them. No runtime archive network calls.
+- `REAL_ARCHIVED`: measured IMERG advection-versus-persistence verification, with satellite-product and resolution caveats.
+- `DOCUMENTED_CASE`: paraphrased Leh 2010/2011 facts from Bhan et al. (2015), not imagery or an independent reanalysis.
+- A scikit-learn Gradient Boosting model is loaded only when the artifact metadata version matches; SHAP explanations are requested from the backend TreeExplainer endpoint.
 
-### SIMULATED/LABELED now
+### SIMULATED
 
-- Named fusion-grid cells, their frame history, lightning fallback, lifecycle state, and hazard time series are `SIMULATED_DEMO_FIXTURE`.
-- Verification cases are deterministic synthetic reconstructions with known motion vectors and bounded redevelopment noise.
-- The ML augmentation set contains 800 heuristic-labeled synthetic rows. It is not independent observations and is not claimed as real training data.
-- The Physics Matrix in `SHAPExplainability.jsx` is illustrative fixture content; the Forecaster XAI Card uses the backend SHAP endpoint.
+- `SIMULATED_DEMO_FIXTURE`: named fusion-grid storm cells, lifecycle histories, four-frame initiation inputs, and lightning proxy. Initiation NEW markers use the detector result, but demo input remains simulated.
+- Synthetic verification truth uses prescribed motions/evolution. Model training rows and their labels are synthetic and heuristic-derived; `heuristic_label_consistency` is not predictive skill.
+- Physics Matrix values and default walkthrough metrics are `ILLUSTRATIVE EXAMPLE`; selected-cell SHAP appears only after a successful backend response.
 
 ### ROADMAP
 
-- Authorized and tested IMD DWR/pyiwr, MOSDAC INSAT-3D/3DR, IITM Pune lightning, NCUM-R, and IMDAA archive fusion.
-- Independent real observation labels replacing synthetic ML augmentation; current curated textbook sanity accuracy is reported separately and is only `0.2`.
-- One citable real historical verification anchor remains pending archive/source validation; none is fabricated here.
-- Operational calibration of hazard thresholds, DWR radial-velocity downburst diagnosis, and institutional server-side PostGIS dispatch intersection.
+- Calibrated INSAT TIR1 temperatures and matching HDF5 calibration lookup are still required before reporting brightness-temperature thresholds or running cooling-based initiation on these scenes.
+- Authorized IMD DWR observations and independent radar truth, official lightning observations, independent model labels, local calibration, and operational verification remain future work.
+- The 2011 climatology anomaly with no reported impact is a concrete false-alarm risk, not a claimed success.
 
 ## Data sources
 
-| Source | Data | Access mechanism | Status |
+| Source | Status | Use / limitation |
+|---|---|---|
+| Open-Meteo NWP | `REAL_LIVE` | Forecast guidance; not an official warning |
+| IMERG monthly Giovanni CSV | `REAL_ARCHIVED` when present | Seasonal context only; region label defaults to unverified; not radar or a nowcast input |
+| IMERG half-hourly Leh cases | `REAL_ARCHIVED` when files are present, otherwise `AWAITING REAL DATA` | Local files only; inventory and valid-area metrics are reported |
+| INSAT-3DR local TIR1 scenes | `REAL_ARCHIVED` when present, otherwise `AWAITING REAL DATA` | Raw preview is not BT without declared units or calibration |
+| Leh 2010/2011 case facts | `DOCUMENTED_CASE` | Bhan, Devrani & Sinha (2015), *MAUSAM* 66(1), 107-122 |
+| Kalpana-1 2010 scenes | `REQUEST` | Paper-reported chronology only; source imagery not included |
+| IMD DWR | `REQUEST` | Authorized, georeferenced observations not configured |
+| Lightning | `SIMULATED proxy` | Not an official observation feed |
+| Storm cells | `SIMULATED_DEMO_FIXTURE` | Named demo cells and histories |
+
+NASA/GES DISC and MOSDAC terms apply to downloaded products. Download access does not imply redistribution rights; local data files are ignored by Git.
+
+## Corrected since last submission
+
+- A1: Removed the unconditional dense-flow overwrite; the standalone hazard endpoint synthesizes motion-history frames.
+- A2: SHAP contribution shares normalize by total absolute contribution; raw log-odds are separate; fixture examples and unavailable responses are labeled.
+- A3: Added initiation POST and per-cell simulated detector result; NEW markers depend on `initiation.detected`.
+- A4: Admin dispatch uses live cell polygons and forecast cones; fixture fallback is explicit.
+- A5: Six synthetic regimes, 20 seeds each, FSS scales, reliability bins, model-skill spreads/chart, and known limitations.
+- A6: Renamed heuristic holdout consistency; independent validation is evaluated only with at least five supplied rows.
+- A7: Pinned scikit-learn, wrote `model_meta.json`, checks artifact version, and trains during Docker build.
+- A8: Added gzip, a 30-second fusion cache, default grid omission, and decimation.
+- B1: Added cited Leh 2010/2011 records, chronology, and Officer anchor-case panel.
+- B2: Added the climatology-relative anomaly heuristic and fixed 100 mm/h comparison, with the 2011 false-alarm caveat.
+- B3: Added local IMERG ingestion, actual-frame verification, status endpoint, and Officer archived-data tab.
+- B4: Added local INSAT inventory/raw overlay. Temperature analysis remains unavailable until calibration is verified.
+- B5: Added monthly CSV conversion and context chart with unverified region label.
+- B6: Updated the source register with runtime statuses and explicit simulated/request states.
+
+## Final status
+
+| Item | FIXED/PARTIAL/NOT DONE | Evidence | Remaining risk |
 |---|---|---|---|
-| Open-Meteo NWP | CAPE, CIN, winds, precipitation | HTTPS API | LIVE when reachable |
-| pyiwr / IIT Indore | IMD DWR decoding | Package plus authorized archive | REGISTER |
-| MOSDAC INSAT-3D/3DR IMSRA | Rainfall, IR, CTT | Authorized product/download | REGISTER |
-| NCMRWF NCUM-R | Approx. 4 km NWP | Institutional access | REQUEST |
-| NCMRWF IMDAA | Reanalysis | Institutional access | REQUEST |
-| ISRO Bhuvan | Base-map WMS only | Public mapping service | VERIFIED as map context, not met feed |
-| IMD API Portal / raw DWR | Official weather/radar | Authorized credentials | REQUEST |
-| IITM Pune Lightning Network | Lightning locations | Institutional feed | REQUEST |
-| Synthetic storm/lights | Demo lifecycle and fallback | Local deterministic generator | SIMULATED |
-
-Native NWP resolution is approximately 11-25 km depending on model. The 1 km display grid is interpolated guidance, not native 1 km forecast skill.
-
-## Supabase
-
-Apply existing migrations in their documented order. The additive `20261010_hazard_heads.sql` migration adds nullable hazard columns only. Do not rewrite or rerun base migrations. The service-role key belongs only in a local/deployment environment and must never be committed.
-
-## Corrected since the last submission
-
-- **Bug 1:** replaced arbitrary array rolling and static truth with real Farneback motion estimation, physically advected truth fields, and explicit motion vectors.
-- **Bug 2:** added the Officer Model Skill panel with actual 60-minute per-case comparisons and a synthetic-only disclaimer.
-- **Bug 3:** replaced the fabricated KernelSHAP/N=10,000 claim with a real SHAP endpoint and labeled legacy matrix fixtures.
-- **Bug 4:** demo downburst heads now consume spatially varying Farneback flow; divergence is logged and non-zero.
-- **Bug 5:** synthetic lifecycle output now drives named demo-cell state and intensity.
-- **Bug 6:** added bilinear display downscaling and native-versus-display resolution metadata.
-- **Bug 7:** separated heuristic synthetic augmentation from the 20 curated textbook sanity rows and reported both metrics honestly.
-- **Stretch 1:** added initiation detection and distinct `NEW` officer markers.
-- **Stretch 2:** no real historical anchor was added without a verifiable citation; it remains a roadmap item.
-- **Stretch 3:** Admin dispatch status now derives from facility coordinates and current-cell geometry on load.
+| A1 | FIXED | `tests/test_hazard_flow.py`; non-zero fusion and standalone divergence | Farneback is image motion, not Doppler wind |
+| A2 | FIXED | SHAP endpoint card, normalized shares, raw log-odds tooltip, failure state | Matrix/default walkthrough remains explicitly illustrative |
+| A3 | FIXED | POST endpoint and three detector tests | Fusion frames are simulated fixtures |
+| A4 | FIXED | Live polygon/cone status calculation and visible fallback | Facility catalogue coordinates remain configured examples |
+| A5 | FIXED | `verification/results.json`, report, skill chart, renderer | Synthetic truth and advection-only physics |
+| A6 | FIXED | Training output and empty independent-validation template | No independent validation rows were supplied |
+| A7 | FIXED | Pinned versions, model metadata, mismatch fallback test | Docker image build not run here |
+| A8 | FIXED | HTTP before 860,205 bytes / 533.5 ms; after 239,060 bytes / 496 ms; gzip 34,504 bytes; cached 31.5 ms | Timing is local TestClient measurement |
+| B1 | FIXED | JSON case files and cited Officer timeline | Published case account, not independent reanalysis |
+| B2 | FIXED | Three unit tests and API computations | Heuristic cutoffs are not IMD categories; 2011 false-alarm risk |
+| B3 | FIXED | 61/61 and 37/37 frames; generated `real_results.json`; endpoints 200 | IMERG product is advective and approximately 10 km |
+| B4 | PARTIAL | Four local scenes inventoried; API and raw overlay work | BT, cold fractions, cooling, initiation, and flow await calibration metadata |
+| B5 | FIXED | 69 valid CSV records, 12 months, ratio 5.964 | Geographic shape remains unverified |
+| B6 | FIXED | Runtime-aware Data Sources table and monthly chart | Provider authorization remains external |
+| C1 | FIXED | `.gitignore`, `data/README.md`, folder markers | Existing local data is intentionally untracked |
+| C2 | FIXED | Read-only compose mount, `DATA_DIR`, case JSON Docker copy | Docker unavailable for image verification |
+| C3 | PARTIAL | Exact reader pins; empty INSAT endpoint returns `AWAITING REAL DATA` | `docker compose up --build` not run; full empty-container startup unverified |
+| C4 | FIXED | Both IMERG directories and MOSDAC filename discovery exercised | Inventory reflects the current local archive only |
+| Final acceptance | FIXED | `scripts/final_check.py`: 22/22 checks passed, including empty-data states and `npm run build` | Docker checks remain unverified |
+| GitHub push | NOT DONE | Workspace has no `.git` directory or configured remote | Attach this folder to the intended Git repository/remote before pushing |
