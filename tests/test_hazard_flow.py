@@ -4,7 +4,13 @@ from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
-from backend.nowcast_engine import _demo_reflectivity_grid, compute_hazard_heads, get_hazard_heads
+from backend.nowcast_engine import (
+    _demo_reflectivity_grid,
+    compute_hazard_heads,
+    generate_forecast_track_cones,
+    get_live_fusion_grid,
+    get_hazard_heads,
+)
 
 
 class HazardFlowTests(unittest.TestCase):
@@ -27,6 +33,28 @@ class HazardFlowTests(unittest.TestCase):
             reflectivity_frames_dbz=[previous, current],
         )
         self.assert_nonzero_divergence(result)
+
+    def test_scenario_track_cones_cover_six_hour_horizon(self):
+        cones = generate_forecast_track_cones(30.3, 78.0, 30.0, 45.0)
+        self.assertEqual(cones[-1]["lead_time_minutes"], 360)
+        self.assertAlmostEqual(cones[-1]["advection_distance_km"], 180.0)
+
+    def test_scenario_track_rejects_lead_times_beyond_six_hours(self):
+        with self.assertRaises(ValueError):
+            generate_forecast_track_cones(30.3, 78.0, 30.0, 45.0, [361])
+
+    def test_fusion_grid_exposes_six_hour_scenario_horizon(self):
+        payload = get_live_fusion_grid(
+            min_lat=6.0,
+            min_lon=68.0,
+            max_lat=38.0,
+            max_lon=98.0,
+            include_display_grid=False,
+            decimate=2,
+        )
+        self.assertEqual(payload["data_mode"], "DEMO_FIXTURE")
+        self.assertEqual(payload["metadata"]["lead_times_included"][-1], 360)
+        self.assertEqual(payload["metadata"]["forecast_horizon_status"], "SCENARIO_EXTRAPOLATION_ONLY")
 
     def test_standalone_endpoint_synthesizes_dense_flow(self):
         with patch(

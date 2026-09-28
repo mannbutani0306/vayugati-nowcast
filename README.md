@@ -91,6 +91,8 @@ The synthetic harness uses six regimes, a 384 x 384 km-equivalent domain, and 20
 
 **Known limitations:** truth fields are synthetic rather than observed weather; advection has no growth/decay physics; the reliability diagnostic is based on synthetic reflectivity thresholds and is not calibrated ML probability. These scores are not operational forecast skill.
 
+The fusion-map demo renders constant-velocity scenario cones through 360 minutes to illustrate the requested 0-6 hour horizon. These are extrapolations from demo cells, not real or validated forecasts; operational convective fusion remains blocked by the unconfigured authorized sensor feeds listed below.
+
 ## Real-data verification
 
 `python scripts/imerg_case_verification.py` uses only local GPM IMERG Final Run V07 files and writes `verification/real_results.json` plus a report section. Current local inventory: 61/61 Leh 2010 frames from 2010-08-05 00:00 UTC through 2010-08-06 06:00 UTC, and 37/37 Leh 2011 frames from 2011-07-25 00:00 through 18:00 UTC.

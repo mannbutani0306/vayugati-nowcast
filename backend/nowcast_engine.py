@@ -103,6 +103,7 @@ MODEL_FEATURES = [
     "pwat_mm",
 ]
 MODEL_LABELS = {0: "INFO", 1: "WATCH", 2: "WARNING", 3: "SEVERE"}
+TRACK_LEAD_TIMES_MIN = (15, 30, 45, 60, 120, 180, 240, 300, 360)
 ML_MODEL_PATH = Path(__file__).resolve().parent / "ml" / "saved_models" / "convective_risk_gb.pkl"
 ML_MODEL_META_PATH = ML_MODEL_PATH.with_name("model_meta.json")
 _FUSION_GRID_CACHE: Dict[Tuple[Any, ...], Tuple[float, Dict[str, Any]]] = {}
@@ -215,7 +216,7 @@ class OpticalFlowRequest(BaseModel):
     origin_lon: float = Field(..., description="Longitude of cell centroid")
     speed_kmh: float = Field(..., description="Cell advection speed in km/h")
     bearing_deg: float = Field(..., description="Advection bearing in meteorological degrees (0-360)")
-    lead_times_min: Optional[List[int]] = Field(default=[15, 30, 45, 60], description="Lead times in minutes")
+    lead_times_min: Optional[List[int]] = Field(default_factory=lambda: list(TRACK_LEAD_TIMES_MIN), description="Lead times in minutes, up to 360")
     base_radius_km: Optional[float] = Field(default=8.0, description="Initial convective core radius in km")
 
 
@@ -503,15 +504,25 @@ def generate_forecast_track_cones(
     origin_lon: float,
     speed_kmh: float,
     bearing_deg: float,
-    lead_times_min: List[int] = [15, 30, 45, 60],
+    lead_times_min: Optional[List[int]] = None,
     base_radius_km: float = 8.0
 ) -> List[Dict[str, Any]]:
     """
-    Generates expanding uncertainty cone polygons and centroid projections for 15, 30, 45, and 60 minutes
-    based on pySTEPS / IMD nowcast standard protocols:
+    Generate illustrative constant-velocity track cones for lead times up to six hours.
+
+    This is a scenario extrapolation, not a validated 0-6 hour forecast. It does not
+    model storm growth, decay, splitting, or steering-flow changes.
     - Lateral dispersion angle expands with lead time: theta_spread = base_angle + alpha * sqrt(lead_time)
     - Convective core polygon accounts for lateral cell expansion and turbulent diffusion.
     """
+    lead_times_min = list(TRACK_LEAD_TIMES_MIN if lead_times_min is None else lead_times_min)
+    if (
+        not lead_times_min
+        or any(not isinstance(lead, int) or isinstance(lead, bool) or lead <= 0 or lead > 360 for lead in lead_times_min)
+        or len(set(lead_times_min)) != len(lead_times_min)
+    ):
+        raise ValueError("lead_times_min must contain unique integer values from 1 to 360")
+
     cones = []
     bearing_rad = math.radians(bearing_deg)
 
@@ -901,13 +912,13 @@ def generate_synthetic_active_cells() -> List[Dict[str, Any]]:
                 float(np.min(divergence)), float(np.max(divergence)), float(np.std(divergence)),
             )
 
-        # Generate optical flow track cones (15, 30, 45, 60 min lead times)
+        # Generate scenario track cones through the six-hour horizon.
         track_cones = generate_forecast_track_cones(
             origin_lat=c["lat"],
             origin_lon=c["lon"],
             speed_kmh=c["speed_kmh"],
             bearing_deg=c["bearing_deg"],
-            lead_times_min=[15, 30, 45, 60],
+            lead_times_min=list(TRACK_LEAD_TIMES_MIN),
             base_radius_km=c["radius_km"]
         )
 
@@ -1077,7 +1088,7 @@ def get_service_root():
         "capabilities": [
             "Open-Meteo Real-time Thermodynamic Ingestion",
             "Lucas-Kanade & pySTEPS Optical Flow Cell Advection",
-            "Gradient Boosting Classifier (scikit-learn) for multi-class convective risk (0-60 min lead time)",
+            "Gradient Boosting Classifier (scikit-learn) for convective risk; demo track extrapolations are marked separately",
             "GeoJSON Convective Fusion Grid with Expanding Forecast Cones"
         ],
         "endpoints": {
@@ -1502,8 +1513,10 @@ def get_live_fusion_grid(
                 "decimation_factor": decimate,
                 "display_grid_included": include_display_grid,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
-                "lead_times_included": [0, 15, 30, 45, 60]
-                ,"resolution_metadata": {
+                "lead_times_included": [0, *TRACK_LEAD_TIMES_MIN],
+                "forecast_horizon_status": "SCENARIO_EXTRAPOLATION_ONLY",
+                "forecast_horizon_minutes": 360,
+                "resolution_metadata": {
                     "native_source_resolution_km": "11-25 depending on NWP model",
                     "display_resolution_km": 1.0,
                     "note": "Interpolated guidance for display, not native 1-km forecast skill.",
@@ -1739,8 +1752,7 @@ def post_explain_cell_severity(payload: CellSeverityRequest):
 @app.post("/api/v1/optical-flow-track")
 def post_optical_flow_track(payload: OpticalFlowRequest):
     """
-    Requirement 2:
-    Generates 15, 30, 45, and 60-minute storm track cones from origin coordinates, speed, and bearing.
+    Generate explicitly kinematic scenario track cones for up to six hours.
     """
     try:
         cones = generate_forecast_track_cones(
@@ -1748,7 +1760,7 @@ def post_optical_flow_track(payload: OpticalFlowRequest):
             origin_lon=payload.origin_lon,
             speed_kmh=payload.speed_kmh,
             bearing_deg=payload.bearing_deg,
-            lead_times_min=payload.lead_times_min or [15, 30, 45, 60],
+            lead_times_min=payload.lead_times_min or list(TRACK_LEAD_TIMES_MIN),
             base_radius_km=payload.base_radius_km or 8.0
         )
         return {

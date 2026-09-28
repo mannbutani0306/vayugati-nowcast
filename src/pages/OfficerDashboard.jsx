@@ -354,6 +354,8 @@ const TIER_COLORS = {
   },
 };
 
+const TRACK_LEAD_OPTIONS_MIN = [15, 30, 45, 60, 120, 180, 240, 300, 360];
+
 function formatSkillEstimate(value) {
   if (typeof value === 'number') return value.toFixed(3);
   if (!value || typeof value.mean !== 'number') return 'Unavailable';
@@ -424,6 +426,7 @@ export default function OfficerDashboard() {
   const [alerts, setAlerts] = useState([]);
   const loadSeq = useRef(0);
   const [selectedCellId, setSelectedCellId] = useState(null);
+  const [trackLeadMinutes, setTrackLeadMinutes] = useState(45);
   const [queueFilter, setQueueFilter] = useState('ALL'); // 'ALL' | 'DRAFT' | 'SEVERE' | 'WARNING' | 'APPROVED'
   const [liveCellsLoading, setLiveCellsLoading] = useState(true);
   const [liveCellsError, setLiveCellsError] = useState('');
@@ -891,13 +894,13 @@ export default function OfficerDashboard() {
     // 4. LAYER: Optical Flow Track Cones (Generated via spatialQueries.js)
     if (layerVisibility.opticalFlowCones) {
       cells.forEach((cell) => {
-        // Generate predictive advection cone polygon using spatialQueries.js
+        // Generate the selected kinematic track cone using spatialQueries.js.
         const coneCoordinates = generateMotionConePolygon(
           cell.lat,
           cell.lon,
           cell.speedKmh,
           cell.headingDeg,
-          45, // 45-minute forecast horizon
+          trackLeadMinutes,
           22  // 22° atmospheric divergence spread angle
         );
 
@@ -908,6 +911,7 @@ export default function OfficerDashboard() {
           fillColor: cell.tier === 'SEVERE' ? '#EF4444' : '#F97316',
           fillOpacity: 0.16,
         });
+        conePolygon.bindTooltip(`${trackLeadMinutes}-minute track projection · ${cell.cellName}`);
 
         // Direction Motion Vector Line
         const apexLat = coneCoordinates[3][0];
@@ -924,13 +928,13 @@ export default function OfficerDashboard() {
           }
         );
 
-        // Waypoint +30m Marker
+        // Waypoint at the selected lead time.
         const midLat = (cell.lat + apexLat) / 2;
         const midLon = (cell.lon + apexLon) / 2;
         const etaBadge = L.divIcon({
           className: 'eta-badge',
           html: `<div style="background: #0F172A; color: #FFFFFF; font-size: 9px; font-family: monospace; font-weight: bold; padding: 2px 5px; border-radius: 4px; border: 1px solid #475569; white-space: nowrap;">
-            +30m ETA (${cell.speedKmh} km/h)
+            +${trackLeadMinutes}m projection (${cell.speedKmh} km/h)
           </div>`,
           iconSize: [95, 18],
           iconAnchor: [47, 9],
@@ -989,7 +993,7 @@ export default function OfficerDashboard() {
         polygonsLayer.addLayer(badgeMarker);
       });
     }
-  }, [cells, alerts, layerVisibility, layerOpacity, realSatelliteScene]);
+  }, [cells, alerts, layerVisibility, layerOpacity, realSatelliteScene, trackLeadMinutes]);
 
   // Trigger layer redraw whenever cell, alert, or visibility changes
   useEffect(() => {
@@ -1448,7 +1452,7 @@ export default function OfficerDashboard() {
 
       {isScenarioMode && (
         <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900" role="status">
-          Scenario preview only: cell locations and radar values are illustrative, not live observations or approved warnings. Selected-cell NWP guidance is fetched separately.
+          Scenario preview only: cells and radar values are illustrative, not live observations or approved warnings. Track cones through 6 hours are constant-velocity extrapolations, not validated forecasts. Selected-cell NWP guidance is fetched separately.
         </div>
       )}
 
@@ -1641,6 +1645,23 @@ export default function OfficerDashboard() {
                   className="rounded text-[#D9532F] focus:ring-[#D9532F]"
                 />
               </label>
+              {layerVisibility.opticalFlowCones && (
+                <label htmlFor="track-lead-minutes" className="flex items-center justify-between gap-3 px-1 py-1 text-[11px]">
+                  <span className="font-medium text-[#1A1D20]">Track horizon</span>
+                  <select
+                    id="track-lead-minutes"
+                    value={trackLeadMinutes}
+                    onChange={(event) => setTrackLeadMinutes(Number(event.target.value))}
+                    className="min-w-24 border border-[#D8DDE0] bg-white px-2 py-1 text-xs text-[#1A1D20]"
+                  >
+                    {TRACK_LEAD_OPTIONS_MIN.map((leadMinutes) => (
+                      <option key={leadMinutes} value={leadMinutes}>
+                        {leadMinutes < 60 ? `${leadMinutes} min` : `${leadMinutes / 60} h`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               {/* 5. Active Warning Polygons */}
               <label className="flex items-center justify-between cursor-pointer hover:bg-[#FAF7F2] p-1 rounded">
