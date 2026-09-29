@@ -1,5 +1,5 @@
-const CACHE_NAME = 'vayugati-shell-v4';
-const SHELL_URLS = ['/', '/manifest.json', '/icons/vayugati-mark.svg', '/icons/vayugati-192.png'];
+const CACHE_NAME = 'vayugati-shell-v5';
+const SHELL_URLS = ['/', '/manifest.json', '/icons/logo.png?v=2'];
 const DATABASE_NAME = 'vayugati-offline-data';
 const DATABASE_VERSION = 1;
 const WARNING_KEY = 'active-alerts';
@@ -122,8 +122,8 @@ self.addEventListener('push', (event) => {
   const title = message.title || 'Approved weather alert';
   const options = {
     body: message.body || message.headline || 'Open the Citizen Portal for the latest approved warning.',
-    icon: '/icons/vayugati-192.png',
-    badge: '/icons/vayugati-192.png',
+    icon: '/icons/logo.png?v=2',
+    badge: '/icons/logo.png?v=2',
     tag: message.alertId || message.identifier || 'vayugati-approved-alert',
     renotify: true,
     requireInteraction: true,

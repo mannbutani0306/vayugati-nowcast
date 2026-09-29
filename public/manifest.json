@@ -14,22 +14,10 @@
   "categories": ["weather", "safety"],
   "icons": [
     {
-      "src": "/icons/vayugati-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/vayugati-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/vayugati-mark.svg",
+      "src": "/icons/logo.png?v=2",
       "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

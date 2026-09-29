@@ -379,14 +379,7 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
-              <img src="/icons/logo.png" alt="VayuGati logo" className="h-16 w-20 shrink-0 object-contain md:h-20 md:w-24" />
-
-              <div className="min-w-0">
-                <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
-                  VAYUGATI-NOWCAST
-                </div>
-                <span aria-hidden="true" className="mt-1 block h-1 w-16 bg-gradient-to-r from-[#FF9933] via-white to-[#138808]" />
-              </div>
+              <img src="/icons/logo.png?v=2" alt="VayuGati" className="h-16 w-20 shrink-0 object-contain md:h-20 md:w-24" />
             </Link>
             <button
               type="button"
