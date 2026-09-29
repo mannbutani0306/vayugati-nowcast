@@ -26,31 +26,34 @@ The project is structured to clearly indicate when a feed is live, archived, or 
 
 ## Local setup
 
-### Frontend
+Install the frontend and backend dependencies once:
 
 ```bash
 npm install
+python -m pip install -r backend/requirements.txt
+```
+
+Start the complete local application with one command:
+
+```bash
 npm run dev
 ```
 
-The app runs on:
+In Windows PowerShell, use `npm.cmd install` and `npm.cmd run dev` if the script execution policy blocks the `npm` command.
 
-- Frontend: http://localhost:3000
-
-### Backend API
-
-```bash
-python -m pip install -r backend/requirements.txt
-python -m uvicorn backend.nowcast_engine:app --host 0.0.0.0 --port 8000
-```
-
-The frontend expects the local API at http://localhost:8000 by default.
+The startup script starts the FastAPI backend, waits for its health endpoint, and then starts Vite. Keep the terminal open while using the app; press `Ctrl+C` to stop both services. The frontend is at http://localhost:3000 and the API is at http://localhost:8000.
 
 ### Docker
 
 ```bash
 docker compose up --build
 ```
+
+Compose waits for the backend health check before starting the frontend.
+
+### Vercel deployment
+
+Vercel serves this repository's frontend only; it cannot start the Python API on a visitor's computer. Deploy the backend separately and set `VITE_NOWCAST_API_URL` in the Vercel project to that backend's public API base URL, ending in `/api/v1`, then redeploy. The default `localhost:8000` URL is for local development only.
 
 ## Project layout
 
