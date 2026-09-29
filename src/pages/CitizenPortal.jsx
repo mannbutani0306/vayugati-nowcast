@@ -66,8 +66,8 @@ import {
 const TRANSLATIONS = {
   en: {
     appTitle: 'VayuGati Citizen Nowcast',
-    portalSub: 'IMD / NDMA Severe Weather & Cloudburst Early Warning',
-    officialBadge: 'Official Disaster Portal',
+    portalSub: 'Severe weather and cloudburst safety prototype',
+    officialBadge: 'Prototype Safety Portal',
     useGps: 'Use My GPS',
     locating: 'Acquiring GPS...',
     gpsLocated: 'GPS Located',
@@ -81,7 +81,7 @@ const TRANSLATIONS = {
     justNow: 'just now',
     minsAgo: 'mins ago',
     activeConeWarningHeadline: 'APPROVED WEATHER ALERT IN YOUR AREA',
-    activeConeWarningSub: 'An approved alert polygon intersects your current coordinates. Follow the official alert instructions below.',
+    activeConeWarningSub: 'An approved prototype alert polygon intersects your current coordinates. Check current local authority bulletins before acting.',
     originalTextFallback: 'Alert copy shown in its original language; no translation is available.',
     databaseOffline: 'Offline Database: live approved alerts are unavailable.',
     impactCountdownPrefix: 'Impact expected in:',
@@ -116,7 +116,7 @@ const TRANSLATIONS = {
     shelterDistance: 'away',
     getDirections: 'Get Directions',
     hourlyProgressionTitle: '0–6 Hour Hazard Progression',
-    liveBulletinsTitle: 'Official IMD / SDMA Approved Warning Bulletins',
+    liveBulletinsTitle: 'Approved prototype alert notices',
     noActiveAlerts: 'No approved alerts were returned for this search radius.',
     dataCachedNotice: 'Cached on device • Works 100% offline during mobile network failure.',
     testLocations: 'Quick Demo Coordinates:',
@@ -127,7 +127,7 @@ const TRANSLATIONS = {
   hi: {
     appTitle: 'वायुगति नागरिक नौकास्ट',
     portalSub: 'आईएमडी / एनडीएमए गंभीर मौसम एवं बादल फटने की पूर्व चेतावनी',
-    officialBadge: 'आधिकारिक आपदा पोर्टल',
+    officialBadge: 'एसआईएच26084 प्रोटोटाइप पोर्टल',
     useGps: 'मेरा जीपीएस खोजें',
     locating: 'स्थान प्राप्त कर रहे हैं...',
     gpsLocated: 'जीपीएस स्थान प्राप्त',
@@ -187,7 +187,7 @@ const TRANSLATIONS = {
   mr: {
     appTitle: 'वायुगती नागरिक नौकास्ट',
     portalSub: 'आयएमडी / एनडीएमए अतिवृष्टी, गारपीट आणि ढगफुटी पूर्वसूचना प्रणाली',
-    officialBadge: 'अधिकृत आपत्ती व्यवस्थापन पोर्टल',
+    officialBadge: 'एसआयएच26084 प्रोटोटाइप पोर्टल',
     useGps: 'माझे जीपीएस वापरा',
     locating: 'स्थान शोधत आहे...',
     gpsLocated: 'जीपीएस स्थान निश्चित',

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useEffect, useState } from 'react';
 import DataDisclaimerModal from '../components/DataDisclaimerModal';
 import LoginModal from '../components/LoginModal';
@@ -162,7 +163,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="bg-[#FAF7F2] border border-[#E5E0D8] text-[#1A1D20] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-[#1E3A8A]"></span>
-              Ministry of Earth Sciences - IMD
+              SIH26084 prototype · Not an official warning service
             </span>
           </div>
 
@@ -178,6 +179,12 @@ export default function LandingPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Link
+              to="/data-lab"
+              className="bg-[#0B7084] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#07586B]"
+            >
+              Explore archived data
+            </Link>
             <a
               href="#advisories"
               className="bg-[#FAF7F2] hover:bg-[#E5E0D8] text-[#1A1D20] border border-[#E5E0D8] px-5 py-3 rounded-lg font-semibold text-sm transition-all"

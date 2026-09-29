@@ -33,7 +33,9 @@ Frontend: `http://localhost:3000`
 
 API: `http://localhost:8000`
 
-The backend receives `./data` as a read-only mount at `/app/data`. The image includes the cited Leh case JSON and trains its GBM artifact during build. Docker was not available in the development environment used for this pass, so the image build and container startup still need deployment-side verification.
+Public archive replay: `http://localhost:3000/data-lab` (no sign-in required)
+
+The backend image copies `data/` to `/app/data`; Docker Compose mounts the local directory there read-only for development. The image also includes cited Leh case JSON and trains its GBM artifact during build, so it is substantially larger when archives are present. Build only after Git LFS has materialized the HDF5 and TIF contents. Docker was not available in the development environment used for this pass, so image build and startup still need verification.
 
 ### Manual
 
@@ -49,7 +51,7 @@ In another terminal:
 .\.venv\Scripts\python.exe -m uvicorn backend.nowcast_engine:app --host 0.0.0.0 --port 8000
 ```
 
-If using a different Python environment, install `backend/requirements.txt` there instead. The frontend defaults to `http://localhost:8000/api/v1`; hosted deployments may set `VITE_NOWCAST_API_URL`. Supabase remains an external service.
+If using a different Python environment, install `backend/requirements.txt` there instead. The frontend defaults to `http://localhost:8000/api/v1` for local development. Hosted frontend builds must set `VITE_NOWCAST_API_URL` to the reachable backend API base; the current Vercel configuration only handles SPA routes and does not proxy API calls. Supabase remains an external service.
 
 ### Local data
 
@@ -62,9 +64,11 @@ Archived files are read from `DATA_DIR` (default `./data` for manual runs). No r
 | `data/imerg_monthly/monthly_mean.csv` | Giovanni monthly-mean rate CSV |
 | `data/mosdac/` | Local INSAT-3DR TIR1 scenes and matching calibration product, if available |
 
+The public Data Lab serves one archived IMERG frame at a time through `GET /api/v1/ingestion/imerg/replay/{case_id}?frame_index=N`. It also offers a separate synthetic scenario mode; that mode is never an observation or an approved warning. HDF5 and TIF files use Git LFS, while the monthly CSV is stored as a regular Git file.
+
 ## Five-minute judge demo
 
-1. Open the Citizen portal and point out that approved warnings use the existing Supabase workflow; unavailable feeds are not presented as observations.
+1. Open `/data-lab` without signing in. Replay an observed IMERG archive, show its timestamps and native grid spacing, then switch to the separately labeled synthetic scenario.
 2. Open Officer > Model Skill. Compare the synthetic 60/120-minute CSI spreads with the separate IMERG archived tab. The archived IMERG comparison includes results where nowcast ties or loses to persistence.
 3. Open “Real-World Anchor Case - Leh 2010”. The timeline is schematic and derived from the cited paper, not satellite imagery. The event began over the Tibetan Plateau around 06:00 UTC, reached Ladakh around 15:00 UTC, had the highest reported TRMM estimates south of Leh from 15:00-18:00 UTC, and the landslide was around 20:00 UTC.
 4. Show the threshold contrast: the paper reports TRMM estimates of 4-8 cm in 3 hours, approximately 13-27 mm/h average. The fixed 100 mm/h cloudburst criterion does not trigger, while the project climatology heuristic triggers at 2.67-5.33 times the August mean of 15.0 mm. TRMM is satellite-derived and uncertain; the 25 Jul 2011 companion also triggers the anomaly heuristic despite no reported casualties or landslides, illustrating false-alarm risk.
@@ -135,7 +139,7 @@ At +60 minutes and 1 mm/h, the current measured Leh 2010 CSI is 0.423 for advect
 | Lightning | `SIMULATED proxy` | Not an official observation feed |
 | Storm cells | `SIMULATED_DEMO_FIXTURE` | Named demo cells and histories |
 
-NASA/GES DISC and MOSDAC terms apply to downloaded products. Download access does not imply redistribution rights; local data files are ignored by Git.
+NASA/GES DISC and MOSDAC terms apply to downloaded products. Download access does not imply redistribution rights. HDF5 and TIF archives use Git LFS; the monthly CSV is stored as a regular Git file. Verify that applicable product terms permit redistribution before sharing a public repository or demo.
 
 ## Corrected since last submission
 
@@ -172,8 +176,8 @@ NASA/GES DISC and MOSDAC terms apply to downloaded products. Download access doe
 | B4 | PARTIAL | Four local scenes inventoried; API and raw overlay work | BT, cold fractions, cooling, initiation, and flow await calibration metadata |
 | B5 | FIXED | 69 valid CSV records, 12 months, ratio 5.964 | Geographic shape remains unverified |
 | B6 | FIXED | Runtime-aware Data Sources table and monthly chart | Provider authorization remains external |
-| C1 | FIXED | `.gitignore`, `data/README.md`, folder markers | Existing local data is intentionally untracked |
-| C2 | FIXED | Read-only compose mount, `DATA_DIR`, case JSON Docker copy | Docker unavailable for image verification |
+| C1 | FIXED | `.gitignore`, `data/README.md`, folder markers, Git LFS tracking | Verify redistribution terms for archived products |
+| C2 | FIXED | Read-only compose mount, `DATA_DIR`, data and case JSON Docker copies | Docker unavailable for image verification; build requires materialized LFS files |
 | C3 | PARTIAL | Exact reader pins; empty INSAT endpoint returns `AWAITING REAL DATA` | `docker compose up --build` not run; full empty-container startup unverified |
 | C4 | FIXED | Both IMERG directories and MOSDAC filename discovery exercised | Inventory reflects the current local archive only |
 | Final acceptance | FIXED | `scripts/final_check.py`: 22/22 checks passed, including empty-data states and `npm run build` | Docker checks remain unverified |

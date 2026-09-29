@@ -197,6 +197,11 @@ export async function fetchImergMonthlyContext(options = {}) {
   return apiFetch('/ingestion/imerg/monthly-context', options);
 }
 
+export async function fetchImergReplayFrame(caseId, frameIndex = 0, options = {}) {
+  const query = new URLSearchParams({ frame_index: String(frameIndex) });
+  return apiFetch(`/ingestion/imerg/replay/${encodeURIComponent(caseId)}?${query.toString()}`, options);
+}
+
 export async function fetchRealCases(options = {}) {
   return apiFetch('/real-cases', options);
 }

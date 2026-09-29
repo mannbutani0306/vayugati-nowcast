@@ -10,6 +10,7 @@ import {
   LogOut,
   LogIn,
   Database,
+    Play,
   Globe,
   Clock,
   ChevronDown,
@@ -52,6 +53,9 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [isSaarthiOpen, setIsSaarthiOpen] = useState(false);
   const [notifications, setNotifications] = useState(readStoredNotifications);
+  const [notificationPermission, setNotificationPermission] = useState(() => (
+    'Notification' in window ? Notification.permission : 'unsupported'
+  ));
   const [lastViewedAt, setLastViewedAt] = useState(() => localStorage.getItem(NOTIFICATIONS_VIEWED_KEY) || '');
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem(NOTIFICATION_SOUND_KEY) !== 'false');
   const audioContextRef = useRef(null);
@@ -185,8 +189,17 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
     unlockNotificationAudio();
 
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
+  };
+
+  const handleEnableBrowserNotifications = async () => {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+    try {
+      setNotificationPermission(await Notification.requestPermission());
+    } catch {
+      setNotificationPermission(Notification.permission);
     }
   };
 
@@ -206,27 +219,20 @@ export default function GovernmentHeader({ onOpenLogin }) {
         style={{
           background: 'linear-gradient(90deg, #FF9933 0%, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%, #138808 100%)',
         }}
-        title="National Flag of India Tricolour Ribbon (Saffron, White, Green)"
+        title="SIH26084 prototype status ribbon"
       ></div>
 
-      {/* 3. NATIONAL IDENTITY STRIP & GIGW ACCESSIBILITY TOOLBAR */}
+      {/* Prototype identity and accessibility toolbar */}
       <div className="bg-[#0B1528] text-neutral-300 text-[11px] px-4 lg:px-8 py-1.5 border-b border-[#1A2942] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-        {/* National Identity Credentials */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
-          <span className="text-[#FF9933] font-bold">भारत सरकार</span>
+          <span className="text-[#FF9933] font-bold">SIH26084</span>
           <span className="text-neutral-500">|</span>
-          <span className="text-white font-semibold">Government of India</span>
-          <span className="hidden sm:inline text-neutral-500">•</span>
-          <span className="hidden sm:inline text-neutral-300">
-            Ministry of Earth Sciences (MoES)
-          </span>
-          <span className="hidden md:inline text-neutral-500">•</span>
-          <span className="hidden md:inline text-neutral-400">
-            India Meteorological Department (IMD)
-          </span>
+          <span className="text-white font-semibold">Student prototype</span>
+          <span className="hidden sm:inline text-neutral-500">|</span>
+          <span className="hidden sm:inline text-neutral-300">Not an official IMD/NDMA service</span>
         </div>
 
-        {/* GIGW Accessibility Bar (Top Right) */}
+        {/* Accessibility controls */}
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {/* Font Size Adjuster Controls: A-, A, A+ */}
           <div
@@ -326,26 +332,20 @@ export default function GovernmentHeader({ onOpenLogin }) {
         </div>
       </div>
 
-      {/* 4. OFFICIAL MINISTRY BANNER (Deep Navy #0F172A) */}
+      {/* SIH prototype identity */}
       <div className="bg-[#0F172A] text-[#FAF7F2] border-b border-[#1E293B] px-4 lg:px-8 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          {/* Official Emblem & Branding */}
           <div className="flex min-w-0 items-center space-x-3.5">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
-              {/* National Emblem of India Stylized Crest */}
-              <div className="h-16 w-16 overflow-hidden rounded-lg bg-[#FAF7F2] flex items-center justify-center text-[#0F172A] shadow-md border border-[#E5E0D8] group-hover:scale-102 transition-transform">
-                <img
-                  src="/emblem.png"
-                  alt="State Emblem of India"
-                  className="h-full w-full object-contain"
-                />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-[#E5E0D8] bg-[#FAF7F2] text-sm font-black text-[#0F172A]">
+                SIH
               </div>
 
               <div className="min-w-0">
                 <div className="text-[10px] tracking-wider uppercase font-semibold text-neutral-300 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[#FF9933] font-bold">भारत सरकार</span>
+                  <span className="text-[#FF9933] font-bold">SIH26084</span>
                   <span>|</span>
-                  <span>Ministry of Earth Sciences (MoES)</span>
+                  <span>Student prototype · Not an official warning service</span>
                 </div>
                 <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
                   VayuGati Nowcast
@@ -355,12 +355,20 @@ export default function GovernmentHeader({ onOpenLogin }) {
             </Link>
           </div>
 
-          {/* Quick Header Controls: Live Clock, System Status & Official Login */}
+          {/* Quick controls: clock, status, and sign-in */}
           <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
             <div className="inline-flex items-center gap-2 border border-[#1E293B] bg-[#09101F] px-2.5 py-1.5 font-mono text-xs text-white" aria-label={`Current time ${istTime} India Standard Time`}>
               <Clock aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
               <time dateTime={new Date().toISOString()}>{istTime || '--:--:--'} IST</time>
             </div>
+            <Link
+              to="/data-lab"
+              aria-label="Open archive replay and scenario simulation"
+              className="inline-flex h-9 items-center justify-center gap-1.5 border border-[#1E3A5F] bg-[#14233D] px-3 text-[11px] text-white hover:bg-[#1C3254]"
+            >
+              <Play aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
+              <span>Data lab</span>
+            </Link>
             <Link
               to="/data-sources"
               aria-label="Data sources and attribution"
@@ -393,7 +401,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   <div className="flex items-center justify-between border-b border-[#E5E0D8] px-4 py-3">
                     <div>
                       <h2 className="text-sm font-bold">Notifications</h2>
-                      <p className="text-[11px] text-[#6C7278]">Approved weather alerts</p>
+                      <p className="text-[11px] text-[#6C7278]">Approved alerts · received while this page is open</p>
                     </div>
                     <button
                       type="button"
@@ -409,6 +417,20 @@ export default function GovernmentHeader({ onOpenLogin }) {
                       {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                     </button>
                   </div>
+                  {notificationPermission !== 'granted' && (
+                    <div className="border-b border-[#E5E0D8] px-4 py-3">
+                      {notificationPermission === 'unsupported' || notificationPermission === 'denied' ? (
+                        <p className="text-[11px] leading-4 text-[#6C7278]">
+                          {notificationPermission === 'denied' ? 'Browser notifications are blocked in site settings.' : 'This browser does not support notifications.'}
+                        </p>
+                      ) : (
+                        <button type="button" onClick={handleEnableBrowserNotifications} className="border border-[#0B7084] px-2.5 py-1.5 text-[11px] font-semibold text-[#07586B] hover:bg-[#EEF4F5]">
+                          Enable browser notifications
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <p className="border-b border-[#E5E0D8] px-4 py-2 text-[10px] leading-4 text-[#6C7278]">Alerts are received while this page is open; background push, SMS, and WhatsApp delivery are not configured.</p>
                   {notifications.length ? (
                     <ul className="max-h-[min(60vh,24rem)] divide-y divide-[#E5E0D8] overflow-y-auto">
                       {notifications.map((item) => (
@@ -477,7 +499,7 @@ export default function GovernmentHeader({ onOpenLogin }) {
 
       <div className="overflow-hidden border-b border-[#D8C66F] bg-[#F6E7A8] py-1 text-[#17202A]" aria-label="VayuGati updates">
         <p className="vayugati-marquee-track inline-block whitespace-nowrap px-4 text-[11px] font-semibold">
-          VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Check the Citizen Portal for current approved alerts&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, follow official IMD/NDMA guidance and call 112&nbsp;&nbsp;•&nbsp;&nbsp;Stay informed with VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Alerts shown here come from Supabase-approved notices&nbsp;&nbsp;•&nbsp;&nbsp;VayuGati Nowcast&nbsp;&nbsp;•&nbsp;&nbsp;Check the Citizen Portal for current approved alerts&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, follow official IMD/NDMA guidance and call 112&nbsp;&nbsp;•&nbsp;&nbsp;
+          VayuGati SIH26084 prototype&nbsp;&nbsp;•&nbsp;&nbsp;Check authorized IMD/NDMA channels for current warnings&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, call 112&nbsp;&nbsp;•&nbsp;&nbsp;Scenario and archive views are not live warnings&nbsp;&nbsp;•&nbsp;&nbsp;VayuGati SIH26084 prototype&nbsp;&nbsp;•&nbsp;&nbsp;Check authorized IMD/NDMA channels for current warnings&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, call 112&nbsp;&nbsp;•&nbsp;&nbsp;
         </p>
       </div>
 

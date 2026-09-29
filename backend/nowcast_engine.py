@@ -59,7 +59,7 @@ try:
     from .ingestion.lightning import get_lightning_feed
     from .ingestion.radar import get_radar_feed
     from .ingestion.satellite import get_local_real_scene, get_satellite_feed
-    from .ingestion.imerg import AWAITING_INSTRUCTIONS, imerg_inventory, read_monthly_context
+    from .ingestion.imerg import AWAITING_INSTRUCTIONS, imerg_inventory, read_imerg_frame, read_monthly_context
     from .ingestion.synthetic_storm_sim import simulate_storm_cell
     from .hazards import (
         assess_cloudburst,
@@ -74,7 +74,7 @@ except ImportError:
     from ingestion.lightning import get_lightning_feed
     from ingestion.radar import get_radar_feed
     from ingestion.satellite import get_local_real_scene, get_satellite_feed
-    from ingestion.imerg import AWAITING_INSTRUCTIONS, imerg_inventory, read_monthly_context
+    from ingestion.imerg import AWAITING_INSTRUCTIONS, imerg_inventory, read_imerg_frame, read_monthly_context
     from ingestion.synthetic_storm_sim import simulate_storm_cell
     from hazards import (
         assess_cloudburst,
@@ -1387,6 +1387,18 @@ def get_real_cases():
 def get_imerg_monthly_context():
     """Return the local monthly IMERG context series; never feed it into nowcasting."""
     return read_monthly_context()
+
+
+@app.get("/api/v1/ingestion/imerg/replay/{case_id}")
+def get_imerg_replay_frame(
+    case_id: Literal["leh_2010_08_05", "leh_2011_07_25"],
+    frame_index: int = Query(default=0, ge=0),
+):
+    """Return one actual archived IMERG frame for the public replay map."""
+    try:
+        return read_imerg_frame(case_id, frame_index)
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/live-fusion-grid")

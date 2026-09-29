@@ -9,6 +9,7 @@ import CitizenPortal from './pages/CitizenPortal';
 import OfficerDashboard from './pages/OfficerDashboard';
 import AdminPortal from './pages/AdminPortal';
 import DataSourcesPage from './pages/DataSourcesPage';
+import DataLabPage from './pages/DataLabPage';
 import {
   ShieldAlert,
   ArrowRight,
@@ -63,7 +64,7 @@ function ProtectedRoute({ children, allowedRoles = [], onOpenLogin }) {
           onClick={onOpenLogin}
           className="bg-[#D9532F] hover:bg-[#BF4422] text-white px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider inline-flex items-center space-x-2 transition-colors cursor-pointer"
         >
-          <span>Switch Official Credentials</span>
+          <span>Switch sign-in role</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -86,7 +87,7 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white">
-              {toast.tier || 'SEVERE'} ALERT BROADCAST
+              {toast.tier || 'SEVERE'} ALERT APPROVED
             </span>
           </div>
           <button
@@ -127,7 +128,7 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
 }
 
 /**
- * GIGW Compliant Government Footer Component
+ * SIH prototype footer component
  */
 function GovernmentFooter() {
   const currentYear = new Date().getFullYear();
@@ -148,15 +149,15 @@ function GovernmentFooter() {
           <div className="space-y-2 md:col-span-1">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded bg-white text-[#0B2E4F] flex items-center justify-center font-bold text-xs">
-                IMD
+                SIH
               </div>
               <span className="font-bold text-white text-xs block">VayuGati Nowcast</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              India Meteorological Department (IMD) • Ministry of Earth Sciences (MoES), Government of India.
+              SIH26084 prototype. Not an official IMD, MoES, or NDMA warning service.
             </p>
             <span className="text-[10px] text-neutral-400 block font-mono">
-              Operational Weather Platform
+              Historical replay and scenario prototype
             </span>
           </div>
 
@@ -179,6 +180,9 @@ function GovernmentFooter() {
                 <Link to="/admin" className="hover:text-[#FF9933] transition-colors">District Admin &amp; DDMA Command</Link>
               </li>
               <li>
+                <Link to="/data-lab" className="hover:text-[#FF9933] transition-colors">Historical Replay &amp; Scenario Lab</Link>
+              </li>
+              <li>
                 <Link
                   to="/data-sources"
                   onClick={(event) => {
@@ -193,27 +197,15 @@ function GovernmentFooter() {
             </ul>
           </div>
 
-          {/* Col 3: GIGW Mandatory Policies */}
+          {/* Col 3: Project and data notes */}
           <div className="space-y-2">
             <span className="font-bold text-white uppercase text-[10px] tracking-wider block">
-              GIGW Guidelines &amp; Policies
+              Project and data notes
             </span>
-            <ul className="space-y-1.5">
-              <li>
-                <span className="hover:text-[#FF9933] cursor-pointer">Accessibility Statement (W3C WAI-AA)</span>
-              </li>
-              <li>
-                <span className="hover:text-[#FF9933] cursor-pointer">Privacy &amp; Data Security Policy</span>
-              </li>
-              <li>
-                <span className="hover:text-[#FF9933] cursor-pointer">Terms &amp; Conditions</span>
-              </li>
-              <li>
-                <span className="hover:text-[#FF9933] cursor-pointer">Hyperlinking &amp; Copyright Policy</span>
-              </li>
-              <li>
-                <span className="hover:text-[#FF9933] cursor-pointer">Website Information Manager (WIM)</span>
-              </li>
+            <ul className="space-y-1.5 leading-relaxed">
+              <li><Link to="/data-sources" className="hover:text-[#FF9933]">Data sources and attribution</Link></li>
+              <li>Archives require applicable redistribution permission.</li>
+              <li>Scenario outputs are illustrative, not warnings.</li>
             </ul>
           </div>
 
@@ -265,7 +257,7 @@ function MainLayout() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col font-sans">
-      {/* Official Government Header with 4px Tricolour & Live Marquee */}
+      {/* Prototype header with status ribbon and accessibility controls */}
       <GovernmentHeader onOpenLogin={handleOpenLogin} />
 
       {/* Main Routed Content Area */}
@@ -275,6 +267,7 @@ function MainLayout() {
           <Route path="/" element={<LandingPage onOpenLogin={() => setIsLoginModalOpen(true)} />} />
 
           <Route path="/data-sources" element={<DataSourcesPage />} />
+          <Route path="/data-lab" element={<DataLabPage />} />
 
           {/* Citizen Early Warning Portal */}
           <Route

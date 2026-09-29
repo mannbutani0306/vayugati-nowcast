@@ -59,6 +59,85 @@ def imerg_inventory(case_id: str) -> dict[str, Any]:
         "status": "REAL_ARCHIVED" if paths else "AWAITING REAL DATA",
         "files": [path.name for path in paths],
     }
+
+
+def read_imerg_frame(
+    case_id: str,
+    frame_index: int,
+    bounds: tuple[float, float, float, float] = (30.0, 74.0, 36.0, 82.0),
+) -> dict[str, Any]:
+    paths = discover_imerg_files(case_id)
+    if not paths:
+        return {"status": "AWAITING REAL DATA", "case_id": case_id, "files_found": 0, "frames": []}
+    if frame_index < 0 or frame_index >= len(paths):
+        raise IndexError(f"Frame index must be between 0 and {len(paths) - 1}.")
+
+    path = paths[frame_index]
+    min_lat, min_lon, max_lat, max_lon = bounds
+    with h5py.File(path, "r") as root:
+        if "Grid/precipitation" not in root or "Grid/lat" not in root or "Grid/lon" not in root:
+            raise ValueError(f"{path.name} does not contain inspected IMERG Grid precipitation/lat/lon variables")
+        rate_dataset = root["Grid/precipitation"]
+        units = rate_dataset.attrs.get("Units", rate_dataset.attrs.get("units", b""))
+        if isinstance(units, bytes):
+            units = units.decode("ascii", "ignore")
+        if isinstance(units, np.ndarray) and units.size == 1:
+            units = units.item()
+            if isinstance(units, bytes):
+                units = units.decode("ascii", "ignore")
+        if units != "mm/hr":
+            raise ValueError(f"Unexpected precipitation units in {path.name}: {units!r}")
+
+        lat = np.asarray(root["Grid/lat"][:], dtype=float)
+        lon = np.asarray(root["Grid/lon"][:], dtype=float)
+        lat_indices = np.flatnonzero((lat >= min_lat) & (lat <= max_lat))
+        lon_indices = np.flatnonzero((lon >= min_lon) & (lon <= max_lon))
+        if not lat_indices.size or not lon_indices.size:
+            raise ValueError(f"Requested bounds are outside the coordinate coverage in {path.name}")
+
+        raw = np.asarray(
+            rate_dataset[
+                0,
+                lon_indices.min():lon_indices.max() + 1,
+                lat_indices.min():lat_indices.max() + 1,
+            ],
+            dtype=np.float32,
+        ).T[::-1, :]
+        fill = rate_dataset.attrs.get("_FillValue", FILL_VALUE)
+        if isinstance(fill, np.ndarray):
+            fill = float(fill.item())
+        mask = ~np.isfinite(raw) | (raw == float(fill)) | (raw == -9999.9) | (raw == -9999.0)
+        latitude = lat[lat_indices.min():lat_indices.max() + 1][::-1]
+        longitude = lon[lon_indices.min():lon_indices.max() + 1]
+
+    lat_step = float(np.median(np.abs(np.diff(latitude)))) if latitude.size > 1 else 0.0
+    lon_step = float(np.median(np.abs(np.diff(longitude)))) if longitude.size > 1 else 0.0
+    mean_lat = float(np.mean(latitude))
+    return {
+        "status": "REAL_ARCHIVED",
+        "case_id": case_id,
+        "frame_index": frame_index,
+        "frame_count": len(paths),
+        "timestamp_utc": parse_imerg_timestamp(path).isoformat(),
+        "source_file": path.name,
+        "source": "NASA GPM IMERG Final Run V07",
+        "source_url": "https://gpm.nasa.gov/data/imerg",
+        "variable": "Grid/precipitation",
+        "units": "mm/hr",
+        "latitude": latitude.tolist(),
+        "longitude": longitude.tolist(),
+        "precipitation_rate_mm_hr": [
+            [None if mask[row, column] else float(raw[row, column]) for column in range(raw.shape[1])]
+            for row in range(raw.shape[0])
+        ],
+        "km_per_pixel": {
+            "east_west": lon_step * 111.32 * float(np.cos(np.deg2rad(mean_lat))),
+            "north_south": lat_step * 111.32,
+        },
+        "resolution_note": "Native IMERG grid spacing is approximately 0.1 degrees; it is not 1-3 km radar resolution.",
+    }
+
+
 def read_imerg_case(
     case_id: str,
     bounds: tuple[float, float, float, float] = (30.0, 74.0, 36.0, 82.0),
