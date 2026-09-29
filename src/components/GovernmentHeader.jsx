@@ -20,6 +20,7 @@ import {
   MessageCircle,
   Volume2,
   VolumeX,
+  Menu,
 } from 'lucide-react';
 
 const NOTIFICATIONS_KEY = 'vayugati_notifications';
@@ -49,6 +50,7 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
   const location = useLocation();
   const [istTime, setIstTime] = useState('');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSignOutConfirmOpen, setIsSignOutConfirmOpen] = useState(false);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [isSaarthiOpen, setIsSaarthiOpen] = useState(false);
@@ -67,6 +69,10 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
     seenNotificationIds.current = new Set(notifications.map((item) => item.id));
   }
   const unreadCount = notifications.filter((item) => item.createdAt > lastViewedAt).length;
+
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
@@ -371,9 +377,9 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
 
       <div className="bg-[#0F172A] text-[#FAF7F2] border-b border-[#1E293B] px-4 lg:px-8 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="flex min-w-0 items-center space-x-3.5">
+          <div className="flex min-w-0 items-center justify-between gap-3">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
-              <img src="/icons/logo.png" alt="VayuGati logo" className="h-16 w-16 shrink-0 object-contain" />
+              <img src="/icons/logo.png" alt="VayuGati logo" className="h-12 w-12 shrink-0 object-contain md:h-16 md:w-16" />
 
               <div className="min-w-0">
                 <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
@@ -382,9 +388,22 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
                 <span aria-hidden="true" className="mt-1 block h-1 w-16 bg-gradient-to-r from-[#FF9933] via-white to-[#138808]" />
               </div>
             </Link>
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen((open) => !open)}
+              aria-label={isMobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={isMobileNavOpen}
+              aria-controls="primary-navigation"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-[#1E3A5F] bg-[#14233D] text-white md:hidden"
+            >
+              {isMobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
+          <div
+            id="primary-navigation"
+            className={`${isMobileNavOpen ? 'grid' : 'hidden'} w-full grid-cols-2 items-center gap-2 md:flex md:w-auto md:flex-wrap md:ml-auto md:justify-end`}
+          >
             <div className="inline-flex items-center gap-2 border border-[#1E293B] bg-[#09101F] px-2.5 py-1.5 font-mono text-xs text-white" aria-label={`Current time ${istTime} India Standard Time`}>
               <Clock aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
               <time dateTime={new Date().toISOString()}>{istTime || '--:--:--'} IST</time>

@@ -1747,7 +1747,7 @@ export default function OfficerDashboard() {
           )}
         </div>
 
-        <section className="lg:col-span-8 rounded-xl border border-[#E5E0D8] bg-white p-4 shadow-xs" aria-labelledby="model-skill-heading">
+        <section className="lg:col-span-8 lg:col-start-1 lg:row-start-2 rounded-xl border border-[#E5E0D8] bg-white p-4 shadow-xs" aria-labelledby="model-skill-heading">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 id="model-skill-heading" className="text-sm font-bold text-[#0F172A]">Model Skill vs Persistence</h3>
@@ -1918,7 +1918,7 @@ export default function OfficerDashboard() {
         {/* ========================================================= */}
         {/* RIGHT: ALERT REVIEW QUEUE SIDE-PANEL (4 COLS) */}
         {/* ========================================================= */}
-        <div className="lg:col-span-4 min-w-0 bg-[#FFFFFF] border-t lg:border-t-0 lg:border-l border-[#E5E0D8] flex flex-col min-h-[28rem] lg:h-full lg:max-h-[calc(100vh-115px)] overflow-hidden">
+        <div className="lg:col-span-4 lg:col-start-9 lg:row-start-1 min-w-0 bg-[#FFFFFF] border-t lg:border-t-0 lg:border-l border-[#E5E0D8] flex flex-col min-h-[28rem] lg:h-full lg:max-h-[calc(100vh-115px)] overflow-hidden">
           {/* Panel Header */}
           <div className="p-4 border-b border-[#E5E0D8] bg-[#FAF7F2] space-y-2.5">
             <div className="flex items-center justify-between">
