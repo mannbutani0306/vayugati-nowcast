@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { SECTOR_INFO, SEVERITY_TIERS, INITIAL_CONVECTIVE_CELLS, getFullNowcastTelemetrySnapshot } from '../utils/mockDataSeed';
 import { fetchLiveFusionGrid, normalizeLiveCells } from '../lib/apiClient';
+import { observeLeafletContainer } from '../lib/leafletMap';
 
 function withinCurrentCellRadius(facility, cell) {
   const latKm = (facility.lat - cell.lat) * 111.32;
@@ -930,44 +931,43 @@ function PrepositioningMap({ assets }) {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    if (!mapInstanceRef.current) {
-      const map = L.map(mapContainerRef.current, {
-        center: [30.33, 78.14],
-        zoom: 11,
-        zoomControl: false,
-        attributionControl: true,
-      });
+    const map = L.map(mapContainerRef.current, {
+      center: [30.33, 78.14],
+      zoom: 11,
+      zoomControl: false,
+      attributionControl: true,
+    });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
 
-      // Severe Cloudburst Hazard Bounding Zone
-      L.circle([30.38, 78.13], {
-        radius: 8000,
-        color: '#DC2626',
-        weight: 2,
-        fillColor: '#DC2626',
-        fillOpacity: 0.22,
-        dashArray: '4, 4',
-      }).addTo(map).bindPopup('<b>PRIMARY CLOUDBURST SECTOR (63.8 dBZ)</b><br/>Immediate Evacuation Zone');
+    // Severe Cloudburst Hazard Bounding Zone
+    L.circle([30.38, 78.13], {
+      radius: 8000,
+      color: '#DC2626',
+      weight: 2,
+      fillColor: '#DC2626',
+      fillOpacity: 0.22,
+      dashArray: '4, 4',
+    }).addTo(map).bindPopup('<b>PRIMARY CLOUDBURST SECTOR (63.8 dBZ)</b><br/>Immediate Evacuation Zone');
 
-      // Asset Pins
-      assets.forEach((asset) => {
-        const isQrt = asset.type === 'QRT' || asset.type === 'NDRF';
-        const pinIcon = L.divIcon({
-          className: 'prepositioning-pin',
-          html: `
+    // Asset Pins
+    assets.forEach((asset) => {
+      const isQrt = asset.type === 'QRT' || asset.type === 'NDRF';
+      const pinIcon = L.divIcon({
+        className: 'prepositioning-pin',
+        html: `
             <div style="background-color: ${isQrt ? '#DC2626' : '#2E7D32'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1.5px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space: nowrap;">
               ${isQrt ? '🚨' : '🏠'} ${asset.name}
             </div>
           `,
-          iconSize: [120, 22],
-          iconAnchor: [60, 11],
-        });
+        iconSize: [120, 22],
+        iconAnchor: [60, 11],
+      });
 
-        L.marker([asset.lat, asset.lon], { icon: pinIcon }).addTo(map).bindPopup(`
+      L.marker([asset.lat, asset.lon], { icon: pinIcon }).addTo(map).bindPopup(`
           <div style="font-family: sans-serif; font-size: 11px;">
             <b>${asset.name}</b><br/>
             Personnel: ${asset.personnel}<br/>
@@ -975,10 +975,16 @@ function PrepositioningMap({ assets }) {
             Status: ${asset.status}
           </div>
         `);
-      });
+    });
 
-      mapInstanceRef.current = map;
-    }
+    mapInstanceRef.current = map;
+    const stopObserving = observeLeafletContainer(map, mapContainerRef.current);
+
+    return () => {
+      stopObserving();
+      map.remove();
+      mapInstanceRef.current = null;
+    };
   }, [assets]);
 
   return (

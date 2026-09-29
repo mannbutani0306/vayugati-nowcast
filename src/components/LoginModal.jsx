@@ -124,7 +124,7 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
             password,
             name: DEMO_PRESETS[presetRole]?.roleName || email,
           });
-          await navigator.credentials.store(savedCredential);
+          navigator.credentials.store(savedCredential).catch(() => {});
         } catch {
           // Browsers without credential-manager support can still sign in normally.
         }
@@ -132,14 +132,10 @@ export default function LoginModal({ isOpen, onClose, embedded = false }) {
 
       const targetRoute = DEMO_PRESETS[presetRole]?.route || '/citizen';
 
-      setSuccessMessage(`Authentication confirmed. Transferring to ${DEMO_PRESETS[presetRole]?.roleName || 'Portal'}...`);
-
-      setTimeout(() => {
-        setIsSubmitting(false);
-        onClose?.();
-        window.scrollTo(0, 0);
-        navigate(targetRoute);
-      }, 500);
+      setIsSubmitting(false);
+      onClose?.();
+      window.scrollTo(0, 0);
+      navigate(targetRoute);
     } catch (err) {
       setErrorMessage(getLoginErrorMessage(err.message));
       setIsSubmitting(false);

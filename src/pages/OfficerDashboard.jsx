@@ -21,6 +21,7 @@ import {
   submitDraftAlert,
 } from '../lib/spatialQueries';
 import { convertGeoJsonToCapPolygon } from '../utils/geoJsonPolygon';
+import { observeLeafletContainer } from '../lib/leafletMap';
 import {
   Radio,
   Zap,
@@ -769,8 +770,10 @@ export default function OfficerDashboard() {
     });
 
     mapInstanceRef.current = map;
+    const stopObserving = observeLeafletContainer(map, mapContainerRef.current);
 
     return () => {
+      stopObserving();
       map.remove();
       mapInstanceRef.current = null;
     };

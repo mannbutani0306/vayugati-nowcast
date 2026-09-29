@@ -157,13 +157,6 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)] lg:gap-12">
           <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="bg-[#FAF7F2] border border-[#E5E0D8] text-[#1A1D20] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-[#1E3A8A]"></span>
-              VayuGati nowcast dashboard · Not an official warning service
-            </span>
-          </div>
-
           <div className="max-w-3xl space-y-3">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1A1D20] leading-tight">
               Severe weather,{' '}

@@ -32,6 +32,7 @@ import {
   subscribeToApprovedAlerts,
 } from '../lib/spatialQueries';
 import { fetchHazardHeads } from '../lib/apiClient';
+import { observeLeafletContainer } from '../lib/leafletMap';
 import { SEVERITY_TIERS } from '../utils/mockDataSeed';
 import {
   MapPin,
@@ -1317,26 +1318,35 @@ function CitizenRadarMap({ userLocation, lang, isGpsActive, gpsAccuracy, isLowBa
   const layersGroupRef = useRef(null);
 
   useEffect(() => {
+    if (!mapContainerRef.current) return undefined;
+
+    const map = L.map(mapContainerRef.current, {
+      center: [userLocation.lat, userLocation.lon],
+      zoom: 12,
+      zoomControl: false,
+      attributionControl: true,
+      scrollWheelZoom: false,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 16,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    mapInstanceRef.current = map;
+    layersGroupRef.current = L.layerGroup().addTo(map);
+    const stopObserving = observeLeafletContainer(map, mapContainerRef.current);
+
+    return () => {
+      stopObserving();
+      map.remove();
+      mapInstanceRef.current = null;
+      layersGroupRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mapContainerRef.current) return;
-
-    if (!mapInstanceRef.current) {
-      const map = L.map(mapContainerRef.current, {
-        center: [userLocation.lat, userLocation.lon],
-        zoom: 12,
-        zoomControl: false,
-        attributionControl: true,
-        scrollWheelZoom: false,
-      });
-
-      // Lightweight clean basemap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 16,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
-
-      mapInstanceRef.current = map;
-      layersGroupRef.current = L.layerGroup().addTo(map);
-    }
 
     const map = mapInstanceRef.current;
     const layers = layersGroupRef.current;

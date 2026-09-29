@@ -270,8 +270,6 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
           <span className="text-[#FF9933] font-bold">VayuGati</span>
           <span className="text-neutral-500">|</span>
           <span className="text-white font-semibold">Public weather dashboard</span>
-          <span className="hidden sm:inline text-neutral-500">|</span>
-          <span className="hidden sm:inline text-neutral-300">Not an official warning service</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -375,18 +373,11 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex min-w-0 items-center space-x-3.5">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-[#E5E0D8] bg-[#FAF7F2] text-sm font-black text-[#0F172A]">
-                V
-              </div>
+              <img src="/icons/vayugati-mark.svg" alt="VayuGati logo" className="h-12 w-12 shrink-0 border border-[#E5E0D8] bg-[#FAF7F2] object-contain" />
 
               <div className="min-w-0">
-                <div className="text-[10px] tracking-wider uppercase font-semibold text-neutral-300 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[#FF9933] font-bold">VayuGati</span>
-                  <span>|</span>
-                  <span>Public nowcast dashboard · Not an official warning service</span>
-                </div>
                 <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
-                  Nowcast operations
+                  VAYUGATI-NOWCAST
                 </div>
                 <span aria-hidden="true" className="mt-1 block h-1 w-16 bg-gradient-to-r from-[#FF9933] via-white to-[#138808]" />
               </div>

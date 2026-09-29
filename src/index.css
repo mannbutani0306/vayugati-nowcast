@@ -78,10 +78,13 @@ a {
 img,
 svg,
 canvas,
-iframe,
-.leaflet-container {
+iframe {
   max-width: 100%;
   height: auto;
+}
+
+.leaflet-container {
+  width: 100%;
 }
 
 table {
@@ -97,9 +100,6 @@ table {
     font-size: 9px;
   }
 
-  .leaflet-container {
-    min-height: 320px;
-  }
 }
 
 html.contrast-dark {
