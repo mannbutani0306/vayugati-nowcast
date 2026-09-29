@@ -373,7 +373,7 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex min-w-0 items-center space-x-3.5">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
-              <img src="/icons/vayugati-mark.svg" alt="VayuGati logo" className="h-12 w-12 shrink-0 border border-[#E5E0D8] bg-[#FAF7F2] object-contain" />
+              <img src="/icons/logo.jpeg" alt="VayuGati logo" className="h-12 w-12 shrink-0 border border-[#E5E0D8] bg-[#FAF7F2] object-contain" />
 
               <div className="min-w-0">
                 <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
