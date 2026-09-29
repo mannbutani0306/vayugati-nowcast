@@ -20,3 +20,6 @@ data/**/*
 *.HDF5
 *.nc4
 *.tif
+!data/imerg_halfhourly/**/*.HDF5
+!data/mosdac/*.tif
+!data/imerg_monthly/monthly_mean.csv
