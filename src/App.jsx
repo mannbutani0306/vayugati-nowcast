@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccessibilityProvider } from './context/AccessibilityContext';
@@ -82,12 +82,12 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
 
   return (
     <div className="fixed bottom-5 right-5 z-[200] max-w-md w-full animate-in slide-in-from-bottom-5 fade-in duration-300">
-      <div className="bg-[#1A1D20] text-white p-4 rounded-xl border border-red-500 shadow-2xl space-y-2.5" role="alert" aria-label="Approved severe weather alert">
+      <div className={`bg-[#1A1D20] text-white p-4 rounded-xl border shadow-2xl space-y-2.5 ${toast.isTest ? 'border-amber-400' : 'border-red-500'}`} role="alert" aria-label={toast.isTest ? 'Test notification preview' : 'Approved weather alert'}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white">
-              {toast.tier || 'SEVERE'} ALERT APPROVED
+            <span className={`w-2.5 h-2.5 rounded-full animate-ping ${toast.isTest ? 'bg-amber-400' : 'bg-red-500'}`}></span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-white ${toast.isTest ? 'bg-amber-700' : 'bg-red-600'}`}>
+              {toast.isTest ? 'TEST ONLY · NOT A WARNING' : `${toast.tier || 'WEATHER'} ALERT APPROVED`}
             </span>
           </div>
           <button
@@ -254,11 +254,35 @@ function MainLayout() {
 
   // Global Severe Alert Toast Notification State
   const [activeToast, setActiveToast] = useState(null);
+  const handleApprovedAlert = useCallback((alert) => {
+    setActiveToast({
+      id: alert.id || alert.identifier,
+      tier: alert.severity,
+      title: alert.headline_en || 'Approved weather alert',
+      message: alert.description_en || 'An approved weather alert is active. Check the citizen advisory for details.',
+      sector: alert.location_label || 'Affected area',
+      createdAt: alert.approved_at || alert.updated_at || new Date().toISOString(),
+    });
+  }, []);
+  const handleTestNotification = useCallback(() => {
+    setActiveToast({
+      id: `notification-test-${Date.now()}`,
+      title: 'Notification test',
+      message: 'This is a local test only. It is not a weather observation or warning.',
+      sector: 'This device',
+      createdAt: new Date().toISOString(),
+      isTest: true,
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col font-sans">
       {/* Prototype header with status ribbon and accessibility controls */}
-      <GovernmentHeader onOpenLogin={handleOpenLogin} />
+      <GovernmentHeader
+        onOpenLogin={handleOpenLogin}
+        onApprovedAlert={handleApprovedAlert}
+        onTestNotification={handleTestNotification}
+      />
 
       {/* Main Routed Content Area */}
       <main id="main-content" className="flex-1">

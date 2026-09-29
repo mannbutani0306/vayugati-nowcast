@@ -86,8 +86,13 @@ const TRANSLATIONS = {
     databaseOffline: 'Offline Database: live approved alerts are unavailable.',
     impactCountdownPrefix: 'Impact expected in:',
     minutesUnit: 'Minutes',
-    safeZoneHeadline: 'You are currently outside active convective hazard cones',
-    safeZoneSub: 'Routine atmospheric monitoring active. No severe cloudburst cell in your immediate path.',
+    safeZoneHeadline: 'No active approved alert was returned for this lookup',
+    safeZoneSub: 'This is not a safety guarantee. Check current local authority bulletins and remain weather-aware.',
+    alertStatusUnavailable: 'Current local alert status cannot be confirmed',
+    cachedAlertStatus: 'Showing saved alerts from an earlier connection',
+    unknownAlertStatus: 'LIVE STATUS UNAVAILABLE',
+    noAlertStatus: 'NO ALERT RETURNED · NOT A SAFETY GUARANTEE',
+    cachedAlertNote: 'Saved data may be out of date. Confirm conditions with local authorities.',
     soundSiren: 'Sound Warning Siren',
     stopSiren: 'Silence Siren',
     sirenPlaying: 'Siren Active (Playing Tone)',
@@ -146,8 +151,13 @@ const TRANSLATIONS = {
     databaseOffline: 'डेटाबेस ऑफ़लाइन: लाइव स्वीकृत चेतावनियाँ उपलब्ध नहीं हैं।',
     impactCountdownPrefix: 'संभावित प्रभाव समय:',
     minutesUnit: 'मिनट',
-    safeZoneHeadline: 'आप वर्तमान में सक्रिय तूफान शंकु (Cone) से बाहर सुरक्षित हैं',
-    safeZoneSub: 'सामान्य वायुमंडलीय निगरानी जारी है। आपके रास्ते में कोई तात्कालिक तीव्र तूफान नहीं है।',
+    safeZoneHeadline: 'इस खोज में कोई सक्रिय स्वीकृत चेतावनी नहीं मिली',
+    safeZoneSub: 'यह सुरक्षित होने की गारंटी नहीं है। स्थानीय प्रशासन के वर्तमान बुलेटिन देखें और मौसम के प्रति सतर्क रहें।',
+    alertStatusUnavailable: 'आपके क्षेत्र की वर्तमान चेतावनी स्थिति की पुष्टि नहीं हो सकी',
+    cachedAlertStatus: 'पहले के कनेक्शन से सहेजी चेतावनियाँ दिखाई जा रही हैं',
+    unknownAlertStatus: 'वर्तमान स्थिति उपलब्ध नहीं',
+    noAlertStatus: 'कोई चेतावनी नहीं मिली · सुरक्षा की गारंटी नहीं',
+    cachedAlertNote: 'सहेजा गया डेटा पुराना हो सकता है। स्थानीय प्रशासन से स्थिति की पुष्टि करें।',
     soundSiren: 'चेतावनी सायरन बजाएं',
     stopSiren: 'सायरन बंद करें',
     sirenPlaying: 'सायरन बज रहा है...',
@@ -206,8 +216,13 @@ const TRANSLATIONS = {
     databaseOffline: 'डेटाबेस ऑफलाइन: थेट मंजूर इशारे उपलब्ध नाहीत.',
     impactCountdownPrefix: 'संभाव्य धोका वेळ:',
     minutesUnit: 'मिनिटे',
-    safeZoneHeadline: 'तुम्ही सध्या वादळाच्या प्रभावाबाहेर सुरक्षित क्षेत्रात आहात',
-    safeZoneSub: 'नियमित हवामान निरीक्षण सुरू आहे. तुमच्या तात्काळ मार्गात कोणताही अतिवृष्टीचा ढग नाही.',
+    safeZoneHeadline: 'या शोधात सक्रिय मंजूर इशारा मिळाला नाही',
+    safeZoneSub: 'याचा अर्थ सुरक्षिततेची हमी नाही. स्थानिक प्रशासनाचे ताजे बुलेटिन पाहा आणि हवामानाबाबत सतर्क राहा.',
+    alertStatusUnavailable: 'तुमच्या परिसरातील सध्याच्या इशाऱ्याची स्थिती निश्चित करता आली नाही',
+    cachedAlertStatus: 'मागील कनेक्शनमध्ये जतन केलेले इशारे दाखवत आहे',
+    unknownAlertStatus: 'सध्याची स्थिती उपलब्ध नाही',
+    noAlertStatus: 'इशारा मिळाला नाही · सुरक्षिततेची हमी नाही',
+    cachedAlertNote: 'जतन केलेला डेटा जुना असू शकतो. स्थानिक प्रशासनाकडून स्थिती तपासा.',
     soundSiren: 'सायरन आवाज तपासा',
     stopSiren: 'सायरन बंद करा',
     sirenPlaying: 'सायरन वाजत आहे...',
@@ -435,6 +450,7 @@ export default function CitizenPortal() {
   const [hazardHeads, setHazardHeads] = useState(null);
   const directAlert = useMemo(() => nearbyAlerts.find((alert) => alert.is_direct_intersection), [nearbyAlerts]);
   const activeAlert = useMemo(() => directAlert || nearbyAlerts[0] || null, [directAlert, nearbyAlerts]);
+  const hasFreshAlertLookup = isOnline && databaseStatus === 'CONNECTED' && !isCachedDataDisplayed;
   const localizedHeadline = localizedAlertText(activeAlert, 'headline', lang);
   const localizedDescription = localizedAlertText(activeAlert, 'description', lang);
   const alertCopyNeedsFallback = Boolean(activeAlert && lang !== 'en' && (!activeAlert[`headline_${lang}`] || !activeAlert[`description_${lang}`]));
@@ -950,7 +966,7 @@ export default function CitizenPortal() {
               </div>
               <span className="text-xs font-bold text-red-100 flex items-center gap-1 font-mono">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                Supabase approved alert
+                {isCachedDataDisplayed ? t.cachedAlertStatus : 'Supabase approved alert'}
               </span>
             </div>
 
@@ -980,6 +996,8 @@ export default function CitizenPortal() {
                 </div>
               </div>
             </div>
+
+            {isCachedDataDisplayed && <p className="border-t border-red-400/40 pt-3 text-xs font-semibold text-amber-100">{t.cachedAlertNote}</p>}
 
             {/* REQUIREMENT 1: COUNTDOWN CLOCK ("Impact expected in: 28 Minutes") */}
             <div className="mt-4 p-4 rounded-xl bg-black/40 backdrop-blur-md border border-white/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
@@ -1017,19 +1035,19 @@ export default function CitizenPortal() {
           </section>
         ) : (
           /* Safe Zone Banner when user is outside storm cone */
-          <section className="col-span-full flex flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center">
+          <section className={`col-span-full flex flex-col justify-between gap-4 rounded-2xl border bg-white p-5 shadow-xs sm:flex-row sm:items-center ${hasFreshAlertLookup ? 'border-amber-200' : 'border-red-200'}`}>
             <div className="flex items-center space-x-3.5">
-              <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-7 h-7" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${hasFreshAlertLookup ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'}`}>
+                {hasFreshAlertLookup ? <ShieldCheck className="w-7 h-7" /> : <AlertTriangle className="w-7 h-7" />}
               </div>
               <div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
-                  IMD SAFE ZONE STATUS
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${hasFreshAlertLookup ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-900'}`}>
+                  {hasFreshAlertLookup ? t.noAlertStatus : isCachedDataDisplayed ? t.cachedAlertStatus : t.unknownAlertStatus}
                 </span>
                 <h2 className="text-base sm:text-lg font-bold text-[#1A1D20] mt-0.5">
-                  {t.safeZoneHeadline}
+                  {hasFreshAlertLookup ? t.safeZoneHeadline : t.alertStatusUnavailable}
                 </h2>
-                <p className="text-xs text-[#6C7278]">{t.safeZoneSub}</p>
+                <p className="text-xs text-[#6C7278]">{isCachedDataDisplayed ? t.cachedAlertNote : t.safeZoneSub}</p>
               </div>
             </div>
 

@@ -411,17 +411,16 @@ export default function AdminPortal() {
           <div className="flex items-center space-x-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#D9532F] flex items-center gap-1.5">
               <Building2 className="w-4 h-4" />
-              State &amp; District Disaster Management Authority (SDMA / DDMA)
+              District response planning prototype
             </span>
             <span className="text-[#6C7278]">•</span>
             <span className="text-xs text-[#6C7278]">{translate('Executive Command Node')}</span>
           </div>
           <h2 className="text-xl font-bold text-[#1A1D20] mt-1">
-            {translate('District Administrator:')} {profile?.full_name || 'Dr. Kailash S. Murthy'}
+            Demo administrator: {profile?.full_name || 'Scenario account'}
           </h2>
           <p className="text-xs text-[#6C7278]">
-            {profile?.jurisdiction || 'IMD Doppler Radar Met Center & HQ Nowcasting Unit'} • Authority:{' '}
-            <strong className="text-[#1A1D20]">Executive Magistrate &amp; Relief Commissioner</strong>
+            {profile?.jurisdiction || 'Example district coordination'} • Role preview only; no real incident-command authority.
           </p>
         </div>
 
@@ -447,6 +446,10 @@ export default function AdminPortal() {
         </div>
       </div>
 
+      <div className="border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-950" role="status">
+        <strong>Scenario dashboard only.</strong> The figures, facilities, personnel, dispatch states, and sensor health shown here are seeded examples. No public warning, cell broadcast, responder deployment, or live radar-ingestion status is being reported or triggered.
+      </div>
+
       {/* Action Feedback Banner */}
       {actionSuccessMsg && (
         <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-medium text-emerald-950 flex items-center space-x-2 animate-in fade-in">
@@ -459,9 +462,9 @@ export default function AdminPortal() {
       <div className="flex items-center space-x-2 border-b border-[#E5E0D8] overflow-x-auto pb-1 text-sm font-semibold">
         {[
           { id: 'overview', label: translate('District Hazard Overview'), icon: Activity, count: null },
-          { id: 'institutions', label: translate('Institutional Alert Dispatches'), icon: Building2, count: '4 Active' },
-          { id: 'prepositioning', label: translate('Emergency Pre-positioning Map'), icon: MapPin, count: '4 Assets' },
-          { id: 'users', label: translate('User & Forecaster Access Table'), icon: Users, count: `${usersList.length} Accounts` },
+          { id: 'institutions', label: translate('Institutional Scenario Examples'), icon: Building2, count: '4 examples' },
+          { id: 'prepositioning', label: translate('Response Planning Scenario'), icon: MapPin, count: '4 samples' },
+          { id: 'users', label: translate('Demo User Directory'), icon: Users, count: `${usersList.length} samples` },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -494,27 +497,27 @@ export default function AdminPortal() {
           {/* Key District Metrics Bar */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Active Red Alert Sector')}</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Scenario Hazard Example')}</span>
               <div className="text-xl font-black text-[#DC2626] font-mono">Sahastradhara Basin</div>
-              <span className="text-[10px] text-[#DC2626] font-semibold">63.8 dBZ Hail &amp; Cloudburst</span>
+              <span className="text-[10px] text-[#DC2626] font-semibold">Illustrative values · not an observed storm</span>
             </div>
 
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('At-Risk Population')}</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Illustrative Exposure')}</span>
               <div className="text-xl font-black text-[#1A1D20] font-mono">142,000 Persons</div>
-              <span className="text-[10px] text-[#2E7D32] font-semibold">{translate('Cell Broadcast Alert Pushed')}</span>
+              <span className="text-[10px] text-amber-800 font-semibold">Example estimate · no broadcast sent</span>
             </div>
 
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Mobilized SDRF Assets')}</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Response Plan Example')}</span>
               <div className="text-xl font-black text-[#D9532F] font-mono">4 Quick Reaction Teams</div>
-              <span className="text-[10px] text-[#6C7278]">99 Personnel Staged at High Ground</span>
+              <span className="text-[10px] text-[#6C7278]">Sample plan · no personnel deployed</span>
             </div>
 
             <div className="bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-4 shadow-2xs space-y-1">
-              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Radar Ingestion Health')}</span>
-              <div className="text-xl font-black text-[#2E7D32] font-mono">100% (4 Feeds Sync)</div>
-              <span className="text-[10px] text-[#6C7278]">DWR Dehradun + INSAT-3DR</span>
+              <span className="text-[10px] uppercase font-bold text-[#6C7278]">{translate('Authorized Sensor Feed')}</span>
+              <div className="text-xl font-black text-amber-800 font-mono">NOT CONFIGURED</div>
+              <span className="text-[10px] text-[#6C7278]">DWR and official lightning feeds unavailable</span>
             </div>
           </div>
 
@@ -527,7 +530,7 @@ export default function AdminPortal() {
                   {translate('District Key Infrastructure & Utility Directives')}
                 </h3>
                 <p className="text-xs text-[#6C7278]">
-                  Automated trigger dispatches dispatched to strategic sectors in Dehradun &amp; Haridwar.
+                  Illustrative coordination workflow for Dehradun and Haridwar; it does not send dispatches.
                 </p>
               </div>
               <button

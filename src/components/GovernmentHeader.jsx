@@ -35,7 +35,7 @@ function readStoredNotifications() {
   }
 }
 
-export default function GovernmentHeader({ onOpenLogin }) {
+export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestNotification }) {
   const { profile, role, logout } = useAuth();
   const {
     fontScale,
@@ -53,6 +53,8 @@ export default function GovernmentHeader({ onOpenLogin }) {
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [isSaarthiOpen, setIsSaarthiOpen] = useState(false);
   const [notifications, setNotifications] = useState(readStoredNotifications);
+  const [realtimeStatus, setRealtimeStatus] = useState(isSupabaseConfigured ? 'CONNECTING' : 'NOT CONFIGURED');
+  const [realtimeAttempt, setRealtimeAttempt] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState(() => (
     'Notification' in window ? Notification.permission : 'unsupported'
   ));
@@ -91,34 +93,34 @@ export default function GovernmentHeader({ onOpenLogin }) {
   }, [isNotificationMenuOpen]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return undefined;
+    if (!isSupabaseConfigured) {
+      setRealtimeStatus('NOT CONFIGURED');
+      return undefined;
+    }
 
-    const playNotificationSound = async () => {
+    const playNotificationSound = () => {
       if (!soundEnabled || !audioContextRef.current) return;
       const audioContext = audioContextRef.current;
-      try {
-        if (audioContext.state !== 'running') await audioContext.resume();
-      } catch {
-        return;
-      }
       if (audioContext.state !== 'running') return;
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
       oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(660, audioContext.currentTime + 0.13);
-      gain.gain.setValueAtTime(0.12, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.32);
+      oscillator.frequency.setValueAtTime(740, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(587, audioContext.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.045, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.28);
       oscillator.connect(gain);
       gain.connect(audioContext.destination);
       oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.32);
+      oscillator.stop(audioContext.currentTime + 0.28);
     };
 
     let subscription;
     try {
       subscription = subscribeToApprovedAlerts((alert) => {
-        const id = `${alert.id}:${alert.approved_at || alert.updated_at || alert.identifier}`;
+        const alertId = alert.id || alert.identifier;
+        const id = `${alertId}:${alert.approved_at || alert.updated_at || alert.status}`;
+        if (!alertId || alert.status !== 'APPROVED') return;
         if (seenNotificationIds.current.has(id)) return;
         seenNotificationIds.current.add(id);
 
@@ -130,18 +132,61 @@ export default function GovernmentHeader({ onOpenLogin }) {
           createdAt: new Date().toISOString(),
         };
         setNotifications((current) => [notification, ...current].slice(0, 20));
-        void playNotificationSound();
+        onApprovedAlert?.(alert);
+        playNotificationSound();
 
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification(notification.title, { body: notification.body, tag: id });
         }
-      });
+      }, setRealtimeStatus);
     } catch (error) {
+      setRealtimeStatus('CHANNEL ERROR');
       console.warn('Approved-alert notifications unavailable:', error);
     }
 
     return () => subscription?.unsubscribe();
-  }, [soundEnabled]);
+  }, [onApprovedAlert, realtimeAttempt, soundEnabled]);
+
+  const handleTestNotification = async () => {
+    const id = `test-${Date.now()}`;
+    const notification = {
+      id,
+      title: 'Test notification',
+      body: 'Local test only. This is not a weather observation or warning.',
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications((current) => [notification, ...current].slice(0, 20));
+    onTestNotification?.();
+
+    if (soundEnabled && (window.AudioContext || window.webkitAudioContext)) {
+      try {
+        if (!audioContextRef.current) {
+          const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+          audioContextRef.current = new AudioContextConstructor();
+        }
+        if (audioContextRef.current.state !== 'running') await audioContextRef.current.resume();
+        if (audioContextRef.current.state === 'running') {
+          const context = audioContextRef.current;
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(740, context.currentTime);
+          oscillator.frequency.setValueAtTime(587, context.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.045, context.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.28);
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start();
+          oscillator.stop(context.currentTime + 0.28);
+        }
+      } catch (error) {
+        console.warn('Notification sound unavailable:', error);
+      }
+    }
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(notification.title, { body: notification.body, tag: id });
+    }
+  };
 
   useEffect(() => {
     const updateClock = () => setIstTime(new Intl.DateTimeFormat('en-IN', {
@@ -401,21 +446,36 @@ export default function GovernmentHeader({ onOpenLogin }) {
                   <div className="flex items-center justify-between border-b border-[#E5E0D8] px-4 py-3">
                     <div>
                       <h2 className="text-sm font-bold">Notifications</h2>
-                      <p className="text-[11px] text-[#6C7278]">Approved alerts · received while this page is open</p>
+                      <p className="text-[11px] text-[#6C7278]">Alert feed: {realtimeStatus}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        unlockNotificationAudio();
-                        setSoundEnabled((enabled) => !enabled);
-                      }}
-                      title={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
-                      aria-label={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
-                      aria-pressed={soundEnabled}
-                      className="inline-flex h-8 w-8 items-center justify-center border border-[#E5E0D8] text-[#315966] hover:bg-[#F1F5F6]"
-                    >
-                      {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {isSupabaseConfigured && realtimeStatus !== 'SUBSCRIBED' && (
+                        <button
+                          type="button"
+                          onClick={() => { setRealtimeStatus('CONNECTING'); setRealtimeAttempt((attempt) => attempt + 1); }}
+                          className="border border-[#C9D5D8] px-2 py-1 text-[10px] font-semibold text-[#29434B] hover:bg-[#EEF4F5]"
+                        >
+                          Reconnect
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          unlockNotificationAudio();
+                          setSoundEnabled((enabled) => !enabled);
+                        }}
+                        title={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
+                        aria-label={soundEnabled ? 'Mute notification sound' : 'Enable notification sound'}
+                        aria-pressed={soundEnabled}
+                        className="inline-flex h-8 w-8 items-center justify-center border border-[#E5E0D8] text-[#315966] hover:bg-[#F1F5F6]"
+                      >
+                        {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-b border-[#E5E0D8] px-4 py-2">
+                    <p className="text-[10px] leading-4 text-[#6C7278]">Test the in-app notice and gentle sound.</p>
+                    <button type="button" onClick={handleTestNotification} className="shrink-0 border border-[#C9D5D8] px-2 py-1 text-[10px] font-semibold text-[#29434B] hover:bg-[#EEF4F5]">Test notification</button>
                   </div>
                   {notificationPermission !== 'granted' && (
                     <div className="border-b border-[#E5E0D8] px-4 py-3">
