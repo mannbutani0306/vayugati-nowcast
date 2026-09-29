@@ -2,6 +2,8 @@
 
 ### Real-data precipitation analysis, six-hour scenario nowcasting, and hazard review (SIH26084)
 
+**Live Demo:** [https://vayugati-nowcast.vercel.app/](https://vayugati-nowcast.vercel.app/)
+
 Problem Statement ID - SIH26084.
 
 Problem Statement Title - Convective scale nowcasting for Thunderstorms, Hail & Cloudbursts (06 hr).
@@ -88,6 +90,8 @@ The startup script runs the FastAPI backend, waits for its health check, and the
 
 ### Vercel deployment
 
+Live Deployed App: https://vayugati-nowcast.vercel.app/
+
 Vercel serves the frontend only. Deploy the Python API separately and configure `VITE_NOWCAST_API_URL` in the Vercel project to the public API base URL ending in `/api/v1`, then redeploy. The default `localhost:8000` address is for local development.
 
 ### Verification harness (no services needed)
@@ -104,7 +108,7 @@ The first command evaluates deterministic synthetic motion cases. The second eva
 
 ## Five-minute judge demo
 
-1. **Start the app** — Run `docker compose up --build` or `npm run dev`, then open http://localhost:3000.
+1. **Start the app** — Visit the Live Vercel Deployment or run locally with docker compose up --build / npm run dev and open http://localhost:3000.
 2. **Inspect available sources** — Open Data Sources and review which inputs are live, archived, configured, simulated, or awaiting data. Open-Meteo is model guidance, not a direct observation.
 3. **Replay a real case** — In Data Lab, select a Leh IMERG case and inspect the half-hourly precipitation frames and source timestamps. The bundled cases cover 2010-08-05 through 2010-08-06 06:00 UTC and 2011-07-25 through 18:00 UTC.
 4. **Review the nowcast dashboard** — Open the officer map and inspect the current cell, hazard layers, forecast lead times, and each feature's source/status metadata. Without an authorized observed feed, scenario output remains explicitly labeled as scenario data.
