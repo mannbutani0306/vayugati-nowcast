@@ -1,11 +1,11 @@
-# Problem Statement ID - SIH26084
-# Problem Statement Title - Convective scale nowcasting for Thunderstorms, Hail & Cloudbursts (06 hr)
-# Theme - Disaster Management
-# PS Category - Software
-
 # VayuGati Nowcast — Convective Weather Intelligence for India
 
 ### Real-data precipitation analysis, six-hour scenario nowcasting, and hazard review (SIH26084)
+
+Problem Statement ID - SIH26084
+Problem Statement Title - Convective scale nowcasting for Thunderstorms, Hail & Cloudbursts (06 hr)
+Theme - Disaster Management
+PS Category - Software
 
 **VayuGati Nowcast** is a research and decision-support prototype for convective-weather monitoring. It brings together live model guidance, locally archived satellite precipitation, optional satellite and radar imagery, hazard-analysis services, and role-based review dashboards. Its target horizon is 0–6 hours, with explicit labels distinguishing archived observations, model guidance, configured observations, and scenario/demo data.
 
