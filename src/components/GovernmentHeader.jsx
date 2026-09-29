@@ -250,7 +250,6 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
 
   return (
     <header className="sticky top-0 z-50 shadow-md">
-      {/* 1. GIGW MANDATORY SCREEN READER SKIP LINK */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[999] focus:bg-[#D9532F] focus:text-white focus:px-4 focus:py-2 focus:rounded-md focus:shadow-2xl focus:outline-none text-xs font-bold uppercase tracking-wider transition-all"
@@ -258,28 +257,24 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
         Skip to Main Content / मुख्य सामग्री पर जाएं (Screen Reader)
       </a>
 
-      {/* 2. 4PX INDIAN TRICOLOUR TOP BAR GRADIENT (#FF9933, #FFFFFF, #138808) */}
       <div
         className="h-1 w-full"
         style={{
           background: 'linear-gradient(90deg, #FF9933 0%, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%, #138808 100%)',
         }}
-        title="SIH26084 prototype status ribbon"
+        title="Nowcast dashboard status ribbon"
       ></div>
 
-      {/* Prototype identity and accessibility toolbar */}
       <div className="bg-[#0B1528] text-neutral-300 text-[11px] px-4 lg:px-8 py-1.5 border-b border-[#1A2942] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
-          <span className="text-[#FF9933] font-bold">SIH26084</span>
+          <span className="text-[#FF9933] font-bold">VayuGati</span>
           <span className="text-neutral-500">|</span>
-          <span className="text-white font-semibold">Student prototype</span>
+          <span className="text-white font-semibold">Public weather dashboard</span>
           <span className="hidden sm:inline text-neutral-500">|</span>
-          <span className="hidden sm:inline text-neutral-300">Not an official IMD/NDMA service</span>
+          <span className="hidden sm:inline text-neutral-300">Not an official warning service</span>
         </div>
 
-        {/* Accessibility controls */}
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          {/* Font Size Adjuster Controls: A-, A, A+ */}
           <div
             className="flex items-center space-x-0.5 bg-[#14233D] rounded px-1.5 py-0.5 border border-[#1E3A5F]"
             role="group"
@@ -330,7 +325,6 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
             </button>
           </div>
 
-          {/* 12 Scheduled Indian Languages Dropdown */}
           <div className="relative">
             <button
               type="button"
@@ -377,30 +371,28 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
         </div>
       </div>
 
-      {/* SIH prototype identity */}
       <div className="bg-[#0F172A] text-[#FAF7F2] border-b border-[#1E293B] px-4 lg:px-8 py-2.5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex min-w-0 items-center space-x-3.5">
             <Link to="/" className="flex min-w-0 items-center space-x-3 group">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-[#E5E0D8] bg-[#FAF7F2] text-sm font-black text-[#0F172A]">
-                SIH
+                V
               </div>
 
               <div className="min-w-0">
                 <div className="text-[10px] tracking-wider uppercase font-semibold text-neutral-300 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[#FF9933] font-bold">SIH26084</span>
+                  <span className="text-[#FF9933] font-bold">VayuGati</span>
                   <span>|</span>
-                  <span>Student prototype · Not an official warning service</span>
+                  <span>Public nowcast dashboard · Not an official warning service</span>
                 </div>
                 <div className="text-lg font-black tracking-wide text-white drop-shadow-[0_1px_7px_rgba(217,83,47,0.65)] sm:text-xl md:text-2xl">
-                  VayuGati Nowcast
+                  Nowcast operations
                 </div>
                 <span aria-hidden="true" className="mt-1 block h-1 w-16 bg-gradient-to-r from-[#FF9933] via-white to-[#138808]" />
               </div>
             </Link>
           </div>
 
-          {/* Quick controls: clock, status, and sign-in */}
           <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
             <div className="inline-flex items-center gap-2 border border-[#1E293B] bg-[#09101F] px-2.5 py-1.5 font-mono text-xs text-white" aria-label={`Current time ${istTime} India Standard Time`}>
               <Clock aria-hidden="true" className="h-3.5 w-3.5 text-[#FF9933]" />
@@ -523,7 +515,6 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
               <span>VayuGati Saarthi</span>
             </button>
 
-            {/* User Profile / Portal Action */}
             {profile ? (
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -559,7 +550,7 @@ export default function GovernmentHeader({ onOpenLogin, onApprovedAlert, onTestN
 
       <div className="overflow-hidden border-b border-[#D8C66F] bg-[#F6E7A8] py-1 text-[#17202A]" aria-label="VayuGati updates">
         <p className="vayugati-marquee-track inline-block whitespace-nowrap px-4 text-[11px] font-semibold">
-          VayuGati SIH26084 prototype&nbsp;&nbsp;•&nbsp;&nbsp;Check authorized IMD/NDMA channels for current warnings&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, call 112&nbsp;&nbsp;•&nbsp;&nbsp;Scenario and archive views are not live warnings&nbsp;&nbsp;•&nbsp;&nbsp;VayuGati SIH26084 prototype&nbsp;&nbsp;•&nbsp;&nbsp;Check authorized IMD/NDMA channels for current warnings&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, call 112&nbsp;&nbsp;•&nbsp;&nbsp;
+          VayuGati public nowcast dashboard&nbsp;&nbsp;•&nbsp;&nbsp;Check authorized IMD/NDMA channels for current warnings&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, call 112&nbsp;&nbsp;•&nbsp;&nbsp;Scenario and archive views are not live warnings&nbsp;&nbsp;•&nbsp;&nbsp;VayuGati public nowcast dashboard&nbsp;&nbsp;•&nbsp;&nbsp;Check authorized IMD/NDMA channels for current warnings&nbsp;&nbsp;•&nbsp;&nbsp;For emergencies, call 112&nbsp;&nbsp;•&nbsp;&nbsp;
         </p>
       </div>
 

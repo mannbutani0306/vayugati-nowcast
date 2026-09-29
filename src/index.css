@@ -75,9 +75,30 @@ a {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 640px) {
+img,
+svg,
+canvas,
+iframe,
+.leaflet-container {
+  max-width: 100%;
+  height: auto;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+
   .leaflet-control-attribution {
     font-size: 9px;
+  }
+
+  .leaflet-container {
+    min-height: 320px;
   }
 }
 

@@ -55,8 +55,17 @@ CREATE TABLE IF NOT EXISTS public.convective_cells (
     bearing_deg numeric(5, 1),
     speed_kmh numeric(5, 1),
     centroid geometry(Point, 4326),
-    track_polygon geometry(Polygon, 4326) NOT NULL,
+    track_polygon geometry(Polygon, 4326),
     risk_level text NOT NULL CHECK (risk_level IN ('INFO', 'WATCH', 'WARNING', 'SEVERE')),
+    data_mode text NOT NULL DEFAULT 'SCENARIO' CHECK (data_mode IN ('SCENARIO', 'OBSERVED', 'MODEL_GUIDANCE', 'FORECAST')),
+    source_kind text NOT NULL DEFAULT 'SCENARIO' CHECK (source_kind IN ('OBSERVED', 'SCENARIO', 'PUBLIC_IMAGE_ONLY', 'MODEL_GUIDANCE', 'PROXY')),
+    observation_status text NOT NULL DEFAULT 'NOT_AVAILABLE' CHECK (observation_status IN ('AVAILABLE', 'NOT_AVAILABLE', 'DEGRADED', 'OFFLINE')),
+    source_name text,
+    source_url text,
+    feed_timestamp_utc timestamptz,
+    staleness_seconds numeric(10, 2),
+    requires_authorized_feed boolean NOT NULL DEFAULT false,
+    quality_flags jsonb NOT NULL DEFAULT '[]'::jsonb,
     active boolean NOT NULL DEFAULT true,
     updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -68,7 +77,16 @@ ALTER TABLE public.convective_cells
     ADD COLUMN IF NOT EXISTS district text,
     ADD COLUMN IF NOT EXISTS centroid geometry(Point, 4326),
     ADD COLUMN IF NOT EXISTS bearing_deg numeric(5, 1),
-    ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
+    ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS data_mode text NOT NULL DEFAULT 'SCENARIO' CHECK (data_mode IN ('SCENARIO', 'OBSERVED', 'MODEL_GUIDANCE', 'FORECAST')),
+    ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'SCENARIO' CHECK (source_kind IN ('OBSERVED', 'SCENARIO', 'PUBLIC_IMAGE_ONLY', 'MODEL_GUIDANCE', 'PROXY')),
+    ADD COLUMN IF NOT EXISTS observation_status text NOT NULL DEFAULT 'NOT_AVAILABLE' CHECK (observation_status IN ('AVAILABLE', 'NOT_AVAILABLE', 'DEGRADED', 'OFFLINE')),
+    ADD COLUMN IF NOT EXISTS source_name text,
+    ADD COLUMN IF NOT EXISTS source_url text,
+    ADD COLUMN IF NOT EXISTS feed_timestamp_utc timestamptz,
+    ADD COLUMN IF NOT EXISTS staleness_seconds numeric(10, 2),
+    ADD COLUMN IF NOT EXISTS requires_authorized_feed boolean NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS quality_flags jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS public.cap_alerts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -292,6 +310,13 @@ RETURNS TABLE (
     centroid_geojson jsonb,
     track_geojson jsonb,
     risk_level text,
+    data_mode text,
+    source_kind text,
+    observation_status text,
+    source_name text,
+    feed_timestamp_utc timestamptz,
+    staleness_seconds numeric,
+    requires_authorized_feed boolean,
     updated_at timestamptz
 )
 LANGUAGE sql
@@ -301,7 +326,10 @@ AS $$
            c.cloud_top_temp_c, c.lightning_rate_per_min, c.cape_value,
            coalesce(c.bearing_deg, c.velocity_vector_deg), c.speed_kmh,
            ST_AsGeoJSON(coalesce(c.centroid, ST_PointOnSurface(c.track_polygon)))::jsonb,
-           ST_AsGeoJSON(c.track_polygon)::jsonb, c.risk_level, c.updated_at
+           ST_AsGeoJSON(c.track_polygon)::jsonb, c.risk_level,
+           c.data_mode, c.source_kind, c.observation_status, c.source_name,
+           c.feed_timestamp_utc, c.staleness_seconds, c.requires_authorized_feed,
+           c.updated_at
     FROM public.convective_cells AS c
     WHERE c.active = true
     ORDER BY c.updated_at DESC;

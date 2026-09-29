@@ -242,7 +242,7 @@ export default function DataLabPage() {
       <header className="border-b border-[#D7E0E2] bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#0B7084]">SIH26084 · public data lab</p>
+            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#0B7084]">Public data lab</p>
             <h1 className="text-2xl font-bold sm:text-3xl">Convective data replay</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#52646B]">Inspect archived precipitation frames or explore a separate, explicitly simulated 0–6 hour storm scenario. Neither mode issues a warning.</p>
           </div>

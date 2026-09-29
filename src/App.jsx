@@ -25,9 +25,6 @@ import {
   Radio,
 } from 'lucide-react';
 
-/**
- * Route Guard enforcing role-based access control (Citizen, Officer, Admin)
- */
 function ProtectedRoute({ children, allowedRoles = [], onOpenLogin }) {
   const { profile, role, loading } = useAuth();
 
@@ -74,9 +71,6 @@ function ProtectedRoute({ children, allowedRoles = [], onOpenLogin }) {
   return children;
 }
 
-/**
- * Global Severe Weather Alert Toast Notification
- */
 function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
   if (!toast) return null;
 
@@ -127,9 +121,6 @@ function GlobalAlertToast({ toast, onDismiss, onViewNowcast }) {
   );
 }
 
-/**
- * SIH prototype footer component
- */
 function GovernmentFooter() {
   const currentYear = new Date().getFullYear();
 
@@ -143,25 +134,22 @@ function GovernmentFooter() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-        {/* Main Footer Columns */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-[11px] text-neutral-300">
-          {/* Col 1: Ministry Credentials */}
           <div className="space-y-2 md:col-span-1">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded bg-white text-[#0B2E4F] flex items-center justify-center font-bold text-xs">
-                SIH
+                V
               </div>
               <span className="font-bold text-white text-xs block">VayuGati Nowcast</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              SIH26084 prototype. Not an official IMD, MoES, or NDMA warning service.
+              Public weather dashboard demo for local nowcast review and historical archive analysis.
             </p>
             <span className="text-[10px] text-neutral-400 block font-mono">
               Historical replay and scenario prototype
             </span>
           </div>
 
-          {/* Col 2: Navigation Links */}
           <div className="space-y-2">
             <span className="font-bold text-white uppercase text-[10px] tracking-wider block">
               Core Applications
@@ -197,7 +185,6 @@ function GovernmentFooter() {
             </ul>
           </div>
 
-          {/* Col 3: Project and data notes */}
           <div className="space-y-2">
             <span className="font-bold text-white uppercase text-[10px] tracking-wider block">
               Project and data notes
@@ -209,7 +196,6 @@ function GovernmentFooter() {
             </ul>
           </div>
 
-          {/* Col 4: National Emergency Directory */}
           <div className="space-y-2">
             <span className="font-bold text-white uppercase text-[10px] tracking-wider block">
               Disaster Response Lines
@@ -252,7 +238,6 @@ function MainLayout() {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  // Global Severe Alert Toast Notification State
   const [activeToast, setActiveToast] = useState(null);
   const handleApprovedAlert = useCallback((alert) => {
     setActiveToast({
@@ -277,23 +262,19 @@ function MainLayout() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col font-sans">
-      {/* Prototype header with status ribbon and accessibility controls */}
       <GovernmentHeader
         onOpenLogin={handleOpenLogin}
         onApprovedAlert={handleApprovedAlert}
         onTestNotification={handleTestNotification}
       />
 
-      {/* Main Routed Content Area */}
       <main id="main-content" className="flex-1">
         <Routes>
-          {/* Public Landing Page */}
           <Route path="/" element={<LandingPage onOpenLogin={() => setIsLoginModalOpen(true)} />} />
 
           <Route path="/data-sources" element={<DataSourcesPage />} />
           <Route path="/data-lab" element={<DataLabPage />} />
 
-          {/* Citizen Early Warning Portal */}
           <Route
             path="/citizen"
             element={
@@ -303,7 +284,6 @@ function MainLayout() {
             }
           />
 
-          {/* Duty Forecaster / SDRF Officer Console */}
           <Route
             path="/officer"
             element={
@@ -313,7 +293,6 @@ function MainLayout() {
             }
           />
 
-          {/* District Admin & DDMA Command Portal */}
           <Route
             path="/admin"
             element={
@@ -323,12 +302,10 @@ function MainLayout() {
             }
           />
 
-          {/* Catch-all redirect to Landing Page */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
 
-      {/* Global Severe Alert Toast Banner */}
       <GlobalAlertToast
         toast={activeToast}
         onDismiss={() => setActiveToast(null)}
@@ -338,13 +315,11 @@ function MainLayout() {
         }}
       />
 
-      {/* Authentication modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
       />
 
-      {/* GIGW Compliant Government Footer */}
       <GovernmentFooter />
     </div>
   );

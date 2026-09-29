@@ -4,12 +4,15 @@ from unittest.mock import AsyncMock, patch
 
 import numpy as np
 
+import os
+
 from backend.nowcast_engine import (
     _demo_reflectivity_grid,
     compute_hazard_heads,
     generate_forecast_track_cones,
     get_live_fusion_grid,
     get_hazard_heads,
+    ingest_observed_dwr_cells,
 )
 
 
@@ -52,9 +55,12 @@ class HazardFlowTests(unittest.TestCase):
             include_display_grid=False,
             decimate=2,
         )
-        self.assertEqual(payload["data_mode"], "DEMO_FIXTURE")
+        self.assertEqual(payload["data_mode"], "SCENARIO")
         self.assertEqual(payload["metadata"]["lead_times_included"][-1], 360)
         self.assertEqual(payload["metadata"]["forecast_horizon_status"], "SCENARIO_EXTRAPOLATION_ONLY")
+        self.assertEqual(payload["metadata"]["source_class"], "SCENARIO")
+        self.assertEqual(payload["metadata"]["observation_status"], "NOT_AVAILABLE")
+        self.assertEqual(payload["features"][0]["properties"]["source_kind"], "SCENARIO")
 
     def test_standalone_endpoint_synthesizes_dense_flow(self):
         with patch(
@@ -78,6 +84,23 @@ class HazardFlowTests(unittest.TestCase):
                 )
             )
         self.assert_nonzero_divergence(result)
+
+    def test_observed_dwr_ingest_requires_authorized_feed(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('SUPABASE_URL', None)
+            os.environ.pop('SUPABASE_SERVICE_ROLE_KEY', None)
+            result = ingest_observed_dwr_cells({
+                'cell_uid': 'DWR-DEL-001',
+                'name': 'Delhi Cell',
+                'lat': 28.61,
+                'lon': 77.21,
+                'reflectivity_dbz': 45.0,
+                'velocity_kmh': 25.0,
+                'bearing_deg': 180.0,
+                'timestamp_utc': '2025-09-29T06:00:00Z',
+            })
+        self.assertEqual(result['status'], 'UNCONFIGURED')
+        self.assertIn('authorized', result['message'].lower())
 
 
 if __name__ == "__main__":

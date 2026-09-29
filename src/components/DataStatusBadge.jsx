@@ -5,6 +5,7 @@ const STATUS_STYLES = {
   LIVE: 'border-emerald-300 bg-emerald-50 text-emerald-800',
   PARTIAL: 'border-amber-300 bg-amber-50 text-amber-800',
   CACHED: 'border-amber-300 bg-amber-50 text-amber-900',
+  SCENARIO: 'border-violet-300 bg-violet-50 text-violet-800',
   OFFLINE: 'border-red-300 bg-red-50 text-red-800',
   LOADING: 'border-sky-300 bg-sky-50 text-sky-800',
   EMPTY: 'border-sky-300 bg-sky-50 text-sky-800',
@@ -14,19 +15,22 @@ export default function DataStatusBadge({ status = 'OFFLINE', metadata, hasCache
   const normalizedStatus = String(status).toUpperCase();
   const style = STATUS_STYLES[normalizedStatus] || STATUS_STYLES.OFFLINE;
   const Icon = normalizedStatus === 'LIVE' ? Radio
-    : normalizedStatus === 'LOADING' ? LoaderCircle
-      : normalizedStatus === 'OFFLINE' ? AlertCircle : Activity;
+    : normalizedStatus === 'SCENARIO' ? Activity
+      : normalizedStatus === 'LOADING' ? LoaderCircle
+        : normalizedStatus === 'OFFLINE' ? AlertCircle : Activity;
   const label = normalizedStatus === 'LIVE'
     ? 'Source: Open-Meteo NWP • Live Stream'
-    : normalizedStatus === 'PARTIAL'
-      ? 'Source: Open-Meteo NWP • Partial Feed'
-      : normalizedStatus === 'CACHED' || (normalizedStatus === 'OFFLINE' && hasCachedData)
-        ? 'Data Feed: Offline / Using Cached Baseline'
-        : normalizedStatus === 'LOADING'
-          ? 'Source: Open-Meteo NWP • Connecting'
-          : normalizedStatus === 'EMPTY'
-            ? 'Waiting for an active convective cell'
-            : 'Data Feed: Offline / No Live Data';
+    : normalizedStatus === 'SCENARIO'
+      ? 'Scenario-only output • not a live observation'
+      : normalizedStatus === 'PARTIAL'
+        ? 'Source: Open-Meteo NWP • Partial Feed'
+        : normalizedStatus === 'CACHED' || (normalizedStatus === 'OFFLINE' && hasCachedData)
+          ? 'Data Feed: Offline / Using Cached Baseline'
+          : normalizedStatus === 'LOADING'
+            ? 'Source: Open-Meteo NWP • Connecting'
+            : normalizedStatus === 'EMPTY'
+              ? 'Waiting for an active convective cell'
+              : 'Data Feed: Offline / No Live Data';
 
   return (
     <span

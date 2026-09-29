@@ -79,7 +79,9 @@ export function normalizeLiveCellFeature(feature) {
   const confidence = Number(props.confidence ?? 0.5);
 
   return {
-    dataMode: props.data_mode || 'UNKNOWN',
+    dataMode: props.data_mode || props.source_kind || 'UNKNOWN',
+    sourceKind: props.source_kind || (props.data_mode === 'DEMO_FIXTURE' || props.data_mode === 'SCENARIO' ? 'SCENARIO' : 'OBSERVED'),
+    observationStatus: props.observation_status || 'NOT_AVAILABLE',
     lifecycleState: props.lifecycle_state || null,
     initiation: props.initiation || null,
     trackGeometry: feature?.geometry || null,
@@ -147,7 +149,7 @@ export function normalizeLiveCellFeature(feature) {
     },
     shapAttributions: [],
     description: `${props.name || 'Convective cell'} is active with ${tier.toLowerCase()} risk and ${props.confidence ? `${(props.confidence * 100).toFixed(1)}%` : 'moderate'} model confidence.`,
-    growthTrend: props.data_mode === 'DEMO_FIXTURE' ? 'Illustrative demo fixture' : 'Backend cell feed',
+    growthTrend: props.source_kind === 'SCENARIO' || props.data_mode === 'SCENARIO' ? 'Scenario-only output; not a live observation' : 'Backend cell feed',
     lastUpdated: 'just now',
     impactTargets: [],
   };

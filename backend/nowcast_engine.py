@@ -1,6 +1,6 @@
 """
 ================================================================================
-VayuGati Nowcast (SIH26084) - Convective Scale Meteorological Engine
+VayuGati Nowcast - Convective Scale Meteorological Engine
 ================================================================================
 FastAPI Python service for weather-data integration, Lucas-Kanade / pySTEPS
 optical-flow extrapolation, and Gradient Boosting Classifier (scikit-learn)
@@ -110,6 +110,164 @@ _FUSION_GRID_CACHE: Dict[Tuple[Any, ...], Tuple[float, Dict[str, Any]]] = {}
 _FUSION_GRID_CACHE_LOCK = threading.Lock()
 ML_CATALOGUE_PATH = Path(__file__).resolve().parent / "ml" / "event_catalogue.json"
 _MODEL_CACHE: Optional[Any] = None
+
+
+def _dwr_observed_ingest_ready() -> bool:
+    """Return True only when an authorized Supabase-backed radar feed has been configured."""
+    return bool(
+        os.getenv("SUPABASE_URL", "").strip()
+        and os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    )
+
+
+def _normalize_observed_dwr_cell(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize an authorized DWR cell payload into the system's observed-data contract."""
+    if not isinstance(payload, dict):
+        raise ValueError("Observed radar payload must be a JSON object.")
+
+    if payload.get("cell_uid") is None:
+        raise ValueError("cell_uid is required for a radar observation.")
+
+    lat = payload.get("lat")
+    lon = payload.get("lon")
+    if lat is None and payload.get("latitude") is not None:
+        lat = payload.get("latitude")
+    if lon is None and payload.get("longitude") is not None:
+        lon = payload.get("longitude")
+    if lat is None or lon is None:
+        raise ValueError("Cell coordinates require lat and lon values.")
+
+    try:
+        lat_value = float(lat)
+        lon_value = float(lon)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("lat and lon must be valid numbers.") from exc
+
+    if not (-90.0 <= lat_value <= 90.0 and -180.0 <= lon_value <= 180.0):
+        raise ValueError("lat and lon must fall within valid WGS84 ranges.")
+
+    reflectivity_dbz = float(payload.get("reflectivity_dbz", payload.get("reflectivity", 0.0)))
+    speed_kmh = float(payload.get("speed_kmh", payload.get("velocity_kmh", 0.0)))
+    bearing_deg = float(payload.get("bearing_deg", payload.get("velocity_vector_deg", 0.0)))
+    timestamp_utc = payload.get("timestamp_utc") or payload.get("observed_at") or datetime.now(timezone.utc).isoformat()
+    timestamp_value = datetime.fromisoformat(str(timestamp_utc).replace("Z", "+00:00")) if isinstance(timestamp_utc, str) else timestamp_utc
+    if hasattr(timestamp_value, "tzinfo") and timestamp_value.tzinfo is None:
+        timestamp_value = timestamp_value.replace(tzinfo=timezone.utc)
+    if not hasattr(timestamp_value, "isoformat"):
+        raise ValueError("timestamp_utc must be a valid ISO-8601 timestamp.")
+
+    risk_level = payload.get("risk_level") or ("SEVERE" if reflectivity_dbz >= 60 else "WARNING" if reflectivity_dbz >= 45 else "WATCH" if reflectivity_dbz >= 30 else "INFO")
+    source_name = payload.get("source_name") or payload.get("source") or "IMD DWR"
+    staleness_seconds = None
+    if hasattr(timestamp_value, "tzinfo"):
+        staleness_seconds = max(0.0, (datetime.now(timezone.utc) - timestamp_value.astimezone(timezone.utc)).total_seconds())
+
+    return {
+        "cell_uid": str(payload.get("cell_uid")),
+        "name": payload.get("name") or payload.get("cell_uid"),
+        "state": payload.get("state") or payload.get("region") or "",
+        "district": payload.get("district") or payload.get("location_label") or "",
+        "reflectivity_dbz": reflectivity_dbz,
+        "cloud_top_temp_c": payload.get("cloud_top_temp_c"),
+        "lightning_rate_per_min": int(payload.get("lightning_rate_per_min", 0) or 0),
+        "speed_kmh": speed_kmh,
+        "bearing_deg": bearing_deg,
+        "velocity_vector_deg": payload.get("velocity_vector_deg", bearing_deg),
+        "risk_level": risk_level,
+        "centroid_lat": lat_value,
+        "centroid_lon": lon_value,
+        "data_mode": "OBSERVED",
+        "source_kind": "OBSERVED",
+        "observation_status": "AVAILABLE",
+        "source_name": source_name,
+        "source_url": payload.get("source_url") or "",
+        "feed_timestamp_utc": timestamp_value.astimezone(timezone.utc).isoformat() if hasattr(timestamp_value, "astimezone") else str(timestamp_value),
+        "staleness_seconds": round(staleness_seconds) if staleness_seconds is not None else None,
+        "requires_authorized_feed": True,
+        "quality_flags": payload.get("quality_flags") or [],
+        "quality_checks_passed": bool(payload.get("quality_checks_passed", True)),
+        "active": bool(payload.get("active", True)),
+    }
+
+
+def ingest_observed_dwr_cells(payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Persist an authorized DWR observation to Supabase when the production feed is configured."""
+    if payload is None:
+        return {"status": "INVALID", "message": "An observed-DWR cell payload is required."}
+
+    try:
+        normalised = _normalize_observed_dwr_cell(payload)
+    except ValueError as exc:
+        return {"status": "INVALID", "message": str(exc)}
+
+    if not _dwr_observed_ingest_ready():
+        return {
+            "status": "UNCONFIGURED",
+            "message": "Authorized DWR observations are not configured for Supabase persistence. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before writing observed cells.",
+            "cell_uid": normalised["cell_uid"],
+            "source_kind": "OBSERVED",
+            "data_mode": "OBSERVED",
+            "observation_status": "NOT_AVAILABLE",
+        }
+
+    try:
+        supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+        service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        endpoint = f"{supabase_url}/rest/v1/convective_cells?on_conflict=cell_uid"
+        headers = {
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates",
+        }
+        body = [{
+            "cell_uid": normalised["cell_uid"],
+            "name": normalised["name"],
+            "state": normalised["state"],
+            "district": normalised["district"],
+            "reflectivity_dbz": normalised["reflectivity_dbz"],
+            "cloud_top_temp_c": normalised["cloud_top_temp_c"],
+            "lightning_rate_per_min": normalised["lightning_rate_per_min"],
+            "speed_kmh": normalised["speed_kmh"],
+            "bearing_deg": normalised["bearing_deg"],
+            "velocity_vector_deg": normalised["velocity_vector_deg"],
+            "risk_level": normalised["risk_level"],
+            "active": normalised["active"],
+            "data_mode": normalised["data_mode"],
+            "source_kind": normalised["source_kind"],
+            "observation_status": normalised["observation_status"],
+            "source_name": normalised["source_name"],
+            "source_url": normalised["source_url"],
+            "feed_timestamp_utc": normalised["feed_timestamp_utc"],
+            "staleness_seconds": normalised["staleness_seconds"],
+            "requires_authorized_feed": normalised["requires_authorized_feed"],
+            "quality_flags": normalised["quality_flags"],
+            "centroid": {"type": "Point", "coordinates": [normalised["centroid_lon"], normalised["centroid_lat"]]},
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }]
+        response = httpx.post(endpoint, headers=headers, json=body, timeout=30.0)
+        response.raise_for_status()
+        return {
+            "status": "INSERTED",
+            "message": "Observed DWR cell persisted to Supabase.",
+            "cell_uid": normalised["cell_uid"],
+            "source_kind": "OBSERVED",
+            "data_mode": "OBSERVED",
+            "observation_status": "AVAILABLE",
+            "timestamp_utc": normalised["feed_timestamp_utc"],
+            "staleness_seconds": normalised["staleness_seconds"],
+            "response_status": response.status_code,
+        }
+    except Exception as exc:  # pragma: no cover - network-backed path is configuration dependent
+        logger.warning("Observed DWR ingest failed: %s", exc)
+        return {
+            "status": "ERROR",
+            "message": f"Observed DWR persist failed: {exc}",
+            "cell_uid": normalised["cell_uid"],
+            "source_kind": "OBSERVED",
+            "data_mode": "OBSERVED",
+            "observation_status": "NOT_AVAILABLE",
+        }
 
 
 def _load_ml_model() -> Optional[Any]:
@@ -1055,7 +1213,7 @@ def downscale_to_1km_grid(
 # ==============================================================================
 app = FastAPI(
     title="VayuGati Nowcast Convective Engine",
-    description="1-3 km DISPLAY grid (interpolated from coarser NWP guidance; native DWR-resolution assimilation is roadmap, see README) for SIH26084",
+    description="1-3 km display grid for convective nowcast review, interpolated from operational guidance and archival geospatial inputs.",
     version="2.4.0"
 )
 
@@ -1081,7 +1239,7 @@ def get_service_root():
     """
     return {
         "service": "VayuGati Nowcast Engine",
-        "challenge_id": "SIH26084",
+        "challenge_id": "VAYUGATI_NOWCAST",
         "organization": "Ministry of Earth Sciences (MoES) / IMD / NDMA",
         "version": "2.4.0",
         "status": "ONLINE",
@@ -1126,6 +1284,9 @@ def get_health_status():
         "radar_network": "GEOREFERENCED_LAYER_CONFIGURED" if radar_configured else "PUBLIC_IMAGE_ONLY",
         "satellite_feed": "GEOREFERENCED_FEED_CONFIGURED" if satellite_configured else "PUBLIC_IMAGE_ONLY",
         "open_meteo_link": "ENDPOINT_CONFIGURED" if OPEN_METEO_BASE_URL else "UNCONFIGURED",
+        "observed_feed_status": "AVAILABLE" if radar_configured else "NOT_AVAILABLE",
+        "scenario_feed_status": "SCENARIO_ONLY",
+        "output_separation": "OBSERVED_DATA_AND_SCENARIO_DATA_ARE_KEEP_SEPARATE",
     }
 
 
@@ -1203,6 +1364,13 @@ async def get_satellite_observation(
 async def get_radar_observation():
     """Return IMD radar tile metadata; public station images are never assigned guessed map bounds."""
     return await get_radar_feed()
+
+
+@app.post("/api/v1/ingestion/radar/cells")
+@app.post("/api/v1/ingestion/dwr/observed-cells")
+def ingest_observed_dwr_cells_endpoint(payload: Dict[str, Any] = Body(...)):
+    """Persist authorized DWR observations only when a production feed and Supabase credentials are configured."""
+    return ingest_observed_dwr_cells(payload)
 
 
 @app.get("/api/v1/satellite/real-scene")
@@ -1454,7 +1622,9 @@ def get_live_fusion_grid(
                 "geometry": cell["current_polygon_geojson"],
                 "properties": {
                     "feature_type": "CURRENT_CONVECTIVE_CELL",
-                    "data_mode": cell["data_mode"],
+                    "data_mode": "SCENARIO",
+                    "source_kind": "SCENARIO",
+                    "observation_status": "NOT_AVAILABLE",
                     "lifecycle_state": cell.get("lifecycle_state"),
                     "initiation": cell.get("initiation"),
                     "cell_uid": cell["cell_uid"],
@@ -1494,7 +1664,9 @@ def get_live_fusion_grid(
                     "geometry": cone["polygon_geojson"],
                     "properties": {
                         "feature_type": "FORECAST_TRACK_CONE",
-                        "data_mode": cell["data_mode"],
+                        "data_mode": "SCENARIO",
+                        "source_kind": "SCENARIO",
+                        "observation_status": "NOT_AVAILABLE",
                         "parent_cell_uid": cell["cell_uid"],
                         "name": f"{cell['name']} (+{lead_min}m Forecast Cone)",
                         "lead_time_minutes": lead_min,
@@ -1518,8 +1690,10 @@ def get_live_fusion_grid(
                 "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}
             },
             "metadata": {
-                "system": "VayuGati Nowcast (SIH26084)",
-                "data_mode": "DEMO_FIXTURE",
+                "system": "VayuGati Nowcast",
+                "data_mode": "SCENARIO",
+                "source_class": "SCENARIO",
+                "observation_status": "NOT_AVAILABLE",
                 "total_active_cells": len(active_cells),
                 "features_returned": len(features),
                 "decimation_factor": decimate,
@@ -1534,7 +1708,7 @@ def get_live_fusion_grid(
                     "note": "Interpolated guidance for display, not native 1-km forecast skill.",
                 }
             },
-            "data_mode": "DEMO_FIXTURE",
+            "data_mode": "SCENARIO",
             "features": features
         }
 
@@ -1818,7 +1992,7 @@ def run_verification_suite():
     4. GeoJSON Fusion Grid & Instability Index structure
     """
     print("\n" + "=" * 70)
-    print(" VAYUGATI NOWCAST (SIH26084) - METEOROLOGICAL ENGINE VERIFICATION")
+    print(" VAYUGATI NOWCAST - METEOROLOGICAL ENGINE VERIFICATION")
     print("=" * 70)
 
     # 1. Test Open-Meteo Integration
@@ -1876,7 +2050,7 @@ def run_verification_suite():
     instability_grid = asyncio.run(get_instability_index())
     print(f"  Instability Grid: {instability_grid['station_count']} synoptic stations loaded successfully.")
     print("=" * 70)
-    print(" ALL METEOROLOGICAL MODULES VERIFIED SUCCESSFULLY FOR SIH26084.")
+    print(" ALL METEOROLOGICAL MODULES VERIFIED SUCCESSFULLY.")
     print("=" * 70 + "\n")
 
 

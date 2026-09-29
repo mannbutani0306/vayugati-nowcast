@@ -36,8 +36,8 @@ export default function LandingPage() {
   const [weather, setWeather] = useState(null);
   const [locationName, setLocationName] = useState('Finding your location...');
   const [locationStatus, setLocationStatus] = useState('locating');
-  const [locationRequestVersion, setLocationRequestVersion] = useState(0);
-  const [istNow, setIstNow] = useState(() => new Date());
+  const [locationRefreshCounter, setLocationRefreshCounter] = useState(0);
+  const [indiaTimeNow, setIndiaTimeNow] = useState(() => new Date());
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
 
   useEffect(() => {
@@ -95,10 +95,10 @@ export default function LandingPage() {
     }, { enableHighAccuracy: false, maximumAge: 60000, timeout: 12000 });
 
     return () => { active = false; };
-  }, [locationRequestVersion]);
+  }, [locationRefreshCounter]);
 
   useEffect(() => {
-    const timerId = window.setInterval(() => setIstNow(new Date()), 1000);
+    const timerId = window.setInterval(() => setIndiaTimeNow(new Date()), 1000);
     return () => window.clearInterval(timerId);
   }, []);
 
@@ -107,17 +107,16 @@ export default function LandingPage() {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  }).format(istNow);
+  }).format(indiaTimeNow);
   const istDate = new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata',
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  }).format(istNow);
+  }).format(indiaTimeNow);
   const currentWeather = weather?.current;
   const weatherCode = Number(currentWeather?.weather_code);
 
-  // Generic safety examples; current warnings come from authorized agencies.
   const publicAdvisories = [
     {
       id: 'ADV-01',
@@ -150,7 +149,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#1A1D20] flex flex-col antialiased">
-      {/* 1. HERO SECTION */}
       <section className="relative isolate overflow-hidden border-b border-[#E5E0D8] bg-gradient-to-br from-sky-100 via-cyan-50 to-sky-100 px-4 py-8 lg:px-8 lg:py-12">
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
           <div className="absolute inset-0 bg-gradient-to-br from-sky-100/70 via-cyan-50/40 to-sky-200/70" />
@@ -159,15 +157,13 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)] lg:gap-12">
           <div className="space-y-5">
-          {/* Top Badge & Mission Indicator */}
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="bg-[#FAF7F2] border border-[#E5E0D8] text-[#1A1D20] px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-[#1E3A8A]"></span>
-              SIH26084 prototype · Not an official warning service
+              VayuGati nowcast dashboard · Not an official warning service
             </span>
           </div>
 
-          {/* Main Headline */}
           <div className="max-w-3xl space-y-3">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#1A1D20] leading-tight">
               Severe weather,{' '}
@@ -198,12 +194,12 @@ export default function LandingPage() {
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-sky-950/35" aria-hidden="true" />
             <div className="relative flex h-full min-h-[250px] flex-col items-center justify-center text-center sm:min-h-[290px]">
               <div className="absolute left-0 top-0 flex flex-col items-start text-left text-sm font-medium leading-tight text-white/90">
-                <time dateTime={istNow.toISOString()}>{istTime}</time>
+                <time dateTime={indiaTimeNow.toISOString()}>{istTime}</time>
                 <span>{istDate}</span>
               </div>
               <button
                 type="button"
-                onClick={() => setLocationRequestVersion((version) => version + 1)}
+                onClick={() => setLocationRefreshCounter((version) => version + 1)}
                 title="Use your current location"
                 aria-label="Retry current location"
                 className="absolute right-0 top-0 inline-flex max-w-[45%] items-center gap-1 truncate text-right text-sm font-semibold text-white/95 hover:text-white"
@@ -226,7 +222,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 2. PUBLIC FEED STATUS & IMAGERY PREVIEW */}
       <section id="live-radar" className="max-w-7xl mx-auto w-full px-4 lg:px-8 py-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
           <div>
@@ -249,7 +244,6 @@ export default function LandingPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 items-start gap-5">
-          {/* Radar Reflectivity Preview Card */}
           <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E5E0D8] rounded-xl p-5 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between border-b border-[#E5E0D8] pb-3">
               <div>
