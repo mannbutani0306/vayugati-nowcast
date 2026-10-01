@@ -1,25 +1,81 @@
+<div align="center">
+
 # VayuGati Nowcast — Convective Weather Intelligence for India
 
-### Real-data precipitation analysis, six-hour scenario nowcasting, and hazard review (SIH26084)
+### Real-data precipitation analysis, six-hour scenario nowcasting, and hazard review
 
-**Live Demo:** [https://vayugati-nowcast.vercel.app/](https://vayugati-nowcast.vercel.app/)
+**Smart India Hackathon 2026 · Problem Statement SIH26084 · Ministry of Earth Sciences (MoES)**
+*Convective Scale Nowcasting for Thunderstorms, Hail & Cloudbursts (0–6 hr)*
+**Team TRIKAAL · Team ID 137710**
 
-Problem Statement ID - SIH26084.
+*VayuGati (वायुगति) — "wind speed"*
 
-Problem Statement Title - Convective scale nowcasting for Thunderstorms, Hail & Cloudbursts (06 hr).
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-vayugati--nowcast.vercel.app-0A66C2?style=for-the-badge&logo=vercel&logoColor=white)](https://vayugati-nowcast.vercel.app/)
+[![Demo Video](https://img.shields.io/badge/Walkthrough-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/LyKIljgVgBU)
 
-Theme - Disaster Management,PS Category - Software
+![SIH 2026](https://img.shields.io/badge/SIH-2026-FF9933?style=flat-square)
+![Problem Statement](https://img.shields.io/badge/PS-SIH26084-138808?style=flat-square)
+![Status](https://img.shields.io/badge/status-research%20prototype-orange?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-Leaflet-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
-**VayuGati Nowcast** is a research and decision-support prototype for convective-weather monitoring. It brings together live model guidance, locally archived satellite precipitation, optional satellite and radar imagery, hazard-analysis services, and role-based review dashboards. Its target horizon is 0–6 hours, with explicit labels distinguishing archived observations, model guidance, configured observations, and scenario/demo data.
+</div>
 
-Thunderstorms, hail, cloudbursts, intense rainfall, and lightning can create fast-moving risks, especially in mountainous terrain. VayuGati makes available data and its limitations visible in one workflow: historical Leh rainfall can be replayed from real NASA GPM IMERG files, while forecast tracks and hazard layers are clearly identified when they are scenarios rather than observed weather.
+---
 
-1. **Pillar 1: Convective nowcast and hazard review (0–6 h)** — Dense optical-flow processing, forecast track cones, and hazard heads support exploratory assessment of hail, downburst, cloudburst, lightning density, rainfall anomalies, and convective initiation. Six-hour scenario tracks are not represented as verified six-hour forecasts.
-2. **Pillar 2: Real-data case analysis and review** — The Data Lab reads archived half-hourly GPM IMERG V07 rainfall for two Leh cases. Source status, timestamps, coverage, and missing-data states are surfaced so reviewers can distinguish real archived products from simulated or unavailable feeds.
+Every early warning for a thunderstorm, hailstorm, downburst or cloudburst depends on seeing a storm
+before it arrives. In India that gap is real: NWP models resolve ~11–25 km while these storms act at
+1–10 km over 15–180 minutes. VayuGati Nowcast is a research and decision-support prototype that
+fuses live model guidance, locally archived satellite precipitation, optional radar/satellite imagery,
+and hazard-analysis services into one role-based review workflow — with every field labelled by what
+it actually is: archived observation, model guidance, configured feed, or scenario/demo data.
+
+## Quick links
+
+| | |
+|---|---|
+| 🌐 **Live demo** | [vayugati-nowcast.vercel.app](https://vayugati-nowcast.vercel.app/) |
+| 🎬 **Prototype walkthrough** (video) | [youtu.be/LyKIljgVgBU](https://youtu.be/LyKIljgVgBU) |
+| 📊 **Idea deck** (SIH format) | [`deliverables/deck/SIH26084_TRIKAAL_VAYUGATI-NOWCAST_PPT.pdf`](deliverables/deck/SIH26084_TRIKAAL_VAYUGATI-NOWCAST_PPT.pdf) |
+| 📘 **Project report** | [`deliverables/report/VAYUGATI_NOWCAST_SIH26084_Report.pdf`](deliverables/report/VAYUGATI_NOWCAST_SIH26084_Report.pdf) · [Google Drive mirror](https://drive.google.com/drive/folders/1LXmui8BvleWookqvVvavCsYsHd2yto1c?usp=sharing) |
+| 🧪 **Verification report** | [`verification/VERIFICATION_REPORT.md`](verification/VERIFICATION_REPORT.md) |
+| 🛰 **Real-data verification results** | [`verification/real_results.json`](verification/real_results.json) |
+| 📚 **Primary case citation** | Bhan, Devrani & Sinha (2015), *MAUSAM* 66(1) — [article](https://mausamjournal.imd.gov.in/index.php/MAUSAM/article/view/371/290) |
 
 > **Status: working research prototype.** The repository includes real archived GPM IMERG V07 files for Leh case studies and uses Open-Meteo for live model guidance when available. INSAT scenes and authorized IMD radar/lightning integrations are optional and may require local files, credentials, or feed configuration. Scenario/demo fields are labeled; this is not an official warning service.
 
-## Unified Architecture
+## Table of contents
+
+- [Results at a glance](#results-at-a-glance)
+- [Unified architecture](#unified-architecture)
+- [Quickstart](#quickstart)
+- [Five-minute judge demo](#five-minute-judge-demo)
+- [Data sources — India first](#data-sources--india-first)
+- [Roadmap — the 8 phases](#roadmap--the-8-phases)
+- [Verification headline](#verification-headline)
+- [Honest caveats](#honest-caveats)
+- [Repository map](#repository-map)
+- [References](#references)
+- [License](#license)
+
+## Results at a glance
+
+Measured, not claimed — every number below is reproducible from `verification/` and is reported even
+where VayuGati ties or loses to the baseline, not just where it wins.
+
+| Check | What it tests | VayuGati | Baseline (persistence) |
+|---|---|---:|---:|
+| **Real-data: Leh 2010 cloudburst**, 60 min, 1 mm/h (NASA GPM IMERG) | Satellite-archived precipitation, the actual 5 Aug 2010 Leh event | CSI **0.423** | CSI 0.424 (near-tie) |
+| **Real-data: Leh 2011 control case**, 60 min, 1 mm/h (NASA GPM IMERG) | Same method, a day with no reported impact | CSI **0.443** | CSI 0.443 (tie) |
+| **Synthetic: fast squall line**, 60 min | Deterministic motion reconstruction, 20 seeds | CSI **0.866** | CSI 0.018 |
+| **Synthetic: orographic quasi-stationary**, 60 min | Slow terrain-locked storm, 20 seeds | CSI **0.905** | CSI 0.802 |
+
+Full tables, thresholds and every lead time: [`verification/VERIFICATION_REPORT.md`](verification/VERIFICATION_REPORT.md) (synthetic) and [`verification/real_results.json`](verification/real_results.json) (real archived IMERG). The real-data checks are satellite-vs-satellite comparisons at ~10 km, not independent radar truth — see [Honest caveats](#honest-caveats) below.
+
+## Unified architecture
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
@@ -108,7 +164,7 @@ The first command evaluates deterministic synthetic motion cases. The second eva
 
 ## Five-minute judge demo
 
-1. **Start the app** — Visit the Live Vercel Deployment or run locally with docker compose up --build / npm run dev and open http://localhost:3000.
+1. **Start the app** — Visit the Live Vercel Deployment or run locally with `docker compose up --build` / `npm run dev` and open http://localhost:3000.
 2. **Inspect available sources** — Open Data Sources and review which inputs are live, archived, configured, simulated, or awaiting data. Open-Meteo is model guidance, not a direct observation.
 3. **Replay a real case** — In Data Lab, select a Leh IMERG case and inspect the half-hourly precipitation frames and source timestamps. The bundled cases cover 2010-08-05 through 2010-08-06 06:00 UTC and 2011-07-25 through 18:00 UTC.
 4. **Review the nowcast dashboard** — Open the officer map and inspect the current cell, hazard layers, forecast lead times, and each feature's source/status metadata. Without an authorized observed feed, scenario output remains explicitly labeled as scenario data.
@@ -125,7 +181,7 @@ The first command evaluates deterministic synthetic motion cases. The second eva
 | MOSDAC / INSAT-3DR | Optional local TIR1 GeoTIFF scene preview and metadata | Requires authorized scenes in `data/mosdac/`. Temperature interpretation is withheld unless units/calibration are declared. The public image endpoint is not treated as a calibrated, georeferenced feed. |
 | IMD Doppler Weather Radar | Configurable georeferenced WMS/XYZ tile metadata; observed-cell ingestion can be configured | Requires valid feed URL and bounds, and authorized access for observation ingestion. A public radar GIF is image-only and is not silently georeferenced. |
 | Lightning feed | Configurable lightning observations and hazard analysis | External feed availability/configuration is required; generated demo points are not real strikes. |
-| Published Leh case study | Event chronology and climatological context for the 2010 Leh cloudburst | Bhan, S.C., Devrani, A.K., and Sinha, V. (2015), “An analysis of monthly rainfall and the meteorological conditions associated with cloudburst over the dry region of Leh (Ladakh), India,” *MAUSAM*, 66(1), 107–122. This is documented case context, not a gridded observation feed. |
+| Published Leh case study | Event chronology and climatological context for the 2010 Leh cloudburst | Bhan, S.C., Devrani, A.K., and Sinha, V. (2015), "An analysis of monthly rainfall and the meteorological conditions associated with cloudburst over the dry region of Leh (Ladakh), India," *MAUSAM*, 66(1), 107–122. This is documented case context, not a gridded observation feed. |
 
 The real-data workflow does not fetch institutional archives automatically. Users must obtain restricted products from their authorized providers and follow the product's applicable access and redistribution terms. The app reports unavailable inputs instead of treating placeholders as observations.
 
@@ -167,6 +223,54 @@ The real-data workflow does not fetch institutional archives automatically. User
 - **Resolution and calibration matter.** IMERG's native grid is approximately 0.1°; raw INSAT TIR1 values are not converted to brightness temperature without suitable calibration metadata.
 - **Data rights apply.** Check NASA/GES DISC, MOSDAC, and other providers' terms for each product before redistribution.
 
+## Repository map
+
+```text
+backend/
+  nowcast_engine.py       FastAPI app, REST /api/v1 routes
+  ingestion/               Open-Meteo, IMERG, MOSDAC, radar, lightning adapters
+  nowcast/                 Dense Farneback optical flow
+  hazards/                 Hail, downburst, cloudburst, lightning density, initiation, rain anomaly
+  ml/                       Gradient-boosting severity model, SHAP explainability, event catalogue
+data/
+  imerg_halfhourly/         Real NASA GPM IMERG V07 HDF5 — Leh 2010 & 2011
+  imerg_monthly/            Giovanni monthly-mean context CSV
+  mosdac/                   Local INSAT-3DR TIR1 GeoTIFF scenes
+deliverables/
+  deck/                     SIH idea deck (PDF)
+  report/                   Project report (PDF)
+verification/
+  run_case_studies.py       Synthetic motion-reconstruction harness (6 regimes, 20 seeds)
+  imerg_case_verification.py Real-data IMERG-vs-persistence harness
+  real_cases/                Leh 2010 / 2011 documented case facts (Bhan et al., 2015)
+  VERIFICATION_REPORT.md     Full synthetic + real results
+  real_results.json          Full real-data results (machine-readable)
+src/
+  pages/                    Landing, Officer, Citizen, Admin, Data Lab, Data Sources
+  components/                Alert review queue, SHAP card, data-status badges, VayuGati Saarthi
+supabase/migrations/        CAP alert lifecycle, audit log, RLS, hazard heads schema
+scripts/                     Verification runners, README table renderer, final acceptance check
+```
+
+## References
+
+- Bhan, S.C., Devrani, A.K., Sinha, V. (2015). "An analysis of monthly rainfall and the meteorological conditions associated with cloudburst over the dry region of Leh (Ladakh), India." *MAUSAM* 66(1), 107–122. [Article](https://mausamjournal.imd.gov.in/index.php/MAUSAM/article/view/371/290)
+- NASA GPM IMERG Final Run V07 — https://gpm.nasa.gov/data/directory
+- NASA GES DISC / Giovanni — https://giovanni.gsfc.nasa.gov/giovanni/
+- MOSDAC (ISRO), INSAT-3D/3DR — https://mosdac.gov.in/
+- IMD MAUSAM / observation services — https://mausam.imd.gov.in/
+- NDMA Lightning Guidelines (2020) — https://ndma.gov.in/
+- OASIS Common Alerting Protocol v1.2 — https://docs.oasis-open.org/emergency/cap/v1.2/CAP-v1.2-os.html
+- NCRB, Accidental Deaths & Suicides in India (ADSI) — https://www.ncrb.gov.in/
+
+## License
+
+Released under the [MIT License](LICENSE) © 2026 mannbutani0306. Third-party datasets (NASA GPM IMERG, MOSDAC/INSAT, IMD) remain subject to their providers' own terms — see [Honest caveats](#honest-caveats).
+
 ---
 
-*VayuGati Nowcast — Convective Scale Nowcasting for Thunderstorms, Hail & Cloudbursts · SIH26084 · Disaster Management · Software.*
+<div align="center">
+
+*VayuGati Nowcast — Convective Scale Nowcasting for Thunderstorms, Hail & Cloudbursts · SIH26084 · Disaster Management · Software · Team TRIKAAL · Team ID 137710*
+
+</div>
