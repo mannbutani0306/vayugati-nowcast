@@ -33,7 +33,7 @@ fuses live model guidance, locally archived satellite precipitation, optional ra
 and hazard-analysis services into one role-based review workflow — with every field labelled by what
 it actually is: archived observation, model guidance, configured feed, or scenario/demo data.
 
-## Quick links
+## Quick Links
 
 | | |
 |---|---|
