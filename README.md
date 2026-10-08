@@ -39,7 +39,7 @@ it actually is: archived observation, model guidance, configured feed, or scenar
 |---|---|
 | 🌐 **Live demo** | [vayugati-nowcast.vercel.app](https://vayugati-nowcast.vercel.app/) |
 | 🎬 **Prototype walkthrough** (video) | [youtu.be/LyKIljgVgBU](https://youtu.be/LyKIljgVgBU) |
-| 📊 **Idea deck** (SIH format) | [SIH26084_TRIKAAL_VAYUGATI-NOWCAST_PPT.pdf](https://github.com/mannbutani0306/vayugati-nowcast/blob/main/deliverables/deck/SIH26084_TRIKAAL_VAYUGATI-NOWCAST_PPT.pdf) |
+| 📊 **Idea deck** (SIH format) | [SIH26084_TRIKAAL_VAYUGATI-NOWCAST_PPT.pdf](sha256:48b9d0c4a9678f04f1b1934f24b385f521016d04e667e13204ae72a9dcf1b7bc) |
 | 📘 **Project report** | [VAYUGATI_NOWCAST_SIH26084_Report.pdf](https://github.com/mannbutani0306/vayugati-nowcast/blob/main/deliverables/report/VAYUGATI_NOWCAST_SIH26084_Report.pdf) · [Google Drive mirror](https://drive.google.com/drive/folders/1LXmui8BvleWookqvVvavCsYsHd2yto1c?usp=sharing) |
 | 🧪 **Verification report** | [`verification/VERIFICATION_REPORT.md`](verification/VERIFICATION_REPORT.md) |
 | 🛰 **Real-data verification results** | [`verification/real_results.json`](verification/real_results.json) |
